@@ -45,12 +45,15 @@ function App() {
   }
 
   const user = session.user;
+  const username = user.email?.split("@")[0] || "Kullanıcı";
 
   return (
     <AppLayout activePage={activePage} onNavigate={setActivePage}>
       {activePage === PAGE_IDS.MAP && <MapPage userId={user.id} />}
 
-      {activePage === PAGE_IDS.LIST && <ListPage />}
+      {activePage === PAGE_IDS.LIST && (
+        <ListPage username={username} />
+      )}
 
       {activePage === PAGE_IDS.PROFILE && (
         <ProfilePage user={user} onLogout={handleLogout} />

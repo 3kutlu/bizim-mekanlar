@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { supabase } from "./supabase.js";
 import "./css/map-page.css";
 
 const ankaraCenter = {
@@ -22,6 +23,72 @@ const ankaraCenter = {
 
 const cleanText = (value) => String(value ?? "").trim();
 
+async function findOrCreatePlace(selectedPlace) {
+  const googlePlaceId = cleanText(selectedPlace?.id);
+  const name = cleanText(selectedPlace?.name);
+  const address = cleanText(selectedPlace?.address);
+
+  const latitude = Number(selectedPlace?.location?.lat);
+  const longitude = Number(selectedPlace?.location?.lng);
+
+  if (
+    !googlePlaceId ||
+    !name ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    throw new Error("Mekan bilgileri eksik veya geçersiz.");
+  }
+
+  const { data: existingPlace, error: findError } = await supabase
+    .from("places")
+    .select("id")
+    .eq("google_place_id", googlePlaceId)
+    .maybeSingle();
+
+  if (findError) {
+    throw findError;
+  }
+
+  if (existingPlace?.id) {
+    return existingPlace.id;
+  }
+
+  const { data: insertedPlace, error: insertError } = await supabase
+    .from("places")
+    .insert({
+      google_place_id: googlePlaceId,
+      name,
+      address: address || null,
+      latitude,
+      longitude,
+    })
+    .select("id")
+    .single();
+
+  if (!insertError) {
+    return insertedPlace.id;
+  }
+
+  // Aynı mekan başka bir kullanıcı tarafından aynı anda eklenirse
+  // unique constraint hatası alabiliriz. Tekrar okuyup devam ediyoruz.
+  if (insertError.code === "23505") {
+    const { data: concurrentPlace, error: retryError } = await supabase
+      .from("places")
+      .select("id")
+      .eq("google_place_id", googlePlaceId)
+      .single();
+
+    if (retryError) {
+      throw retryError;
+    }
+
+    return concurrentPlace.id;
+  }
+
+  throw insertError;
+}
+
 function MapPage() {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
@@ -29,6 +96,11 @@ function MapPage() {
   const [userLocation, setUserLocation] = useState(null);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [locationMessage, setLocationMessage] = useState("");
+
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteSaveError, setNoteSaveError] = useState("");
 
   const locationMessageTimerRef = useRef(null);
   const hasShownLocationIssueRef = useRef(false);
@@ -72,9 +144,7 @@ function MapPage() {
         "Tarayıcın konum özelliğini desteklemiyor."
       );
 
-      return () => {
-        clearLocationMessage();
-      };
+      return () => clearLocationMessage();
     }
 
     const watchId = navigator.geolocation.watchPosition(
@@ -135,6 +205,9 @@ function MapPage() {
 
   const handlePlaceSelected = useCallback((place) => {
     setSelectedPlace(place);
+    setIsNoteModalOpen(false);
+    setNoteDraft("");
+    setNoteSaveError("");
   }, []);
 
   const goToSelectedPlace = useCallback(() => {
@@ -145,6 +218,71 @@ function MapPage() {
     mapRef.current.panTo(selectedPlace.location);
     mapRef.current.setZoom(17);
   }, [selectedPlace]);
+
+  const openNoteModal = () => {
+    if (!selectedPlace) {
+      return;
+    }
+
+    setNoteDraft("");
+    setNoteSaveError("");
+    setIsNoteModalOpen(true);
+  };
+
+  const closeNoteModal = () => {
+    if (isSavingNote) {
+      return;
+    }
+
+    setIsNoteModalOpen(false);
+    setNoteDraft("");
+    setNoteSaveError("");
+  };
+
+  const saveNoteDraft = async () => {
+    const note = cleanText(noteDraft);
+
+    if (!note || !selectedPlace || isSavingNote) {
+      return;
+    }
+
+    setIsSavingNote(true);
+    setNoteSaveError("");
+
+    try {
+      const placeId = await findOrCreatePlace(selectedPlace);
+
+      const { error: noteError } = await supabase
+        .from("place_notes")
+        .insert({
+          place_id: placeId,
+          note,
+        });
+
+      if (noteError) {
+        throw noteError;
+      }
+
+      console.log("NOT SUPABASE'E KAYDEDILDI:", {
+        placeId,
+        place: selectedPlace,
+        note,
+      });
+
+      setIsNoteModalOpen(false);
+      setNoteDraft("");
+    } catch (error) {
+      console.error("Not kaydedilirken hata oluştu:", error);
+
+      const code = error?.code ? ` (${error.code})` : "";
+
+      setNoteSaveError(
+        `Not kaydedilemedi${code}. Konsoldaki hata detayını kontrol et.`
+      );
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
 
   if (!apiKey) {
     return <p>Google Maps API key bulunamadı.</p>;
@@ -190,9 +328,22 @@ function MapPage() {
               selectedPlace={selectedPlace}
               cardRef={selectedPlaceCardRef}
               onTitleClick={goToSelectedPlace}
+              onAddNote={openNoteModal}
             />
           )}
         </div>
+
+        {isNoteModalOpen && selectedPlace && (
+          <AddNoteModal
+            placeName={selectedPlace.name}
+            noteDraft={noteDraft}
+            isSaving={isSavingNote}
+            saveError={noteSaveError}
+            onNoteChange={setNoteDraft}
+            onCancel={closeNoteModal}
+            onSave={saveNoteDraft}
+          />
+        )}
       </APIProvider>
     </section>
   );
@@ -385,7 +536,6 @@ function PlaceSearch({ onPlaceSelected }) {
         }
 
         console.error("Autocomplete isteği başarısız:", error);
-
         setSuggestions([]);
         setErrorMessage("Arama sonuçları alınamadı.");
       } finally {
@@ -395,9 +545,7 @@ function PlaceSearch({ onPlaceSelected }) {
       }
     }, 250);
 
-    return () => {
-      window.clearTimeout(timer);
-    };
+    return () => window.clearTimeout(timer);
   }, [query, placesLibrary]);
 
   useEffect(() => {
@@ -423,7 +571,6 @@ function PlaceSearch({ onPlaceSelected }) {
       });
 
       if (!place.location || !map) {
-        console.warn("Seçilen mekanın konumu bulunamadı.", place);
         return;
       }
 
@@ -448,7 +595,6 @@ function PlaceSearch({ onPlaceSelected }) {
 
       setQuery(selectedPlace.name);
       setSuggestions([]);
-
       onPlaceSelected(selectedPlace);
 
       sessionTokenRef.current =
@@ -518,7 +664,12 @@ function PlaceSearch({ onPlaceSelected }) {
   );
 }
 
-function SelectedPlaceCard({ selectedPlace, cardRef, onTitleClick }) {
+function SelectedPlaceCard({
+  selectedPlace,
+  cardRef,
+  onTitleClick,
+  onAddNote,
+}) {
   const handleTitleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -545,14 +696,109 @@ function SelectedPlaceCard({ selectedPlace, cardRef, onTitleClick }) {
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => {
-          console.log("Seçilen mekan:", selectedPlace);
-        }}
-      >
+      <button type="button" onClick={onAddNote}>
         Bu mekana not ekle
       </button>
+    </div>
+  );
+}
+
+function AddNoteModal({
+  placeName,
+  noteDraft,
+  isSaving,
+  saveError,
+  onNoteChange,
+  onCancel,
+  onSave,
+}) {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape" && !isSaving) {
+      onCancel();
+    }
+  };
+
+  const handleBackdropMouseDown = (event) => {
+    if (!isSaving && event.target === event.currentTarget) {
+      onCancel();
+    }
+  };
+
+  const canSave = Boolean(cleanText(noteDraft));
+
+  return (
+    <div
+      className="note-modal-backdrop"
+      role="presentation"
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <section
+        className="note-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="note-modal-title"
+        onKeyDown={handleKeyDown}
+      >
+        <h2 id="note-modal-title">{placeName}</h2>
+
+        <textarea
+          ref={textareaRef}
+          className="note-modal-textarea"
+          value={noteDraft}
+          disabled={isSaving}
+          onChange={(event) => onNoteChange(event.target.value)}
+          placeholder="Bu mekan hakkında ne düşünüyorsun?"
+          aria-label="Mekan notu"
+          maxLength={1000}
+        />
+
+        {saveError && (
+          <p
+            role="alert"
+            style={{
+              margin: "-8px 0 0",
+              color: "#ffb4b4",
+              fontSize: "13px",
+              lineHeight: 1.4,
+            }}
+          >
+            {saveError}
+          </p>
+        )}
+
+        <div className="note-modal-actions">
+          <button
+            type="button"
+            className="note-modal-cancel"
+            disabled={isSaving}
+            onClick={onCancel}
+          >
+            İptal
+          </button>
+
+          <button
+            type="button"
+            className="note-modal-save"
+            disabled={!canSave || isSaving}
+            onClick={onSave}
+          >
+            {isSaving ? "Kaydediliyor..." : "Kaydet"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
