@@ -36,6 +36,8 @@ function MapPage() {
   const selectedPlaceCardRef = useRef(null);
   const [selectedPlaceCardHeight, setSelectedPlaceCardHeight] = useState(0);
 
+  const mapRef = useRef(null);
+
   const clearLocationMessage = useCallback(() => {
     if (locationMessageTimerRef.current) {
       window.clearTimeout(locationMessageTimerRef.current);
@@ -70,7 +72,9 @@ function MapPage() {
         "Tarayıcın konum özelliğini desteklemiyor."
       );
 
-      return () => clearLocationMessage();
+      return () => {
+        clearLocationMessage();
+      };
     }
 
     const watchId = navigator.geolocation.watchPosition(
@@ -133,6 +137,15 @@ function MapPage() {
     setSelectedPlace(place);
   }, []);
 
+  const goToSelectedPlace = useCallback(() => {
+    if (!mapRef.current || !selectedPlace?.location) {
+      return;
+    }
+
+    mapRef.current.panTo(selectedPlace.location);
+    mapRef.current.setZoom(17);
+  }, [selectedPlace]);
+
   if (!apiKey) {
     return <p>Google Maps API key bulunamadı.</p>;
   }
@@ -154,6 +167,8 @@ function MapPage() {
             disableDefaultUI={true}
             className="google-map"
           >
+            <MapReference mapRef={mapRef} />
+
             <InitialLocationFocus userLocation={userLocation} />
 
             <PlaceSearch onPlaceSelected={handlePlaceSelected} />
@@ -171,32 +186,32 @@ function MapPage() {
           </Map>
 
           {selectedPlace && (
-            <div
-              ref={selectedPlaceCardRef}
-              className="selected-place-card"
-            >
-              <div className="selected-place-copy">
-                <strong>{selectedPlace.name}</strong>
-
-                {selectedPlace.address && (
-                  <span>{selectedPlace.address}</span>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  console.log("Seçilen mekan:", selectedPlace);
-                }}
-              >
-                Bu mekana not ekle
-              </button>
-            </div>
+            <SelectedPlaceCard
+              selectedPlace={selectedPlace}
+              cardRef={selectedPlaceCardRef}
+              onTitleClick={goToSelectedPlace}
+            />
           )}
         </div>
       </APIProvider>
     </section>
   );
+}
+
+function MapReference({ mapRef }) {
+  const map = useMap();
+
+  useEffect(() => {
+    mapRef.current = map;
+
+    return () => {
+      if (mapRef.current === map) {
+        mapRef.current = null;
+      }
+    };
+  }, [map, mapRef]);
+
+  return null;
 }
 
 function InitialLocationFocus({ userLocation }) {
@@ -380,8 +395,18 @@ function PlaceSearch({ onPlaceSelected }) {
       }
     }, 250);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [query, placesLibrary]);
+
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current) {
+        window.clearTimeout(blurTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSelect = async (suggestion) => {
     try {
@@ -489,6 +514,45 @@ function PlaceSearch({ onPlaceSelected }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function SelectedPlaceCard({ selectedPlace, cardRef, onTitleClick }) {
+  const handleTitleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onTitleClick();
+    }
+  };
+
+  return (
+    <div ref={cardRef} className="selected-place-card">
+      <div className="selected-place-copy">
+        <strong
+          className="selected-place-title"
+          role="button"
+          tabIndex={0}
+          title="Mekanı haritada göster"
+          onClick={onTitleClick}
+          onKeyDown={handleTitleKeyDown}
+        >
+          {selectedPlace.name}
+        </strong>
+
+        {selectedPlace.address && (
+          <span>{selectedPlace.address}</span>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          console.log("Seçilen mekan:", selectedPlace);
+        }}
+      >
+        Bu mekana not ekle
+      </button>
     </div>
   );
 }
