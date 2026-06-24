@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AdvancedMarker,
   APIProvider,
+  Circle,
   Map,
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import "./css/map-page.css";
 
 const ankaraCenter = {
@@ -24,6 +32,9 @@ function MapPage() {
 
   const locationMessageTimerRef = useRef(null);
   const hasShownLocationIssueRef = useRef(false);
+
+  const selectedPlaceCardRef = useRef(null);
+  const [selectedPlaceCardHeight, setSelectedPlaceCardHeight] = useState(0);
 
   const clearLocationMessage = useCallback(() => {
     if (locationMessageTimerRef.current) {
@@ -59,9 +70,7 @@ function MapPage() {
         "Tarayıcın konum özelliğini desteklemiyor."
       );
 
-      return () => {
-        clearLocationMessage();
-      };
+      return () => clearLocationMessage();
     }
 
     const watchId = navigator.geolocation.watchPosition(
@@ -69,6 +78,7 @@ function MapPage() {
         setUserLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
         });
 
         clearLocationMessage();
@@ -96,6 +106,28 @@ function MapPage() {
       clearLocationMessage();
     };
   }, [clearLocationMessage, showInitialLocationIssue]);
+
+  useLayoutEffect(() => {
+    if (!selectedPlace || !selectedPlaceCardRef.current) {
+      setSelectedPlaceCardHeight(0);
+      return undefined;
+    }
+
+    const card = selectedPlaceCardRef.current;
+
+    const updateCardHeight = () => {
+      setSelectedPlaceCardHeight(
+        Math.ceil(card.getBoundingClientRect().height)
+      );
+    };
+
+    updateCardHeight();
+
+    const observer = new ResizeObserver(updateCardHeight);
+    observer.observe(card);
+
+    return () => observer.disconnect();
+  }, [selectedPlace]);
 
   const handlePlaceSelected = useCallback((place) => {
     setSelectedPlace(place);
@@ -126,15 +158,23 @@ function MapPage() {
 
             <PlaceSearch onPlaceSelected={handlePlaceSelected} />
 
+            <UserLocationMarker userLocation={userLocation} />
+
+            <SelectedPlaceMarker selectedPlace={selectedPlace} />
+
             <MapBottomControls
               userLocation={userLocation}
               locationMessage={locationMessage}
+              selectedPlaceCardHeight={selectedPlaceCardHeight}
               hasSelectedPlace={Boolean(selectedPlace)}
             />
           </Map>
 
           {selectedPlace && (
-            <div className="selected-place-card">
+            <div
+              ref={selectedPlaceCardRef}
+              className="selected-place-card"
+            >
               <div className="selected-place-copy">
                 <strong>{selectedPlace.name}</strong>
 
@@ -175,6 +215,74 @@ function InitialLocationFocus({ userLocation }) {
   }, [map, userLocation]);
 
   return null;
+}
+
+function UserLocationMarker({ userLocation }) {
+  if (!userLocation) {
+    return null;
+  }
+
+  const position = {
+    lat: userLocation.lat,
+    lng: userLocation.lng,
+  };
+
+  const accuracy =
+    Number.isFinite(userLocation.accuracy) && userLocation.accuracy > 0
+      ? userLocation.accuracy
+      : null;
+
+  return (
+    <>
+      {accuracy && (
+        <Circle
+          center={position}
+          radius={accuracy}
+          fillColor="#4285F4"
+          fillOpacity={0.12}
+          strokeColor="#4285F4"
+          strokeOpacity={0.18}
+          strokeWeight={1}
+          clickable={false}
+          zIndex={1}
+        />
+      )}
+
+      <AdvancedMarker
+        position={position}
+        anchorLeft="-50%"
+        anchorTop="-50%"
+        zIndex={50}
+        clickable={false}
+        title="Konumun"
+      >
+        <div className="user-location-marker" aria-hidden="true">
+          <span className="user-location-dot" />
+        </div>
+      </AdvancedMarker>
+    </>
+  );
+}
+
+function SelectedPlaceMarker({ selectedPlace }) {
+  if (!selectedPlace?.location) {
+    return null;
+  }
+
+  return (
+    <AdvancedMarker
+      position={selectedPlace.location}
+      anchorLeft="-50%"
+      anchorTop="-50%"
+      zIndex={60}
+      clickable={false}
+      title={`Seçilen mekan: ${selectedPlace.name}`}
+    >
+      <div className="selected-place-marker" aria-hidden="true">
+        🚩
+      </div>
+    </AdvancedMarker>
+  );
 }
 
 function PlaceSearch({ onPlaceSelected }) {
@@ -272,9 +380,7 @@ function PlaceSearch({ onPlaceSelected }) {
       }
     }, 250);
 
-    return () => {
-      window.clearTimeout(timer);
-    };
+    return () => window.clearTimeout(timer);
   }, [query, placesLibrary]);
 
   const handleSelect = async (suggestion) => {
@@ -307,9 +413,6 @@ function PlaceSearch({ onPlaceSelected }) {
         address: cleanText(place.formattedAddress),
         location,
       };
-
-      console.log("RAW GOOGLE PLACE:", place.toJSON());
-      console.log("CLEAN SELECTED PLACE:", selectedPlace);
 
       if (place.viewport) {
         map.fitBounds(place.viewport);
@@ -394,6 +497,7 @@ function MapBottomControls({
   userLocation,
   locationMessage,
   hasSelectedPlace,
+  selectedPlaceCardHeight,
 }) {
   const map = useMap();
 
@@ -411,6 +515,13 @@ function MapBottomControls({
       className={`map-bottom-controls${
         hasSelectedPlace ? " map-bottom-controls-with-card" : ""
       }`}
+      style={
+        hasSelectedPlace
+          ? {
+              "--selected-place-card-height": `${selectedPlaceCardHeight}px`,
+            }
+          : undefined
+      }
     >
       {locationMessage && (
         <div className="location-message" role="status">
