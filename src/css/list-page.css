@@ -1,0 +1,28 @@
+/* LIST PAGE */
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  padding: 28px;
+  text-align: center;
+  border: 1px dashed #353b47;
+  border-radius: 20px;
+  color: #a8b0c0;
+}
+
+.empty-state h2 {
+  margin: 10px 0 0;
+  color: #f4f5f7;
+}
+
+.empty-state p {
+  max-width: 320px;
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.empty-icon {
+  font-size: 42px;
+  color: #c5d5ff;
+}

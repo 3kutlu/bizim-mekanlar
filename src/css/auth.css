@@ -1,0 +1,99 @@
+/* AUTH */
+
+.loading-screen,
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 390px;
+  padding: 32px;
+  border: 1px solid #2a2e38;
+  border-radius: 20px;
+  background: #15181f;
+}
+
+.brand-small,
+.eyebrow {
+  margin: 0 0 10px;
+  color: #9ea7b9;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.auth-card h1,
+.page-heading h1,
+.profile-card h1 {
+  margin: 0;
+  font-size: clamp(30px, 7vw, 44px);
+}
+
+.auth-description,
+.page-heading p,
+.profile-email {
+  color: #9ea7b9;
+  line-height: 1.5;
+}
+
+.auth-card label {
+  display: block;
+  margin: 18px 0 8px;
+  color: #d7dbe4;
+  font-size: 14px;
+}
+
+.auth-card input {
+  width: 100%;
+  border: 1px solid #343946;
+  border-radius: 10px;
+  padding: 13px;
+  background: #0e1116;
+  color: #fff;
+}
+
+.primary-button,
+.secondary-button,
+.logout-button {
+  width: 100%;
+  border-radius: 12px;
+  padding: 13px;
+  margin-top: 22px;
+  font-weight: 700;
+}
+
+.primary-button {
+  border: 0;
+  background: #f0f2f7;
+  color: #11131a;
+}
+
+.secondary-button {
+  border: 0;
+  background: #2a2f3a;
+  color: #fff;
+}
+
+.logout-button {
+  border: 1px solid #373d49;
+  background: transparent;
+  color: #c7ccd6;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #9cbaff;
+  margin-top: 18px;
+  padding: 0;
+}
+
+.auth-message {
+  margin: 16px 0 0;
+  color: #d6dbe7;
+  font-size: 14px;
+}

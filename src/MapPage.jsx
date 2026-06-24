@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   APIProvider,
-  AdvancedMarker,
   Map,
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
+import "./css/map-page.css";
 
 const ankaraCenter = {
   lat: 39.9334,
   lng: 32.8597,
 };
+
+const cleanText = (value) => String(value ?? "").trim();
 
 function MapPage() {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -20,10 +22,46 @@ function MapPage() {
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [locationMessage, setLocationMessage] = useState("");
 
+  const locationMessageTimerRef = useRef(null);
+  const hasShownLocationIssueRef = useRef(false);
+
+  const clearLocationMessage = useCallback(() => {
+    if (locationMessageTimerRef.current) {
+      window.clearTimeout(locationMessageTimerRef.current);
+      locationMessageTimerRef.current = null;
+    }
+
+    setLocationMessage("");
+  }, []);
+
+  const showInitialLocationIssue = useCallback(
+    (message) => {
+      if (hasShownLocationIssueRef.current) {
+        return;
+      }
+
+      hasShownLocationIssueRef.current = true;
+
+      clearLocationMessage();
+      setLocationMessage(message);
+
+      locationMessageTimerRef.current = window.setTimeout(() => {
+        setLocationMessage("");
+        locationMessageTimerRef.current = null;
+      }, 10000);
+    },
+    [clearLocationMessage]
+  );
+
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLocationMessage("Tarayıcın konum özelliğini desteklemiyor.");
-      return;
+      showInitialLocationIssue(
+        "Tarayıcın konum özelliğini desteklemiyor."
+      );
+
+      return () => {
+        clearLocationMessage();
+      };
     }
 
     const watchId = navigator.geolocation.watchPosition(
@@ -33,7 +71,7 @@ function MapPage() {
           lng: position.coords.longitude,
         });
 
-        setLocationMessage("");
+        clearLocationMessage();
       },
       (error) => {
         const messages = {
@@ -42,21 +80,22 @@ function MapPage() {
           3: "Konum isteği zaman aşımına uğradı.",
         };
 
-        setLocationMessage(
-          messages[error.code] || "Konum alınamadı."
+        showInitialLocationIssue(
+          messages[error.code] || "Konum bilgisi alınamadı."
         );
       },
       {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 3000,
+        maximumAge: 5000,
       }
     );
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
+      clearLocationMessage();
     };
-  }, []);
+  }, [clearLocationMessage, showInitialLocationIssue]);
 
   const handlePlaceSelected = useCallback((place) => {
     setSelectedPlace(place);
@@ -83,125 +122,57 @@ function MapPage() {
             disableDefaultUI={true}
             className="google-map"
           >
-            <MapController userLocation={userLocation} />
+            <InitialLocationFocus userLocation={userLocation} />
 
+            <PlaceSearch onPlaceSelected={handlePlaceSelected} />
 
-            {userLocation && (
-            <AdvancedMarker
-                position={userLocation}
-                zIndex={100}
-                anchorLeft="-50%"
-                anchorTop="-50%"
-            >
-                <div className="user-location-dot">
-                <div className="user-location-dot-inner" />
-                </div>
-            </AdvancedMarker>
-            )}
-
-            {selectedPlace?.location && (
-            <AdvancedMarker
-                position={selectedPlace.location}
-                zIndex={90}
-                anchorLeft="-50%"
-                anchorTop="-100%"
-            >
-                <div className="place-marker">●</div>
-            </AdvancedMarker>
-            )}
-
-            {selectedPlace?.location && (
-              <AdvancedMarker
-                position={selectedPlace.location}
-                zIndex={90}
-                anchorLeft="50%"
-                anchorTop="100%"
-              >
-                <div className="place-marker">●</div>
-              </AdvancedMarker>
-            )}
+            <MapBottomControls
+              userLocation={userLocation}
+              locationMessage={locationMessage}
+              hasSelectedPlace={Boolean(selectedPlace)}
+            />
           </Map>
 
-          <PlaceSearch onPlaceSelected={handlePlaceSelected} />
+          {selectedPlace && (
+            <div className="selected-place-card">
+              <div className="selected-place-copy">
+                <strong>{selectedPlace.name}</strong>
 
-          <button
-            type="button"
-            className="location-button"
-            onClick={() => {
-              if (!userLocation) return;
-              window.dispatchEvent(
-                new CustomEvent("center-user-location", {
-                  detail: userLocation,
-                })
-              );
-            }}
-            aria-label="Konumuma git"
-          >
-            ◎
-          </button>
+                {selectedPlace.address && (
+                  <span>{selectedPlace.address}</span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  console.log("Seçilen mekan:", selectedPlace);
+                }}
+              >
+                Bu mekana not ekle
+              </button>
+            </div>
+          )}
         </div>
       </APIProvider>
-
-      {selectedPlace && (
-        <div className="selected-place-card">
-          <strong>{selectedPlace.name}</strong>
-          <span>{selectedPlace.address}</span>
-
-          <button
-            type="button"
-            onClick={() => {
-              console.log("Seçilen mekan:", selectedPlace);
-            }}
-          >
-            Bu mekana not ekle
-          </button>
-        </div>
-      )}
-
-      {locationMessage && (
-        <div className="location-message">{locationMessage}</div>
-      )}
     </section>
   );
 }
 
-function MapController({ userLocation }) {
+function InitialLocationFocus({ userLocation }) {
   const map = useMap();
-  const hasInitialCentered = useRef(false);
+  const hasFocusedRef = useRef(false);
 
   useEffect(() => {
-    if (!map || !userLocation || hasInitialCentered.current) return;
+    if (!map || !userLocation || hasFocusedRef.current) {
+      return;
+    }
 
     map.panTo(userLocation);
     map.setZoom(16);
 
-    hasInitialCentered.current = true;
+    hasFocusedRef.current = true;
   }, [map, userLocation]);
-
-  useEffect(() => {
-    if (!map) return;
-
-    const handleCenterUserLocation = (event) => {
-      const location = event.detail;
-
-      if (!location) return;
-
-      map.panTo(location);
-      map.setZoom(16);
-    };
-
-    window.addEventListener(
-      "center-user-location",
-      handleCenterUserLocation
-    );
-
-    return () => {
-      window.removeEventListener(
-        "center-user-location",
-        handleCenterUserLocation
-      );
-    };
-  }, [map]);
 
   return null;
 }
@@ -209,74 +180,259 @@ function MapController({ userLocation }) {
 function PlaceSearch({ onPlaceSelected }) {
   const map = useMap();
   const placesLibrary = useMapsLibrary("places");
-  const autocompleteContainerRef = useRef(null);
+
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const sessionTokenRef = useRef(null);
+  const requestIdRef = useRef(0);
+  const blurTimerRef = useRef(null);
 
   useEffect(() => {
-    if (!placesLibrary || !autocompleteContainerRef.current) return;
+    if (!placesLibrary) {
+      return;
+    }
 
-    const autocomplete = new placesLibrary.PlaceAutocompleteElement();
+    sessionTokenRef.current = new placesLibrary.AutocompleteSessionToken();
+  }, [placesLibrary]);
 
-    autocomplete.placeholder = "Mekan ara...";
-    autocomplete.includedRegionCodes = ["tr"];
+  useEffect(() => {
+    if (!placesLibrary) {
+      return;
+    }
 
-    autocompleteContainerRef.current.replaceChildren(autocomplete);
+    const input = cleanText(query);
+    const requestId = ++requestIdRef.current;
 
-    const handlePlaceSelect = async (event) => {
+    if (input.length < 2) {
+      setSuggestions([]);
+      setIsLoading(false);
+      setErrorMessage("");
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
       try {
-        const prediction = event.placePrediction;
+        setIsLoading(true);
+        setErrorMessage("");
 
-        if (!prediction) return;
-
-        const place = prediction.toPlace();
-
-        await place.fetchFields({
-          fields: [
-            "displayName",
-            "formattedAddress",
-            "location",
-            "id",
-            "viewport",
-          ],
-        });
-
-        if (!place.location) return;
-
-        const selectedPlace = {
-          id: place.id,
-          name: place.displayName || "İsimsiz mekan",
-          address: place.formattedAddress || "",
-          location: {
-            lat: place.location.lat(),
-            lng: place.location.lng(),
-          },
-        };
-
-        if (place.viewport) {
-          map?.fitBounds(place.viewport);
-        } else {
-          map?.panTo(selectedPlace.location);
-          map?.setZoom(17);
+        if (!sessionTokenRef.current) {
+          sessionTokenRef.current =
+            new placesLibrary.AutocompleteSessionToken();
         }
 
-        onPlaceSelected(selectedPlace);
-      } catch (error) {
-        console.error("Mekan seçilirken hata oluştu:", error);
-      }
-    };
+        const { suggestions: rawSuggestions } =
+          await placesLibrary.AutocompleteSuggestion.fetchAutocompleteSuggestions(
+            {
+              input,
+              includedRegionCodes: ["tr"],
+              language: "tr",
+              sessionToken: sessionTokenRef.current,
+            }
+          );
 
-    autocomplete.addEventListener("gmp-select", handlePlaceSelect);
+        if (requestId !== requestIdRef.current) {
+          return;
+        }
+
+        const cleanSuggestions = rawSuggestions
+          .filter((item) => item.placePrediction)
+          .map((item) => {
+            const prediction = item.placePrediction;
+
+            return {
+              prediction,
+              id:
+                cleanText(prediction.placeId) ||
+                cleanText(prediction.text?.text),
+              title:
+                cleanText(prediction.mainText?.text) ||
+                cleanText(prediction.text?.text),
+              subtitle: cleanText(prediction.secondaryText?.text),
+            };
+          })
+          .filter((item) => item.title);
+
+        setSuggestions(cleanSuggestions);
+      } catch (error) {
+        if (requestId !== requestIdRef.current) {
+          return;
+        }
+
+        console.error("Autocomplete isteği başarısız:", error);
+
+        setSuggestions([]);
+        setErrorMessage("Arama sonuçları alınamadı.");
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
+      }
+    }, 250);
 
     return () => {
-      autocomplete.removeEventListener("gmp-select", handlePlaceSelect);
-      autocomplete.remove();
+      window.clearTimeout(timer);
     };
-  }, [placesLibrary, map, onPlaceSelected]);
+  }, [query, placesLibrary]);
+
+  const handleSelect = async (suggestion) => {
+    try {
+      const place = suggestion.prediction.toPlace();
+
+      await place.fetchFields({
+        fields: [
+          "displayName",
+          "formattedAddress",
+          "location",
+          "viewport",
+          "id",
+        ],
+      });
+
+      if (!place.location || !map) {
+        console.warn("Seçilen mekanın konumu bulunamadı.", place);
+        return;
+      }
+
+      const location = {
+        lat: place.location.lat(),
+        lng: place.location.lng(),
+      };
+
+      const selectedPlace = {
+        id: cleanText(place.id),
+        name: cleanText(place.displayName) || "İsimsiz mekan",
+        address: cleanText(place.formattedAddress),
+        location,
+      };
+
+      console.log("RAW GOOGLE PLACE:", place.toJSON());
+      console.log("CLEAN SELECTED PLACE:", selectedPlace);
+
+      if (place.viewport) {
+        map.fitBounds(place.viewport);
+      } else {
+        map.panTo(location);
+        map.setZoom(17);
+      }
+
+      setQuery(selectedPlace.name);
+      setSuggestions([]);
+
+      onPlaceSelected(selectedPlace);
+
+      sessionTokenRef.current =
+        new placesLibrary.AutocompleteSessionToken();
+    } catch (error) {
+      console.error("Mekan seçilirken hata oluştu:", error);
+      setErrorMessage("Mekan seçilemedi.");
+    }
+  };
+
+  return (
+    <div className="place-search">
+      <input
+        className="place-search-input"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onFocus={() => {
+          if (blurTimerRef.current) {
+            window.clearTimeout(blurTimerRef.current);
+          }
+        }}
+        onBlur={() => {
+          blurTimerRef.current = window.setTimeout(() => {
+            setSuggestions([]);
+          }, 180);
+        }}
+        placeholder="Mekan ara..."
+        aria-label="Mekan ara"
+        autoComplete="off"
+      />
+
+      {(suggestions.length > 0 || isLoading || errorMessage) && (
+        <div className="place-search-results">
+          {isLoading && (
+            <div className="place-search-status">Aranıyor...</div>
+          )}
+
+          {!isLoading &&
+            suggestions.map((suggestion) => (
+              <button
+                key={suggestion.id}
+                type="button"
+                className="place-search-result"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => handleSelect(suggestion)}
+              >
+                <span className="place-search-result-title">
+                  {suggestion.title}
+                </span>
+
+                {suggestion.subtitle && (
+                  <span className="place-search-result-subtitle">
+                    {suggestion.subtitle}
+                  </span>
+                )}
+              </button>
+            ))}
+
+          {errorMessage && !isLoading && (
+            <div className="place-search-status place-search-error">
+              {errorMessage}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MapBottomControls({
+  userLocation,
+  locationMessage,
+  hasSelectedPlace,
+}) {
+  const map = useMap();
+
+  const goToMyLocation = () => {
+    if (!map || !userLocation) {
+      return;
+    }
+
+    map.panTo(userLocation);
+    map.setZoom(16);
+  };
 
   return (
     <div
-      ref={autocompleteContainerRef}
-      className="map-search"
-    />
+      className={`map-bottom-controls${
+        hasSelectedPlace ? " map-bottom-controls-with-card" : ""
+      }`}
+    >
+      {locationMessage && (
+        <div className="location-message" role="status">
+          {locationMessage}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="location-button"
+        aria-label="Konumuma git"
+        title={
+          userLocation
+            ? "Konumuma git"
+            : "Konum bilgisi henüz alınamadı"
+        }
+        disabled={!userLocation}
+        onClick={goToMyLocation}
+      >
+        ◎
+      </button>
+    </div>
   );
 }
 
