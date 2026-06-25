@@ -1,4 +1,4 @@
-/* PROFILE PAGE */
+/* PROFILE PAGE + PROFILE EDIT MODAL */
 
 .profile-page {
   max-width: 680px;
@@ -55,7 +55,7 @@
   margin-top: 28px;
 }
 
-.profile-stats div {
+.profile-stat-button {
   min-height: 82px;
   display: grid;
   place-items: center;
@@ -63,22 +63,47 @@
   gap: 4px;
   border: 1px solid #292e38;
   border-radius: 14px;
+  padding: 12px 8px;
   background: #15181f;
+  color: inherit;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
 }
 
-.profile-stats strong,
-.profile-stats span {
+.profile-stat-button:hover,
+.profile-stat-button:focus-visible {
+  border-color: #667db5;
+  background: #1a1f29;
+}
+
+.profile-stat-button:active {
+  transform: scale(0.98);
+}
+
+.profile-stat-button strong,
+.profile-stat-button span {
   display: block;
 }
 
-.profile-stats strong {
+.profile-stat-button strong {
   color: #fbfcff;
   font-size: 21px;
 }
 
-.profile-stats span {
+.profile-stat-button span {
   color: #9ea7b9;
   font-size: 12px;
+}
+
+.profile-stat-notice {
+  margin: 12px 0 0;
+  border: 1px solid #37445b;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #161d29;
+  color: #cbd8f4;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .profile-public-details {
@@ -304,7 +329,7 @@
     gap: 6px;
   }
 
-  .profile-stats div {
+  .profile-stat-button {
     min-height: 74px;
   }
 

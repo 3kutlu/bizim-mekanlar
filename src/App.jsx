@@ -13,6 +13,39 @@ const EMPTY_SUMMARY = {
   NoteCount: 0,
 };
 
+const PROFILE_COLLECTIONS = {
+  notes: {
+    title: "Notların",
+    emptyMessage: "Henüz notun bulunmuyor.",
+  },
+  followers: {
+    title: "Takipçilerin",
+    emptyMessage: "Henüz takipçin bulunmuyor.",
+  },
+  following: {
+    title: "Takip ettiklerin",
+    emptyMessage: "Henüz takip ettiğin hesap bulunmuyor.",
+  },
+};
+
+function formatDate(value, options = { day: "numeric", month: "long", year: "numeric" }) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("tr-TR", options).format(date);
+}
+
+function getFullName(user) {
+  return [user?.FirstName, user?.LastName].filter(Boolean).join(" ");
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [activePage, setActivePage] = useState("map");
@@ -25,6 +58,10 @@ function App() {
   const [appMessage, setAppMessage] = useState("");
 
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
+  const [collectionType, setCollectionType] = useState(null);
+  const [profileNotice, setProfileNotice] = useState("");
+  const [notesRefreshKey, setNotesRefreshKey] = useState(0);
+
   const [cities, setCities] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [citiesError, setCitiesError] = useState("");
@@ -65,6 +102,47 @@ function App() {
       isMounted = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    if (!profileNotice) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setProfileNotice("");
+    }, 3600);
+
+    return () => window.clearTimeout(timer);
+  }, [profileNotice]);
+
+  const loadSummary = useCallback(async (userId) => {
+    if (!userId) {
+      setSummary(EMPTY_SUMMARY);
+      return;
+    }
+
+    const { data: summaryRows, error: summaryError } = await supabase.rpc(
+      "GetUserProfileSummary",
+      { p_user_id: userId }
+    );
+
+    if (summaryError) {
+      console.error("Profil özeti alınamadı:", summaryError);
+      setSummary(EMPTY_SUMMARY);
+      return;
+    }
+
+    const summaryData = Array.isArray(summaryRows)
+      ? summaryRows[0]
+      : summaryRows;
+
+    setSummary({
+      CityName: summaryData?.CityName ?? "",
+      FollowerCount: Number(summaryData?.FollowerCount ?? 0),
+      FollowingCount: Number(summaryData?.FollowingCount ?? 0),
+      NoteCount: Number(summaryData?.NoteCount ?? 0),
+    });
   }, []);
 
   const loadProfile = useCallback(async () => {
@@ -108,57 +186,13 @@ function App() {
     }
 
     setProfile(profileData);
-
-    const { data: summaryRows, error: summaryError } = await supabase.rpc(
-      "GetUserProfileSummary",
-      { p_user_id: profileData.UserId }
-    );
-
-    if (summaryError) {
-      console.error("Profil özeti alınamadı:", summaryError);
-      setSummary(EMPTY_SUMMARY);
-    } else {
-      const summaryData = Array.isArray(summaryRows)
-        ? summaryRows[0]
-        : summaryRows;
-
-      setSummary({
-        CityName: summaryData?.CityName ?? "",
-        FollowerCount: Number(summaryData?.FollowerCount ?? 0),
-        FollowingCount: Number(summaryData?.FollowingCount ?? 0),
-        NoteCount: Number(summaryData?.NoteCount ?? 0),
-      });
-    }
-
+    await loadSummary(profileData.UserId);
     setProfileLoading(false);
-  }, [session?.user?.id]);
+  }, [loadSummary, session?.user?.id]);
 
   const refreshProfileSummary = useCallback(async () => {
-    if (!profile?.UserId) {
-      return;
-    }
-
-    const { data: summaryRows, error: summaryError } = await supabase.rpc(
-      "GetUserProfileSummary",
-      { p_user_id: profile.UserId }
-    );
-
-    if (summaryError) {
-      console.error("Profil özeti yenilenemedi:", summaryError);
-      return;
-    }
-
-    const summaryData = Array.isArray(summaryRows)
-      ? summaryRows[0]
-      : summaryRows;
-
-    setSummary({
-      CityName: summaryData?.CityName ?? "",
-      FollowerCount: Number(summaryData?.FollowerCount ?? 0),
-      FollowingCount: Number(summaryData?.FollowingCount ?? 0),
-      NoteCount: Number(summaryData?.NoteCount ?? 0),
-    });
-  }, [profile?.UserId]);
+    await loadSummary(profile?.UserId);
+  }, [loadSummary, profile?.UserId]);
 
   useEffect(() => {
     loadProfile();
@@ -191,6 +225,33 @@ function App() {
   const openProfileEditor = () => {
     setIsProfileEditOpen(true);
     loadCities();
+  };
+
+  const handleNoteCreated = async () => {
+    await refreshProfileSummary();
+    setNotesRefreshKey((currentKey) => currentKey + 1);
+  };
+
+  const handleProfileCollectionClick = (type) => {
+    const config = PROFILE_COLLECTIONS[type];
+
+    if (!config) {
+      return;
+    }
+
+    const countByType = {
+      notes: summary.NoteCount,
+      followers: summary.FollowerCount,
+      following: summary.FollowingCount,
+    };
+
+    if (Number(countByType[type] ?? 0) === 0) {
+      setProfileNotice(config.emptyMessage);
+      return;
+    }
+
+    setProfileNotice("");
+    setCollectionType(type);
   };
 
   const handleLogout = async () => {
@@ -289,13 +350,22 @@ function App() {
 
       <main className={pageContentClassName}>
         {activePage === "map" && (
-          <MapPage onNoteCreated={refreshProfileSummary} />
+          <MapPage onNoteCreated={handleNoteCreated} />
         )}
-        {activePage === "list" && <ListPage />}
+
+        {activePage === "list" && (
+          <ListPage
+            profileUserId={profile.UserId}
+            refreshKey={notesRefreshKey}
+          />
+        )}
+
         {activePage === "profile" && (
           <ProfilePage
             profile={profile}
             summary={summary}
+            profileNotice={profileNotice}
+            onCollectionClick={handleProfileCollectionClick}
             onEdit={openProfileEditor}
             onLogout={handleLogout}
           />
@@ -342,32 +412,89 @@ function App() {
           }}
         />
       )}
+
+      {collectionType && (
+        <ProfileCollectionModal
+          profileUserId={profile.UserId}
+          profileUsername={profile.Username}
+          type={collectionType}
+          onClose={() => setCollectionType(null)}
+        />
+      )}
     </div>
   );
 }
 
-function ListPage() {
+function ListPage({ profileUserId, refreshKey }) {
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const loadNotes = useCallback(async () => {
+    if (!profileUserId) {
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+
+    const { data, error } = await supabase.rpc("GetProfileNotes", {
+      p_profile_user_id: profileUserId,
+    });
+
+    if (error) {
+      console.error("Notlar alınamadı:", error);
+      setNotes([]);
+      setErrorMessage("Notların şu an yüklenemedi. Tekrar dene.");
+    } else {
+      setNotes(data ?? []);
+    }
+
+    setLoading(false);
+  }, [profileUserId]);
+
+  useEffect(() => {
+    loadNotes();
+  }, [loadNotes, refreshKey]);
+
   return (
-    <section className="page-section">
-      <div className="page-heading">
+    <section className="list-page page-section">
+      <div className="page-heading list-page-heading">
         <p className="eyebrow">GÜNLÜK</p>
-        <h1>Mekanların</h1>
-        <p>Kaydettiğin mekanlar, ziyaretler ve notlar burada listelenecek.</p>
+        <h1>Notların</h1>
+        <p>Ziyaret ettiğin mekanlar için bıraktığın tüm notlar burada.</p>
       </div>
 
-      <div className="empty-state">
-        <div className="empty-icon">✦</div>
-        <h2>Henüz mekan yok</h2>
-        <p>İlk mekanı eklediğinde burada görünmeye başlayacak.</p>
-      </div>
+      {loading && <LoadingState />}
+
+      {!loading && errorMessage && (
+        <ErrorState message={errorMessage} onRetry={loadNotes} />
+      )}
+
+      {!loading && !errorMessage && notes.length === 0 && (
+        <EmptyCollectionState
+          icon="✦"
+          title="Henüz notun yok"
+          message="Haritadan bir mekan seçip ilk notunu ekleyebilirsin."
+        />
+      )}
+
+      {!loading && !errorMessage && notes.length > 0 && (
+        <NoteFeed notes={notes} />
+      )}
     </section>
   );
 }
 
-function ProfilePage({ profile, summary, onEdit, onLogout }) {
-  const fullName = [profile.FirstName, profile.LastName]
-    .filter(Boolean)
-    .join(" ");
+function ProfilePage({
+  profile,
+  summary,
+  profileNotice,
+  onCollectionClick,
+  onEdit,
+  onLogout,
+}) {
+  const fullName = getFullName(profile);
   const avatarLetter = (profile.Username || profile.FirstName || "K")
     .charAt(0)
     .toUpperCase();
@@ -387,19 +514,37 @@ function ProfilePage({ profile, summary, onEdit, onLogout }) {
         </div>
 
         <div className="profile-stats" aria-label="Profil istatistikleri">
-          <div>
+          <button
+            className="profile-stat-button"
+            type="button"
+            onClick={() => onCollectionClick("notes")}
+          >
             <strong>{summary.NoteCount}</strong>
             <span>Not</span>
-          </div>
-          <div>
+          </button>
+          <button
+            className="profile-stat-button"
+            type="button"
+            onClick={() => onCollectionClick("followers")}
+          >
             <strong>{summary.FollowerCount}</strong>
             <span>Takipçi</span>
-          </div>
-          <div>
+          </button>
+          <button
+            className="profile-stat-button"
+            type="button"
+            onClick={() => onCollectionClick("following")}
+          >
             <strong>{summary.FollowingCount}</strong>
             <span>Takip</span>
-          </div>
+          </button>
         </div>
+
+        {profileNotice && (
+          <p className="profile-stat-notice" role="status">
+            {profileNotice}
+          </p>
+        )}
 
         <div
           className="profile-public-details"
@@ -418,6 +563,227 @@ function ProfilePage({ profile, summary, onEdit, onLogout }) {
         </button>
       </div>
     </section>
+  );
+}
+
+function ProfileCollectionModal({
+  profileUserId,
+  profileUsername,
+  type,
+  onClose,
+}) {
+  const config = PROFILE_COLLECTIONS[type];
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const loadCollection = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage("");
+
+    const request =
+      type === "notes"
+        ? supabase.rpc("GetProfileNotes", {
+            p_profile_user_id: profileUserId,
+          })
+        : supabase.rpc("GetProfileConnections", {
+            p_profile_user_id: profileUserId,
+            p_list_type: type === "followers" ? "FOLLOWERS" : "FOLLOWING",
+          });
+
+    const { data, error } = await request;
+
+    if (error) {
+      console.error("Profil listesi alınamadı:", error);
+      setItems([]);
+      setErrorMessage("Liste şu an yüklenemedi. Tekrar dene.");
+    } else {
+      setItems(data ?? []);
+    }
+
+    setLoading(false);
+  }, [profileUserId, type]);
+
+  useEffect(() => {
+    loadCollection();
+  }, [loadCollection]);
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [onClose]);
+
+  const handleBackdropMouseDown = (event) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="collection-modal-backdrop"
+      role="presentation"
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <section
+        className="collection-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="collection-modal-title"
+      >
+        <div className="collection-modal-header">
+          <div>
+            <p className="eyebrow">{profileUsername}</p>
+            <h2 id="collection-modal-title">{config.title}</h2>
+          </div>
+          <button
+            className="collection-modal-close"
+            type="button"
+            onClick={onClose}
+            aria-label="Kapat"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="collection-modal-content">
+          {loading && <LoadingState compact />}
+
+          {!loading && errorMessage && (
+            <ErrorState message={errorMessage} onRetry={loadCollection} compact />
+          )}
+
+          {!loading && !errorMessage && items.length === 0 && (
+            <EmptyCollectionState
+              compact
+              icon={type === "notes" ? "✦" : "◉"}
+              title={config.emptyMessage}
+              message=""
+            />
+          )}
+
+          {!loading && !errorMessage && items.length > 0 && type === "notes" && (
+            <NoteFeed notes={items} compact />
+          )}
+
+          {!loading && !errorMessage && items.length > 0 && type !== "notes" && (
+            <ConnectionList users={items} />
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function NoteFeed({ notes, compact = false }) {
+  return (
+    <div className={`note-feed${compact ? " note-feed-compact" : ""}`}>
+      {notes.map((note) => {
+        const username = note.Username || "Kullanıcı";
+
+        return (
+          <article className="note-feed-card" key={note.PlaceNoteId}>
+            <div className="note-feed-avatar" aria-hidden="true">
+              {username.charAt(0).toUpperCase()}
+            </div>
+
+            <div className="note-feed-content">
+              <div className="note-feed-header">
+                <div className="note-feed-meta">
+                  <strong>{username}</strong>
+                  <span className="note-feed-place-name">
+                    - {note.PlaceName}
+                  </span>
+                </div>
+              </div>
+
+              <div className="note-feed-place">
+                <p className="note-feed-note-copy">{note.Content}</p>
+              </div>
+
+              <p className="note-feed-visit-date">
+                Ziyaret tarihi · {formatDate(note.VisitedDate) || "Belirtilmedi"}
+              </p>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function ConnectionList({ users }) {
+  return (
+    <div className="connection-list">
+      {users.map((user) => {
+        const fullName = getFullName(user);
+        const avatarLetter = (user.Username || fullName || "K")
+          .charAt(0)
+          .toUpperCase();
+
+        return (
+          <article className="connection-list-item" key={user.UserId}>
+            <div className="connection-avatar" aria-hidden="true">
+              {avatarLetter}
+            </div>
+
+            <div className="connection-copy">
+              <strong>{user.Username}</strong>
+              <span>{fullName || user.Username}</span>
+              <small>
+                {[user.CityName, user.ZodiacSign].filter(Boolean).join(" · ")}
+              </small>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function LoadingState({ compact = false }) {
+  return (
+    <div className={`list-state${compact ? " list-state-compact" : ""}`}>
+      <span className="list-loading-dot" aria-hidden="true" />
+      <span>Yükleniyor...</span>
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry, compact = false }) {
+  return (
+    <div
+      className={`list-state list-state-error${compact ? " list-state-compact" : ""}`}
+    >
+      <p>{message}</p>
+      <button type="button" onClick={onRetry}>
+        Tekrar dene
+      </button>
+    </div>
+  );
+}
+
+function EmptyCollectionState({ icon, title, message, compact = false }) {
+  return (
+    <div
+      className={`list-state${compact ? " list-state-compact" : ""}`}
+    >
+      <div className="empty-icon">{icon}</div>
+      <h2>{title}</h2>
+      {message && <p>{message}</p>}
+    </div>
   );
 }
 
@@ -498,7 +864,9 @@ function ProfileEditModal({
     const isAvailable = Boolean(data);
     setUsernameAvailable(isAvailable);
     setUsernameMessage(
-      isAvailable ? "Bu kullanıcı adı kullanılabilir." : "Bu kullanıcı adı alınmış."
+      isAvailable
+        ? "Bu kullanıcı adı kullanılabilir."
+        : "Bu kullanıcı adı alınmış."
     );
 
     return isAvailable;
@@ -619,7 +987,9 @@ function ProfileEditModal({
                 value={form.firstName}
                 autoComplete="given-name"
                 disabled={saving}
-                onChange={(event) => updateField("firstName", event.target.value)}
+                onChange={(event) =>
+                  updateField("firstName", event.target.value)
+                }
               />
             </label>
 
@@ -630,7 +1000,9 @@ function ProfileEditModal({
                 value={form.lastName}
                 autoComplete="family-name"
                 disabled={saving}
-                onChange={(event) => updateField("lastName", event.target.value)}
+                onChange={(event) =>
+                  updateField("lastName", event.target.value)
+                }
               />
             </label>
           </div>
@@ -642,7 +1014,9 @@ function ProfileEditModal({
                 type="date"
                 value={form.birthDate}
                 disabled={saving}
-                onChange={(event) => updateField("birthDate", event.target.value)}
+                onChange={(event) =>
+                  updateField("birthDate", event.target.value)
+                }
               />
             </label>
 
