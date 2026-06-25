@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase.js";
 import AuthPage from "./AuthPage.jsx";
-import MapPage from "./MapPage.jsx";
+import MapPage from "./pages/MapPage.jsx";
+import UserSearchPage from "./pages/UserSearchPage.jsx";
+import UserProfilePage from "./pages/UserProfilePage.jsx";
 import "./css/app-shell.css";
 import "./css/list-page.css";
 import "./css/profile-page.css";
+import "./css/user-discovery.css";
 
 const EMPTY_SUMMARY = {
   CityName: "",
@@ -15,16 +18,16 @@ const EMPTY_SUMMARY = {
 
 const PROFILE_COLLECTIONS = {
   notes: {
-    title: "Notların",
-    emptyMessage: "Henüz notun bulunmuyor.",
+    title: "Notlar",
+    emptyMessage: "Henüz not bulunmuyor.",
   },
   followers: {
-    title: "Takipçilerin",
-    emptyMessage: "Henüz takipçin bulunmuyor.",
+    title: "Takipçiler",
+    emptyMessage: "Henüz takipçi bulunmuyor.",
   },
   following: {
-    title: "Takip ettiklerin",
-    emptyMessage: "Henüz takip ettiğin hesap bulunmuyor.",
+    title: "Takip edilenler",
+    emptyMessage: "Henüz takip edilen hesap bulunmuyor.",
   },
 };
 
@@ -46,6 +49,10 @@ function getFullName(user) {
   return [user?.FirstName, user?.LastName].filter(Boolean).join(" ");
 }
 
+function createDiscoveryScreenId(type) {
+  return `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [activePage, setActivePage] = useState("map");
@@ -58,13 +65,33 @@ function App() {
   const [appMessage, setAppMessage] = useState("");
 
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
-  const [collectionType, setCollectionType] = useState(null);
   const [profileNotice, setProfileNotice] = useState("");
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
+  const [mapTarget, setMapTarget] = useState(null);
+  const [discoveryStack, setDiscoveryStack] = useState([]);
 
   const [cities, setCities] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [citiesError, setCitiesError] = useState("");
+
+
+  const pushDiscoveryScreen = useCallback((screen) => {
+    setDiscoveryStack((currentStack) => [
+      ...currentStack,
+      {
+        id: createDiscoveryScreenId(screen.type),
+        ...screen,
+      },
+    ]);
+  }, []);
+
+  const popDiscoveryScreen = useCallback(() => {
+    setDiscoveryStack((currentStack) => currentStack.slice(0, -1));
+  }, []);
+
+  const closeDiscovery = useCallback(() => {
+    setDiscoveryStack([]);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -232,6 +259,117 @@ function App() {
     setNotesRefreshKey((currentKey) => currentKey + 1);
   };
 
+  const handleFollowChanged = async () => {
+    await refreshProfileSummary();
+    setNotesRefreshKey((currentKey) => currentKey + 1);
+  };
+
+  const clearMapTarget = useCallback(() => {
+    setMapTarget(null);
+  }, []);
+
+  const handleOpenPlaceOnMap = useCallback(async (placeId) => {
+    const normalizedPlaceId = Number(placeId);
+
+    if (!Number.isInteger(normalizedPlaceId) || normalizedPlaceId <= 0) {
+      setAppMessage("Mekan konumu açılamadı.");
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("GetPlaceMapTarget", {
+      p_place_id: normalizedPlaceId,
+    });
+
+    if (error) {
+      console.error("Mekan konumu alınamadı:", error);
+      setAppMessage(error.message || "Mekan konumu şu an açılamadı.");
+      return;
+    }
+
+    const place = Array.isArray(data) ? data[0] : data;
+    const latitude = Number(place?.Latitude);
+    const longitude = Number(place?.Longitude);
+
+    if (!place || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      setAppMessage("Mekan konum bilgisi geçersiz.");
+      return;
+    }
+
+    setMapTarget({
+      requestId: `${place.PlaceId}-${Date.now()}`,
+      placeId: place.PlaceId,
+      id: place.GooglePlaceId,
+      name: place.Name,
+      address: place.FormattedAddress,
+      cityName: place.CityName,
+      postalCode: place.PostalCode,
+      location: {
+        lat: latitude,
+        lng: longitude,
+      },
+    });
+
+    closeDiscovery();
+    setActivePage("map");
+  }, [closeDiscovery]);
+
+  const ownUserId = profile?.UserId ?? null;
+
+  const handleTabNavigation = useCallback(
+    (page) => {
+      closeDiscovery();
+      setActivePage(page);
+    },
+    [closeDiscovery]
+  );
+
+  const openUserSearch = useCallback(() => {
+    setDiscoveryStack([
+      {
+        id: createDiscoveryScreenId("search"),
+        type: "search",
+      },
+    ]);
+  }, []);
+
+  const handleOpenUserProfile = useCallback(
+    (userId) => {
+      const normalizedUserId = Number(userId);
+
+      if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+        return;
+      }
+
+      if (normalizedUserId === ownUserId) {
+        closeDiscovery();
+        setActivePage("profile");
+        return;
+      }
+
+      pushDiscoveryScreen({
+        type: "profile",
+        userId: normalizedUserId,
+      });
+    },
+    [closeDiscovery, ownUserId, pushDiscoveryScreen]
+  );
+
+  const handleOpenCollectionForUser = useCallback(
+    (context) => {
+      if (!context?.userId || !context?.username || !context?.type) {
+        return;
+      }
+
+      pushDiscoveryScreen({
+        type: "collection",
+        userId: Number(context.userId),
+        username: context.username,
+        collectionType: context.type,
+      });
+    },
+    [pushDiscoveryScreen]
+  );
+
   const handleProfileCollectionClick = (type) => {
     const config = PROFILE_COLLECTIONS[type];
 
@@ -251,7 +389,11 @@ function App() {
     }
 
     setProfileNotice("");
-    setCollectionType(type);
+    handleOpenCollectionForUser({
+      userId: profile.UserId,
+      username: profile.Username,
+      type,
+    });
   };
 
   const handleLogout = async () => {
@@ -265,6 +407,7 @@ function App() {
       return;
     }
 
+    closeDiscovery();
     setActivePage("map");
     setProfile(null);
     setSummary(EMPTY_SUMMARY);
@@ -299,47 +442,61 @@ function App() {
     );
   }
 
-  const pageContentClassName = [
-    "page-content",
-    activePage === "map" ? "page-content-map" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const activeDiscoveryScreenId =
+    discoveryStack.length > 0
+      ? discoveryStack[discoveryStack.length - 1].id
+      : null;
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell${
+        discoveryStack.length > 0 ? " app-shell-with-discovery" : ""
+      }`}
+    >
       <header className="topbar">
         <button
           className="logo-button"
           type="button"
-          onClick={() => setActivePage("map")}
+          onClick={() => handleTabNavigation("map")}
         >
           Bizim Mekanlar
         </button>
 
-        <nav className="desktop-nav" aria-label="Ana menü">
+        <div className="topbar-actions">
+          <nav className="desktop-nav" aria-label="Ana menü">
+            <button
+              type="button"
+              className={activePage === "map" ? "nav-active" : ""}
+              onClick={() => handleTabNavigation("map")}
+            >
+              Harita
+            </button>
+            <button
+              type="button"
+              className={activePage === "list" ? "nav-active" : ""}
+              onClick={() => handleTabNavigation("list")}
+            >
+              Liste
+            </button>
+            <button
+              type="button"
+              className={activePage === "profile" ? "nav-active" : ""}
+              onClick={() => handleTabNavigation("profile")}
+            >
+              Profil
+            </button>
+          </nav>
+
           <button
+            className="user-search-trigger"
             type="button"
-            className={activePage === "map" ? "nav-active" : ""}
-            onClick={() => setActivePage("map")}
+            onClick={openUserSearch}
+            aria-label="Kullanıcı ara"
+            title="Kullanıcı ara"
           >
-            Harita
+            ⌕
           </button>
-          <button
-            type="button"
-            className={activePage === "list" ? "nav-active" : ""}
-            onClick={() => setActivePage("list")}
-          >
-            Liste
-          </button>
-          <button
-            type="button"
-            className={activePage === "profile" ? "nav-active" : ""}
-            onClick={() => setActivePage("profile")}
-          >
-            Profil
-          </button>
-        </nav>
+        </div>
       </header>
 
       {appMessage && (
@@ -348,19 +505,39 @@ function App() {
         </div>
       )}
 
-      <main className={pageContentClassName}>
-        {activePage === "map" && (
-          <MapPage onNoteCreated={handleNoteCreated} />
-        )}
-
-        {activePage === "list" && (
-          <ListPage
-            profileUserId={profile.UserId}
-            refreshKey={notesRefreshKey}
+      <main className="page-content">
+        <section
+          className={`tab-page tab-page-map ${
+            activePage === "map" ? "tab-page-active" : ""
+          }`}
+          aria-hidden={activePage !== "map"}
+        >
+          <MapPage
+            onNoteCreated={handleNoteCreated}
+            focusPlace={mapTarget}
+            onFocusHandled={clearMapTarget}
           />
-        )}
+        </section>
 
-        {activePage === "profile" && (
+        <section
+          className={`tab-page tab-page-scroll ${
+            activePage === "list" ? "tab-page-active" : ""
+          }`}
+          aria-hidden={activePage !== "list"}
+        >
+          <ListPage
+            refreshKey={notesRefreshKey}
+            onOpenPlace={handleOpenPlaceOnMap}
+            onOpenUser={handleOpenUserProfile}
+          />
+        </section>
+
+        <section
+          className={`tab-page tab-page-scroll ${
+            activePage === "profile" ? "tab-page-active" : ""
+          }`}
+          aria-hidden={activePage !== "profile"}
+        >
           <ProfilePage
             profile={profile}
             summary={summary}
@@ -369,6 +546,54 @@ function App() {
             onEdit={openProfileEditor}
             onLogout={handleLogout}
           />
+        </section>
+
+        {discoveryStack.length > 0 && (
+          <div className="discovery-page-layer">
+            {discoveryStack.map((screen) => {
+              const isActive = screen.id === activeDiscoveryScreenId;
+
+              return (
+                <section
+                  className={`discovery-screen${
+                    isActive ? " discovery-screen-active" : ""
+                  }`}
+                  key={screen.id}
+                  aria-hidden={!isActive}
+                >
+                  {screen.type === "search" && (
+                    <UserSearchPage
+                      isActive={isActive}
+                      onBack={popDiscoveryScreen}
+                      onSelectUser={handleOpenUserProfile}
+                    />
+                  )}
+
+                  {screen.type === "profile" && (
+                    <UserProfilePage
+                      userId={screen.userId}
+                      isActive={isActive}
+                      onBack={popDiscoveryScreen}
+                      onOpenCollection={handleOpenCollectionForUser}
+                      onFollowChanged={handleFollowChanged}
+                    />
+                  )}
+
+                  {screen.type === "collection" && (
+                    <ProfileCollectionPage
+                      profileUserId={screen.userId}
+                      profileUsername={screen.username}
+                      type={screen.collectionType}
+                      isActive={isActive}
+                      onBack={popDiscoveryScreen}
+                      onOpenPlace={handleOpenPlaceOnMap}
+                      onOpenUser={handleOpenUserProfile}
+                    />
+                  )}
+                </section>
+              );
+            })}
+          </div>
         )}
       </main>
 
@@ -376,7 +601,7 @@ function App() {
         <button
           type="button"
           className={activePage === "map" ? "bottom-nav-active" : ""}
-          onClick={() => setActivePage("map")}
+          onClick={() => handleTabNavigation("map")}
         >
           <span>⌖</span>
           Harita
@@ -384,7 +609,7 @@ function App() {
         <button
           type="button"
           className={activePage === "list" ? "bottom-nav-active" : ""}
-          onClick={() => setActivePage("list")}
+          onClick={() => handleTabNavigation("list")}
         >
           <span>☷</span>
           Liste
@@ -392,7 +617,7 @@ function App() {
         <button
           type="button"
           className={activePage === "profile" ? "bottom-nav-active" : ""}
-          onClick={() => setActivePage("profile")}
+          onClick={() => handleTabNavigation("profile")}
         >
           <span>◉</span>
           Profil
@@ -412,46 +637,33 @@ function App() {
           }}
         />
       )}
-
-      {collectionType && (
-        <ProfileCollectionModal
-          profileUserId={profile.UserId}
-          profileUsername={profile.Username}
-          type={collectionType}
-          onClose={() => setCollectionType(null)}
-        />
-      )}
     </div>
   );
 }
 
-function ListPage({ profileUserId, refreshKey }) {
+
+
+function ListPage({ refreshKey, onOpenPlace, onOpenUser }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadNotes = useCallback(async () => {
-    if (!profileUserId) {
-      return;
-    }
-
     setLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("GetProfileNotes", {
-      p_profile_user_id: profileUserId,
-    });
+    const { data, error } = await supabase.rpc("GetFollowingFeedNotes");
 
     if (error) {
-      console.error("Notlar alınamadı:", error);
+      console.error("Akış notları alınamadı:", error);
       setNotes([]);
-      setErrorMessage("Notların şu an yüklenemedi. Tekrar dene.");
+      setErrorMessage("Akış şu an yüklenemedi. Tekrar dene.");
     } else {
       setNotes(data ?? []);
     }
 
     setLoading(false);
-  }, [profileUserId]);
+  }, []);
 
   useEffect(() => {
     loadNotes();
@@ -460,9 +672,9 @@ function ListPage({ profileUserId, refreshKey }) {
   return (
     <section className="list-page page-section">
       <div className="page-heading list-page-heading">
-        <p className="eyebrow">GÜNLÜK</p>
-        <h1>Notların</h1>
-        <p>Ziyaret ettiğin mekanlar için bıraktığın tüm notlar burada.</p>
+        <p className="eyebrow">AKIŞ</p>
+        <h1>Takip ettiklerin</h1>
+        <p>Senin ve takip ettiğin kişilerin en yeni notları burada.</p>
       </div>
 
       {loading && <LoadingState />}
@@ -474,13 +686,17 @@ function ListPage({ profileUserId, refreshKey }) {
       {!loading && !errorMessage && notes.length === 0 && (
         <EmptyCollectionState
           icon="✦"
-          title="Henüz notun yok"
-          message="Haritadan bir mekan seçip ilk notunu ekleyebilirsin."
+          title="Akışta henüz not yok"
+          message="Sen veya takip ettiğin kişiler not eklediğinde burada göreceksin."
         />
       )}
 
       {!loading && !errorMessage && notes.length > 0 && (
-        <NoteFeed notes={notes} />
+        <NoteFeed
+          notes={notes}
+          onOpenPlace={onOpenPlace}
+          onOpenUser={onOpenUser}
+        />
       )}
     </section>
   );
@@ -566,11 +782,14 @@ function ProfilePage({
   );
 }
 
-function ProfileCollectionModal({
+function ProfileCollectionPage({
   profileUserId,
   profileUsername,
   type,
-  onClose,
+  isActive,
+  onBack,
+  onOpenPlace,
+  onOpenUser,
 }) {
   const config = PROFILE_COLLECTIONS[type];
   const [items, setItems] = useState([]);
@@ -609,85 +828,74 @@ function ProfileCollectionModal({
   }, [loadCollection]);
 
   useEffect(() => {
+    if (!isActive) {
+      return undefined;
+    }
+
     const handleEscape = (event) => {
       if (event.key === "Escape") {
-        onClose();
+        onBack();
       }
     };
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", handleEscape);
 
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [onClose]);
-
-  const handleBackdropMouseDown = (event) => {
-    if (event.target === event.currentTarget) {
-      onClose();
-    }
-  };
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isActive, onBack]);
 
   return (
-    <div
-      className="collection-modal-backdrop"
-      role="presentation"
-      onMouseDown={handleBackdropMouseDown}
-    >
-      <section
-        className="collection-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="collection-modal-title"
-      >
-        <div className="collection-modal-header">
-          <div>
-            <p className="eyebrow">{profileUsername}</p>
-            <h2 id="collection-modal-title">{config.title}</h2>
-          </div>
-          <button
-            className="collection-modal-close"
-            type="button"
-            onClick={onClose}
-            aria-label="Kapat"
-          >
-            ×
-          </button>
+    <div className="discovery-page-content collection-page">
+      <header className="discovery-page-header">
+        <div>
+          <p className="eyebrow">@{profileUsername}</p>
+          <h1>{config?.title || "Liste"}</h1>
         </div>
 
-        <div className="collection-modal-content">
-          {loading && <LoadingState compact />}
+        <button
+          className="discovery-back-button"
+          type="button"
+          onClick={onBack}
+          aria-label="Geri dön"
+        >
+          ‹
+          <span>Geri</span>
+        </button>
+      </header>
 
-          {!loading && errorMessage && (
-            <ErrorState message={errorMessage} onRetry={loadCollection} compact />
-          )}
+      <div className="discovery-page-body">
+        {loading && <LoadingState compact />}
 
-          {!loading && !errorMessage && items.length === 0 && (
-            <EmptyCollectionState
-              compact
-              icon={type === "notes" ? "✦" : "◉"}
-              title={config.emptyMessage}
-              message=""
-            />
-          )}
+        {!loading && errorMessage && (
+          <ErrorState message={errorMessage} onRetry={loadCollection} compact />
+        )}
 
-          {!loading && !errorMessage && items.length > 0 && type === "notes" && (
-            <NoteFeed notes={items} compact />
-          )}
+        {!loading && !errorMessage && items.length === 0 && (
+          <EmptyCollectionState
+            compact
+            icon={type === "notes" ? "✦" : "◉"}
+            title={config?.emptyMessage || "Liste boş"}
+            message=""
+          />
+        )}
 
-          {!loading && !errorMessage && items.length > 0 && type !== "notes" && (
-            <ConnectionList users={items} />
-          )}
-        </div>
-      </section>
+        {!loading && !errorMessage && items.length > 0 && type === "notes" && (
+          <NoteFeed
+            notes={items}
+            compact
+            onOpenPlace={onOpenPlace}
+            onOpenUser={onOpenUser}
+          />
+        )}
+
+        {!loading && !errorMessage && items.length > 0 && type !== "notes" && (
+          <ConnectionList users={items} onOpenUser={onOpenUser} />
+        )}
+      </div>
     </div>
   );
 }
 
-function NoteFeed({ notes, compact = false }) {
+function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser }) {
   return (
     <div className={`note-feed${compact ? " note-feed-compact" : ""}`}>
       {notes.map((note) => {
@@ -702,10 +910,30 @@ function NoteFeed({ notes, compact = false }) {
             <div className="note-feed-content">
               <div className="note-feed-header">
                 <div className="note-feed-meta">
-                  <strong>{username}</strong>
-                  <span className="note-feed-place-name">
-                    - {note.PlaceName}
+                  {note.UserId && onOpenUser ? (
+                    <button
+                      className="note-feed-user-link"
+                      type="button"
+                      onClick={() => onOpenUser(note.UserId)}
+                      title="Kullanıcı profilini aç"
+                    >
+                      {username}
+                    </button>
+                  ) : (
+                    <strong>{username}</strong>
+                  )}
+                  <span className="note-feed-place-separator" aria-hidden="true">
+                    -
                   </span>
+                  <button
+                    className="note-feed-place-link"
+                    type="button"
+                    onClick={() => onOpenPlace?.(note.PlaceId)}
+                    disabled={!note.PlaceId}
+                    title="Mekanı haritada aç"
+                  >
+                    {note.PlaceName}
+                  </button>
                 </div>
               </div>
 
@@ -724,7 +952,7 @@ function NoteFeed({ notes, compact = false }) {
   );
 }
 
-function ConnectionList({ users }) {
+function ConnectionList({ users, onOpenUser }) {
   return (
     <div className="connection-list">
       {users.map((user) => {
@@ -734,19 +962,24 @@ function ConnectionList({ users }) {
           .toUpperCase();
 
         return (
-          <article className="connection-list-item" key={user.UserId}>
-            <div className="connection-avatar" aria-hidden="true">
+          <button
+            className="connection-list-item"
+            type="button"
+            key={user.UserId}
+            onClick={() => onOpenUser?.(user.UserId)}
+          >
+            <span className="connection-avatar" aria-hidden="true">
               {avatarLetter}
-            </div>
+            </span>
 
-            <div className="connection-copy">
+            <span className="connection-copy">
               <strong>{user.Username}</strong>
               <span>{fullName || user.Username}</span>
               <small>
                 {[user.CityName, user.ZodiacSign].filter(Boolean).join(" · ")}
               </small>
-            </div>
-          </article>
+            </span>
+          </button>
         );
       })}
     </div>

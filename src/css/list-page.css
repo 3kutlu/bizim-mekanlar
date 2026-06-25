@@ -54,7 +54,6 @@
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
   gap: 5px;
 }
 
@@ -63,24 +62,41 @@
   font-size: 14px;
 }
 
-.note-feed-place-name {
-  overflow: hidden;
-  color: #aeb6c5;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.note-feed-meta span,
+.note-feed-header time {
+  color: #8e97a8;
+  font-size: 13px;
+}
+
+.note-feed-header time {
+  flex: 0 0 auto;
 }
 
 .note-feed-place {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin-top: 10px;
+  padding: 11px 13px;
   border: 1px solid #2c323e;
   border-radius: 14px;
-  padding: 11px 13px;
   background: #15181f;
 }
 
-.note-feed-note-copy {
-  margin: 0;
+.note-feed-place strong {
+  color: #f4f6fb;
+  font-size: 12px;
+}
+
+.note-feed-place span,
+.note-feed-address {
+  color: #9ea7b9;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.note-feed-text {
+  margin: 12px 0 0;
   color: #e1e5ed;
   font-size: 15px;
   line-height: 1.55;
@@ -88,11 +104,8 @@
   word-break: break-word;
 }
 
-.note-feed-visit-date {
-  margin: 12px 0 0;
-  color: #aeb6c5;
-  font-size: 12px;
-  line-height: 1.4;
+.note-feed-address {
+  margin: 10px 0 0;
 }
 
 .list-state {
@@ -300,9 +313,5 @@
 
   .collection-modal-content {
     padding: 0 20px 20px;
-  }
-
-  .note-feed-place-name {
-    max-width: 100%;
   }
 }

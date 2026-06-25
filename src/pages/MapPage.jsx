@@ -13,8 +13,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { supabase } from "./supabase.js";
-import "./css/map-page.css";
+import { supabase } from "../supabase.js";
+import "../css/map-page.css";
+import { createPortal } from "react-dom";
 
 const ankaraCenter = {
   lat: 39.9334,
@@ -79,7 +80,7 @@ async function createPlaceNote(selectedPlace, note) {
   return data;
 }
 
-function MapPage({ onNoteCreated }) {
+function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
 
@@ -99,6 +100,7 @@ function MapPage({ onNoteCreated }) {
   const [selectedPlaceCardHeight, setSelectedPlaceCardHeight] = useState(0);
 
   const mapRef = useRef(null);
+  const initialFocusLockRef = useRef(false);
 
   const clearLocationMessage = useCallback(() => {
     if (locationMessageTimerRef.current) {
@@ -198,6 +200,17 @@ function MapPage({ onNoteCreated }) {
     setNoteSaveError("");
   }, []);
 
+  const handleExternalPlaceFocus = useCallback(
+    (place) => {
+      setSelectedPlace(place);
+      setIsNoteModalOpen(false);
+      setNoteDraft("");
+      setNoteSaveError("");
+      onFocusHandled?.();
+    },
+    [onFocusHandled]
+  );
+
   const goToSelectedPlace = useCallback(() => {
     if (!mapRef.current || !selectedPlace?.location) {
       return;
@@ -284,7 +297,15 @@ function MapPage({ onNoteCreated }) {
             className="google-map"
           >
             <MapReference mapRef={mapRef} />
-            <InitialLocationFocus userLocation={userLocation} />
+            <InitialLocationFocus
+              userLocation={userLocation}
+              focusLockRef={initialFocusLockRef}
+            />
+            <ExternalPlaceFocus
+              place={focusPlace}
+              focusLockRef={initialFocusLockRef}
+              onFocus={handleExternalPlaceFocus}
+            />
             <PlaceSearch onPlaceSelected={handlePlaceSelected} />
             <UserLocationMarker userLocation={userLocation} />
             <SelectedPlaceMarker selectedPlace={selectedPlace} />
@@ -306,7 +327,9 @@ function MapPage({ onNoteCreated }) {
           )}
         </div>
 
-        {isNoteModalOpen && selectedPlace && (
+      {isNoteModalOpen &&
+        selectedPlace &&
+        createPortal(
           <AddNoteModal
             placeName={selectedPlace.name}
             noteDraft={noteDraft}
@@ -315,7 +338,8 @@ function MapPage({ onNoteCreated }) {
             onNoteChange={setNoteDraft}
             onCancel={closeNoteModal}
             onSave={saveNoteDraft}
-          />
+          />,
+          document.body
         )}
       </APIProvider>
     </section>
@@ -338,19 +362,60 @@ function MapReference({ mapRef }) {
   return null;
 }
 
-function InitialLocationFocus({ userLocation }) {
+function InitialLocationFocus({ userLocation, focusLockRef }) {
   const map = useMap();
-  const hasFocusedRef = useRef(false);
 
   useEffect(() => {
-    if (!map || !userLocation || hasFocusedRef.current) {
+    if (!map || !userLocation || focusLockRef.current) {
       return;
     }
 
     map.panTo(userLocation);
     map.setZoom(16);
-    hasFocusedRef.current = true;
-  }, [map, userLocation]);
+    focusLockRef.current = true;
+  }, [focusLockRef, map, userLocation]);
+
+  return null;
+}
+
+function ExternalPlaceFocus({ place, focusLockRef, onFocus }) {
+  const map = useMap();
+  const handledRequestRef = useRef(null);
+
+  useEffect(() => {
+    if (!map || !place?.requestId || !place?.location) {
+      return;
+    }
+
+    if (handledRequestRef.current === place.requestId) {
+      return;
+    }
+
+    const latitude = Number(place.location.lat);
+    const longitude = Number(place.location.lng);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return;
+    }
+
+    handledRequestRef.current = place.requestId;
+    focusLockRef.current = true;
+
+    map.panTo({ lat: latitude, lng: longitude });
+    map.setZoom(17);
+
+    onFocus({
+      id: cleanText(place.id),
+      name: cleanText(place.name) || "İsimsiz mekan",
+      address: cleanText(place.address),
+      cityName: cleanText(place.cityName),
+      postalCode: cleanText(place.postalCode),
+      location: {
+        lat: latitude,
+        lng: longitude,
+      },
+    });
+  }, [focusLockRef, map, onFocus, place]);
 
   return null;
 }
