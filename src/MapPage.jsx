@@ -23,73 +23,63 @@ const ankaraCenter = {
 
 const cleanText = (value) => String(value ?? "").trim();
 
-async function findOrCreatePlace(selectedPlace) {
+function getAddressComponentText(addressComponents, ...types) {
+  if (!Array.isArray(addressComponents)) {
+    return "";
+  }
+
+  for (const type of types) {
+    const component = addressComponents.find((item) =>
+      Array.isArray(item?.types) && item.types.includes(type)
+    );
+
+    const value = cleanText(component?.longText || component?.shortText);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+async function createPlaceNote(selectedPlace, note) {
   const googlePlaceId = cleanText(selectedPlace?.id);
   const name = cleanText(selectedPlace?.name);
-  const address = cleanText(selectedPlace?.address);
-
+  const formattedAddress = cleanText(selectedPlace?.address);
+  const cityName = cleanText(selectedPlace?.cityName);
   const latitude = Number(selectedPlace?.location?.lat);
   const longitude = Number(selectedPlace?.location?.lng);
 
-  if (
-    !googlePlaceId ||
-    !name ||
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude)
-  ) {
-    throw new Error("Mekan bilgileri eksik veya geçersiz.");
+  if (!googlePlaceId || !name || !formattedAddress || !cityName) {
+    throw new Error(
+      "Mekanın Google'dan gelen adı, adresi veya şehir bilgisi eksik. Lütfen listeden tekrar seç."
+    );
   }
 
-  const { data: existingPlace, error: findError } = await supabase
-    .from("places")
-    .select("id")
-    .eq("google_place_id", googlePlaceId)
-    .maybeSingle();
-
-  if (findError) {
-    throw findError;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    throw new Error("Mekanın konum bilgisi geçersiz.");
   }
 
-  if (existingPlace?.id) {
-    return existingPlace.id;
+  const { data, error } = await supabase.rpc("CreatePlaceNote", {
+    p_google_place_id: googlePlaceId,
+    p_name: name,
+    p_formatted_address: formattedAddress,
+    p_postal_code: cleanText(selectedPlace?.postalCode) || null,
+    p_city_name: cityName,
+    p_latitude: latitude,
+    p_longitude: longitude,
+    p_content: note,
+  });
+
+  if (error) {
+    throw error;
   }
 
-  const { data: insertedPlace, error: insertError } = await supabase
-    .from("places")
-    .insert({
-      google_place_id: googlePlaceId,
-      name,
-      address: address || null,
-      latitude,
-      longitude,
-    })
-    .select("id")
-    .single();
-
-  if (!insertError) {
-    return insertedPlace.id;
-  }
-
-  // Aynı mekan başka bir kullanıcı tarafından aynı anda eklenirse
-  // unique constraint hatası alabiliriz. Tekrar okuyup devam ediyoruz.
-  if (insertError.code === "23505") {
-    const { data: concurrentPlace, error: retryError } = await supabase
-      .from("places")
-      .select("id")
-      .eq("google_place_id", googlePlaceId)
-      .single();
-
-    if (retryError) {
-      throw retryError;
-    }
-
-    return concurrentPlace.id;
-  }
-
-  throw insertError;
+  return data;
 }
 
-function MapPage() {
+function MapPage({ onNoteCreated }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
 
@@ -140,9 +130,7 @@ function MapPage() {
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      showInitialLocationIssue(
-        "Tarayıcın konum özelliğini desteklemiyor."
-      );
+      showInitialLocationIssue("Tarayıcın konum özelliğini desteklemiyor.");
 
       return () => clearLocationMessage();
     }
@@ -250,34 +238,24 @@ function MapPage() {
     setNoteSaveError("");
 
     try {
-      const placeId = await findOrCreatePlace(selectedPlace);
+      const placeNoteId = await createPlaceNote(selectedPlace, note);
 
-      const { error: noteError } = await supabase
-        .from("place_notes")
-        .insert({
-          place_id: placeId,
-          note,
-        });
-
-      if (noteError) {
-        throw noteError;
-      }
-
-      console.log("NOT SUPABASE'E KAYDEDILDI:", {
-        placeId,
+      console.log("Not Supabase'e kaydedildi:", {
+        placeNoteId,
         place: selectedPlace,
         note,
       });
 
       setIsNoteModalOpen(false);
       setNoteDraft("");
+
+      Promise.resolve(onNoteCreated?.()).catch((error) => {
+        console.error("Profil istatistikleri yenilenemedi:", error);
+      });
     } catch (error) {
       console.error("Not kaydedilirken hata oluştu:", error);
-
-      const code = error?.code ? ` (${error.code})` : "";
-
       setNoteSaveError(
-        `Not kaydedilemedi${code}. Konsoldaki hata detayını kontrol et.`
+        error?.message || "Not kaydedilemedi. Lütfen tekrar dene."
       );
     } finally {
       setIsSavingNote(false);
@@ -306,15 +284,10 @@ function MapPage() {
             className="google-map"
           >
             <MapReference mapRef={mapRef} />
-
             <InitialLocationFocus userLocation={userLocation} />
-
             <PlaceSearch onPlaceSelected={handlePlaceSelected} />
-
             <UserLocationMarker userLocation={userLocation} />
-
             <SelectedPlaceMarker selectedPlace={selectedPlace} />
-
             <MapBottomControls
               userLocation={userLocation}
               locationMessage={locationMessage}
@@ -376,7 +349,6 @@ function InitialLocationFocus({ userLocation }) {
 
     map.panTo(userLocation);
     map.setZoom(16);
-
     hasFocusedRef.current = true;
   }, [map, userLocation]);
 
@@ -564,6 +536,7 @@ function PlaceSearch({ onPlaceSelected }) {
         fields: [
           "displayName",
           "formattedAddress",
+          "addressComponents",
           "location",
           "viewport",
           "id",
@@ -583,6 +556,15 @@ function PlaceSearch({ onPlaceSelected }) {
         id: cleanText(place.id),
         name: cleanText(place.displayName) || "İsimsiz mekan",
         address: cleanText(place.formattedAddress),
+        cityName: getAddressComponentText(
+          place.addressComponents,
+          "administrative_area_level_1",
+          "locality"
+        ),
+        postalCode: getAddressComponentText(
+          place.addressComponents,
+          "postal_code"
+        ),
         location,
       };
 
@@ -596,9 +578,7 @@ function PlaceSearch({ onPlaceSelected }) {
       setQuery(selectedPlace.name);
       setSuggestions([]);
       onPlaceSelected(selectedPlace);
-
-      sessionTokenRef.current =
-        new placesLibrary.AutocompleteSessionToken();
+      sessionTokenRef.current = new placesLibrary.AutocompleteSessionToken();
     } catch (error) {
       console.error("Mekan seçilirken hata oluştu:", error);
       setErrorMessage("Mekan seçilemedi.");
@@ -691,9 +671,7 @@ function SelectedPlaceCard({
           {selectedPlace.name}
         </strong>
 
-        {selectedPlace.address && (
-          <span>{selectedPlace.address}</span>
-        )}
+        {selectedPlace.address && <span>{selectedPlace.address}</span>}
       </div>
 
       <button type="button" onClick={onAddNote}>

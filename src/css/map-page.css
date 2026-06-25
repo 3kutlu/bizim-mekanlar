@@ -1,7 +1,8 @@
 .map-page {
   position: relative;
   width: 100%;
-  min-height: calc(100dvh - 68px);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   background: #111;
 }
@@ -9,8 +10,8 @@
 .map-wrapper {
   position: relative;
   width: 100%;
-  height: calc(100dvh - 68px);
-  min-height: 420px;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -360,25 +361,12 @@
 
 @media (min-width: 701px) {
   .map-page {
-    min-height: calc(100dvh - 68px);
     border: 1px solid #282d38;
     border-radius: 22px;
-  }
-
-  .map-wrapper {
-    height: calc(100dvh - 68px);
   }
 }
 
 @media (max-width: 700px) {
-  .map-page {
-    min-height: calc(100dvh - 120px);
-  }
-
-  .map-wrapper {
-    height: calc(100dvh - 120px);
-  }
-
   .place-search-results {
     max-height: 42dvh;
   }
