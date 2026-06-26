@@ -44,7 +44,7 @@ function getAddressComponentText(addressComponents, ...types) {
   return "";
 }
 
-async function createPlaceNote(selectedPlace, note) {
+async function createPlaceNote(selectedPlace, { title, content, rating }) {
   const googlePlaceId = cleanText(selectedPlace?.id);
   const name = cleanText(selectedPlace?.name);
   const formattedAddress = cleanText(selectedPlace?.address);
@@ -62,7 +62,7 @@ async function createPlaceNote(selectedPlace, note) {
     throw new Error("Mekanın konum bilgisi geçersiz.");
   }
 
-  const { data, error } = await supabase.rpc("CreatePlaceNote", {
+  const { data, error } = await supabase.rpc("CreatePlaceNoteWithReview", {
     p_google_place_id: googlePlaceId,
     p_name: name,
     p_formatted_address: formattedAddress,
@@ -70,7 +70,9 @@ async function createPlaceNote(selectedPlace, note) {
     p_city_name: cityName,
     p_latitude: latitude,
     p_longitude: longitude,
-    p_content: note,
+    p_title: title,
+    p_content: content || null,
+    p_rating: rating,
   });
 
   if (error) {
@@ -79,6 +81,7 @@ async function createPlaceNote(selectedPlace, note) {
 
   return data;
 }
+
 
 function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -89,7 +92,9 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
   const [locationMessage, setLocationMessage] = useState("");
 
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [noteTitle, setNoteTitle] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
+  const [noteRating, setNoteRating] = useState(0);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [noteSaveError, setNoteSaveError] = useState("");
 
@@ -193,22 +198,30 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     return () => observer.disconnect();
   }, [selectedPlace]);
 
-  const handlePlaceSelected = useCallback((place) => {
-    setSelectedPlace(place);
-    setIsNoteModalOpen(false);
+  const resetNoteForm = useCallback(() => {
+    setNoteTitle("");
     setNoteDraft("");
+    setNoteRating(0);
     setNoteSaveError("");
   }, []);
+
+  const handlePlaceSelected = useCallback(
+    (place) => {
+      setSelectedPlace(place);
+      setIsNoteModalOpen(false);
+      resetNoteForm();
+    },
+    [resetNoteForm]
+  );
 
   const handleExternalPlaceFocus = useCallback(
     (place) => {
       setSelectedPlace(place);
       setIsNoteModalOpen(false);
-      setNoteDraft("");
-      setNoteSaveError("");
+      resetNoteForm();
       onFocusHandled?.();
     },
-    [onFocusHandled]
+    [onFocusHandled, resetNoteForm]
   );
 
   const goToSelectedPlace = useCallback(() => {
@@ -225,8 +238,7 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
       return;
     }
 
-    setNoteDraft("");
-    setNoteSaveError("");
+    resetNoteForm();
     setIsNoteModalOpen(true);
   };
 
@@ -236,14 +248,25 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     }
 
     setIsNoteModalOpen(false);
-    setNoteDraft("");
-    setNoteSaveError("");
+    resetNoteForm();
   };
 
   const saveNoteDraft = async () => {
-    const note = cleanText(noteDraft);
+    const title = cleanText(noteTitle);
+    const content = cleanText(noteDraft);
+    const rating = Number(noteRating);
 
-    if (!note || !selectedPlace || isSavingNote) {
+    if (!selectedPlace || isSavingNote) {
+      return;
+    }
+
+    if (!title) {
+      setNoteSaveError("Not başlığı zorunlu.");
+      return;
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      setNoteSaveError("1 ile 5 arasında bir puan vermelisin.");
       return;
     }
 
@@ -251,16 +274,21 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     setNoteSaveError("");
 
     try {
-      const placeNoteId = await createPlaceNote(selectedPlace, note);
+      const placeNoteId = await createPlaceNote(selectedPlace, {
+        title,
+        content,
+        rating,
+      });
 
       console.log("Not Supabase'e kaydedildi:", {
         placeNoteId,
         place: selectedPlace,
-        note,
+        title,
+        rating,
       });
 
       setIsNoteModalOpen(false);
-      setNoteDraft("");
+      resetNoteForm();
 
       Promise.resolve(onNoteCreated?.()).catch((error) => {
         console.error("Profil istatistikleri yenilenemedi:", error);
@@ -332,10 +360,14 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
         createPortal(
           <AddNoteModal
             placeName={selectedPlace.name}
+            noteTitle={noteTitle}
             noteDraft={noteDraft}
+            noteRating={noteRating}
             isSaving={isSavingNote}
             saveError={noteSaveError}
+            onTitleChange={setNoteTitle}
             onNoteChange={setNoteDraft}
+            onRatingChange={setNoteRating}
             onCancel={closeNoteModal}
             onSave={saveNoteDraft}
           />,
@@ -748,17 +780,21 @@ function SelectedPlaceCard({
 
 function AddNoteModal({
   placeName,
+  noteTitle,
   noteDraft,
+  noteRating,
   isSaving,
   saveError,
+  onTitleChange,
   onNoteChange,
+  onRatingChange,
   onCancel,
   onSave,
 }) {
-  const textareaRef = useRef(null);
+  const titleInputRef = useRef(null);
 
   useEffect(() => {
-    textareaRef.current?.focus();
+    titleInputRef.current?.focus();
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -780,7 +816,7 @@ function AddNoteModal({
     }
   };
 
-  const canSave = Boolean(cleanText(noteDraft));
+  const canSave = Boolean(cleanText(noteTitle)) && Number(noteRating) >= 1;
 
   return (
     <div
@@ -795,29 +831,63 @@ function AddNoteModal({
         aria-labelledby="note-modal-title"
         onKeyDown={handleKeyDown}
       >
-        <h2 id="note-modal-title">{placeName}</h2>
+        <div className="note-modal-heading">
+          <p className="eyebrow">YENİ NOT</p>
+          <h2 id="note-modal-title">{placeName}</h2>
+        </div>
 
-        <textarea
-          ref={textareaRef}
-          className="note-modal-textarea"
-          value={noteDraft}
-          disabled={isSaving}
-          onChange={(event) => onNoteChange(event.target.value)}
-          placeholder="Bu mekan hakkında ne düşünüyorsun?"
-          aria-label="Mekan notu"
-          maxLength={1000}
-        />
+        <label className="note-modal-field">
+          <span>Başlık</span>
+          <input
+            ref={titleInputRef}
+            className="note-modal-input"
+            type="text"
+            value={noteTitle}
+            disabled={isSaving}
+            onChange={(event) => onTitleChange(event.target.value)}
+            placeholder="Kısa bir başlık yaz"
+            maxLength={120}
+          />
+        </label>
+
+        <div className="note-modal-field">
+          <span>Puanın</span>
+          <div className="note-rating-picker" role="radiogroup" aria-label="Puanın">
+            {[1, 2, 3, 4, 5].map((rating) => (
+              <button
+                className={rating <= Number(noteRating) ? "note-rating-star note-rating-star-active" : "note-rating-star"}
+                type="button"
+                key={rating}
+                role="radio"
+                aria-checked={Number(noteRating) === rating}
+                aria-label={`${rating} yıldız`}
+                disabled={isSaving}
+                onClick={() => onRatingChange(rating)}
+              >
+                ★
+              </button>
+            ))}
+            <strong>{noteRating ? `${noteRating} / 5` : "Puan ver"}</strong>
+          </div>
+        </div>
+
+        <label className="note-modal-field">
+          <span>
+            Detay <small>(opsiyonel)</small>
+          </span>
+          <textarea
+            className="note-modal-textarea"
+            value={noteDraft}
+            disabled={isSaving}
+            onChange={(event) => onNoteChange(event.target.value)}
+            placeholder="Bu mekan hakkında ne düşünüyorsun?"
+            aria-label="Not detayı"
+            maxLength={1000}
+          />
+        </label>
 
         {saveError && (
-          <p
-            role="alert"
-            style={{
-              margin: "-8px 0 0",
-              color: "#ffb4b4",
-              fontSize: "13px",
-              lineHeight: 1.4,
-            }}
-          >
+          <p className="note-modal-error" role="alert">
             {saveError}
           </p>
         )}
@@ -845,6 +915,7 @@ function AddNoteModal({
     </div>
   );
 }
+
 
 function MapBottomControls({
   userLocation,

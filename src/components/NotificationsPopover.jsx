@@ -98,6 +98,7 @@ export default function NotificationsPopover({
   onToggle = () => {},
   onRetryNotifications = () => {},
   onRetryFollowActivity = () => {},
+  onFollowActivityViewed = () => {},
   onOpenNotification = () => {},
   onRespondToRequest = null,
 }) {
@@ -184,6 +185,18 @@ export default function NotificationsPopover({
     }
   };
 
+  const handleTabChange = (nextTab) => {
+    if (nextTab === activeTab) {
+      return;
+    }
+
+    setActiveTab(nextTab);
+
+    if (nextTab === "follow") {
+      void onFollowActivityViewed();
+    }
+  };
+
   const isFollowTab = activeTab === "follow";
   const visibleItems = isFollowTab ? safeFollowActivity : noteNotifications;
   const isCurrentTabLoading = isFollowTab
@@ -248,7 +261,7 @@ export default function NotificationsPopover({
               type="button"
               role="tab"
               aria-selected={activeTab === "notes"}
-              onClick={() => setActiveTab("notes")}
+              onClick={() => handleTabChange("notes")}
             >
               Notlar
             </button>
@@ -258,7 +271,7 @@ export default function NotificationsPopover({
               type="button"
               role="tab"
               aria-selected={activeTab === "follow"}
-              onClick={() => setActiveTab("follow")}
+              onClick={() => handleTabChange("follow")}
             >
               Takip
               {followUnreadCount > 0 && (

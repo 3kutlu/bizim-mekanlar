@@ -385,3 +385,118 @@
     min-height: 145px;
   }
 }
+
+
+/* NOTE REVIEW FORM */
+.note-modal {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+
+.note-modal-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.note-modal-heading .eyebrow {
+  margin: 0;
+}
+
+.note-modal-field {
+  display: grid;
+  gap: 8px;
+  color: #dce1eb;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.note-modal-field > span small {
+  color: #8e97a8;
+  font-size: 0.82em;
+  font-weight: 400;
+}
+
+.note-modal-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #393f4d;
+  border-radius: 13px;
+  padding: 12px 14px;
+  outline: none;
+  background: #0e1015;
+  color: #fff;
+  font: inherit;
+}
+
+.note-modal-input:focus {
+  border-color: #859cff;
+}
+
+.note-modal-input::placeholder {
+  color: #858c9b;
+}
+
+.note-rating-picker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+}
+
+.note-rating-star {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  background: transparent;
+  color: #586176;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.note-rating-star:hover:not(:disabled),
+.note-rating-star:focus-visible {
+  background: #222a38;
+  color: #dbe4ff;
+}
+
+.note-rating-star-active {
+  color: #e9edf7;
+}
+
+.note-rating-picker strong {
+  margin-left: 6px;
+  color: #bdc9df;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.note-modal-textarea {
+  min-height: 135px;
+}
+
+.note-modal-error {
+  margin: -8px 0 0;
+  color: #ffb4b4;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+@media (max-width: 420px) {
+  .note-rating-picker {
+    gap: 2px;
+  }
+
+  .note-rating-star {
+    width: 32px;
+    height: 34px;
+    font-size: 23px;
+  }
+
+  .note-rating-picker strong {
+    margin-left: auto;
+  }
+}

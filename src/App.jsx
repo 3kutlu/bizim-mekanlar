@@ -46,6 +46,93 @@ function formatDate(value, options = { day: "numeric", month: "long", year: "num
   return new Intl.DateTimeFormat("tr-TR", options).format(date);
 }
 
+function formatRelativeNoteTime(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const elapsed = Math.max(0, Date.now() - date.getTime());
+
+  if (elapsed < 60_000) {
+    return "şimdi";
+  }
+
+  if (elapsed < 60 * 60_000) {
+    return `${Math.floor(elapsed / 60_000)} dk önce`;
+  }
+
+  if (elapsed < 24 * 60 * 60_000) {
+    return `${Math.floor(elapsed / (60 * 60_000))} sa önce`;
+  }
+
+  if (elapsed < 7 * 24 * 60 * 60_000) {
+    return `${Math.floor(elapsed / (24 * 60 * 60_000))} gün önce`;
+  }
+
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
+function getNoteTitle(note) {
+  return String(note?.Title ?? "").trim() || "Başlıksız not";
+}
+
+function formatNoteRating(value) {
+  const rating = Number(value);
+
+  return Number.isInteger(rating) && rating >= 1 && rating <= 5
+    ? `${rating} / 5`
+    : "Puanlanmadı";
+}
+
+function ReadOnlyRatingStars({ value }) {
+  const rating = Number(value);
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return <span className="note-detail-rating-empty">Puanlanmadı</span>;
+  }
+
+  return (
+    <span
+      className="note-detail-stars"
+      role="img"
+      aria-label={`${rating} üzerinden 5 yıldız`}
+      title={`${rating} / 5`}
+    >
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          className={
+            star <= rating
+              ? "note-detail-star note-detail-star-active"
+              : "note-detail-star"
+          }
+          aria-hidden="true"
+        >
+          {star <= rating ? "★" : "☆"}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="10.8" cy="10.8" r="5.8" />
+      <path d="m15.2 15.2 4 4" />
+    </svg>
+  );
+}
+
 function getFullName(user) {
   return [user?.FirstName, user?.LastName].filter(Boolean).join(" ");
 }
@@ -367,19 +454,31 @@ function App() {
       loadFollowActivity({ silent: true }),
     ]);
 
-    const { error } = await supabase.rpc("MarkMyNotificationsRead");
+    // Popover Notlar sekmesinde açılıyor. Bu yüzden yalnızca not
+    // bildirimlerini okundu sayıyoruz; Takip sekmesindeki gelişmeler
+    // kullanıcı o sekmeye gerçekten girdiğinde okunacak.
+    const { error } = await supabase.rpc("MarkMyNoteNotificationsRead");
 
     if (error) {
-      console.error("Bildirimler okundu işaretlenemedi:", error);
-      setAppMessage("Bildirimler okundu işaretlenemedi.");
+      console.error("Not bildirimleri okundu işaretlenemedi:", error);
+      setAppMessage("Not bildirimleri okundu işaretlenemedi.");
       return;
     }
 
-    await Promise.all([
-      loadNotifications({ silent: true }),
-      loadFollowActivity({ silent: true }),
-    ]);
+    await loadNotifications({ silent: true });
   }, [isNotificationsOpen, loadFollowActivity, loadNotifications]);
+
+  const handleFollowActivityViewed = useCallback(async () => {
+    const { error } = await supabase.rpc("MarkMyFollowActivityRead");
+
+    if (error) {
+      console.error("Takip gelişmeleri okundu işaretlenemedi:", error);
+      setAppMessage("Takip gelişmeleri okundu işaretlenemedi.");
+      return;
+    }
+
+    await loadFollowActivity({ silent: true });
+  }, [loadFollowActivity]);
 
   useEffect(() => {
     loadProfile();
@@ -512,6 +611,22 @@ function App() {
       });
     },
     [closeDiscovery, ownUserId, pushDiscoveryScreen]
+  );
+
+  const handleOpenNote = useCallback(
+    (noteId) => {
+      const normalizedNoteId = Number(noteId);
+
+      if (!Number.isInteger(normalizedNoteId) || normalizedNoteId <= 0) {
+        return;
+      }
+
+      pushDiscoveryScreen({
+        type: "note",
+        noteId: normalizedNoteId,
+      });
+    },
+    [pushDiscoveryScreen]
   );
 
   const handleOpenNotification = useCallback(
@@ -697,6 +812,7 @@ function App() {
             onToggle={handleNotificationToggle}
             onRetryNotifications={loadNotifications}
             onRetryFollowActivity={loadFollowActivity}
+            onFollowActivityViewed={handleFollowActivityViewed}
             onOpenNotification={handleOpenNotification}
             onRespondToRequest={handleFollowRequestResponse}
           />
@@ -708,7 +824,7 @@ function App() {
             aria-label="Kullanıcı ara"
             title="Kullanıcı ara"
           >
-            ⌕
+            <SearchIcon />
           </button>
         </div>
       </header>
@@ -743,6 +859,7 @@ function App() {
             refreshKey={notesRefreshKey}
             onOpenPlace={handleOpenPlaceOnMap}
             onOpenUser={handleOpenUserProfile}
+            onOpenNote={handleOpenNote}
           />
         </section>
 
@@ -793,6 +910,16 @@ function App() {
                     />
                   )}
 
+                  {screen.type === "note" && (
+                    <NoteDetailPage
+                      noteId={screen.noteId}
+                      isActive={isActive}
+                      onBack={popDiscoveryScreen}
+                      onOpenPlace={handleOpenPlaceOnMap}
+                      onOpenUser={handleOpenUserProfile}
+                    />
+                  )}
+
                   {screen.type === "collection" && (
                     <ProfileCollectionPage
                       profileUserId={screen.userId}
@@ -802,6 +929,7 @@ function App() {
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceOnMap}
                       onOpenUser={handleOpenUserProfile}
+                      onOpenNote={handleOpenNote}
                     />
                   )}
                 </section>
@@ -857,7 +985,7 @@ function App() {
 
 
 
-function ListPage({ refreshKey, onOpenPlace, onOpenUser }) {
+function ListPage({ refreshKey, onOpenPlace, onOpenUser, onOpenNote }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -866,7 +994,7 @@ function ListPage({ refreshKey, onOpenPlace, onOpenUser }) {
     setLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("GetFollowingFeedNotes");
+    const { data, error } = await supabase.rpc("GetFollowingFeedNoteCards");
 
     if (error) {
       console.error("Akış notları alınamadı:", error);
@@ -910,6 +1038,7 @@ function ListPage({ refreshKey, onOpenPlace, onOpenUser }) {
           notes={notes}
           onOpenPlace={onOpenPlace}
           onOpenUser={onOpenUser}
+          onOpenNote={onOpenNote}
         />
       )}
     </section>
@@ -1007,6 +1136,7 @@ function ProfileCollectionPage({
   onBack,
   onOpenPlace,
   onOpenUser,
+  onOpenNote,
 }) {
   const config = PROFILE_COLLECTIONS[type];
   const [items, setItems] = useState([]);
@@ -1019,7 +1149,7 @@ function ProfileCollectionPage({
 
     const request =
       type === "notes"
-        ? supabase.rpc("GetProfileNotes", {
+        ? supabase.rpc("GetProfileNoteCards", {
             p_profile_user_id: profileUserId,
           })
         : supabase.rpc("GetProfileConnections", {
@@ -1101,6 +1231,7 @@ function ProfileCollectionPage({
             compact
             onOpenPlace={onOpenPlace}
             onOpenUser={onOpenUser}
+            onOpenNote={onOpenNote}
           />
         )}
 
@@ -1112,17 +1243,62 @@ function ProfileCollectionPage({
   );
 }
 
-function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser }) {
+function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser, onOpenNote }) {
   return (
     <div className={`note-feed${compact ? " note-feed-compact" : ""}`}>
       {notes.map((note) => {
         const username = note.Username || "Kullanıcı";
+        const title = getNoteTitle(note);
+        const canOpenNote = Boolean(note.PlaceNoteId && onOpenNote);
+
+        const openNote = () => {
+          if (canOpenNote) {
+            onOpenNote(note.PlaceNoteId);
+          }
+        };
+
+        const handleCardKeyDown = (event) => {
+          if (
+            !canOpenNote ||
+            event.target !== event.currentTarget ||
+            (event.key !== "Enter" && event.key !== " ")
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+          openNote();
+        };
 
         return (
-          <article className="note-feed-card" key={note.PlaceNoteId}>
-            <div className="note-feed-avatar" aria-hidden="true">
-              {username.charAt(0).toUpperCase()}
-            </div>
+          <article
+            className={`note-feed-card${
+              canOpenNote ? " note-feed-card-clickable" : ""
+            }`}
+            key={note.PlaceNoteId}
+            onClick={openNote}
+            onKeyDown={handleCardKeyDown}
+            tabIndex={canOpenNote ? 0 : undefined}
+            aria-label={canOpenNote ? `${title} not detayını aç` : undefined}
+          >
+            {note.UserId && onOpenUser ? (
+              <button
+                className="note-feed-avatar note-feed-avatar-button"
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenUser(note.UserId);
+                }}
+                title={`${username} profilini aç`}
+                aria-label={`${username} profilini aç`}
+              >
+                {username.charAt(0).toUpperCase()}
+              </button>
+            ) : (
+              <div className="note-feed-avatar" aria-hidden="true">
+                {username.charAt(0).toUpperCase()}
+              </div>
+            )}
 
             <div className="note-feed-content">
               <div className="note-feed-header">
@@ -1131,7 +1307,10 @@ function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser }) {
                     <button
                       className="note-feed-user-link"
                       type="button"
-                      onClick={() => onOpenUser(note.UserId)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenUser(note.UserId);
+                      }}
                       title="Kullanıcı profilini aç"
                     >
                       {username}
@@ -1139,13 +1318,21 @@ function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser }) {
                   ) : (
                     <strong>{username}</strong>
                   )}
-                  <span className="note-feed-place-separator" aria-hidden="true">
+
+                  <span
+                    className="note-feed-place-separator"
+                    aria-hidden="true"
+                  >
                     -
                   </span>
+
                   <button
                     className="note-feed-place-link"
                     type="button"
-                    onClick={() => onOpenPlace?.(note.PlaceId)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenPlace?.(note.PlaceId);
+                    }}
                     disabled={!note.PlaceId}
                     title="Mekanı haritada aç"
                   >
@@ -1154,17 +1341,183 @@ function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser }) {
                 </div>
               </div>
 
-              <div className="note-feed-place">
-                <p className="note-feed-note-copy">{note.Content}</p>
+              <div className="note-feed-summary-button">
+                <strong>{title}</strong>
+                <span>{formatNoteRating(note.Rating)}</span>
               </div>
 
-              <p className="note-feed-visit-date">
-                Ziyaret tarihi · {formatDate(note.VisitedDate) || "Belirtilmedi"}
-              </p>
+              <time
+                className="note-feed-created-time"
+                dateTime={note.CreatedDate}
+                title={formatDate(note.CreatedDate, {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              >
+                {formatRelativeNoteTime(note.CreatedDate)}
+              </time>
             </div>
           </article>
         );
       })}
+    </div>
+  );
+}
+
+function NoteDetailPage({
+  noteId,
+  isActive,
+  onBack,
+  onOpenPlace,
+  onOpenUser,
+}) {
+  const [note, setNote] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const loadNote = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage("");
+
+    const { data, error } = await supabase.rpc("GetPlaceNoteDetail", {
+      p_place_note_id: noteId,
+    });
+
+    if (error) {
+      console.error("Not detayı alınamadı:", error);
+      setNote(null);
+      setErrorMessage(error.message || "Not şu an açılamadı.");
+    } else {
+      const detail = Array.isArray(data) ? data[0] : data;
+
+      if (!detail) {
+        setNote(null);
+        setErrorMessage("Not bulunamadı veya erişime kapalı.");
+      } else {
+        setNote(detail);
+      }
+    }
+
+    setLoading(false);
+  }, [noteId]);
+
+  useEffect(() => {
+    loadNote();
+  }, [loadNote]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return undefined;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        onBack();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isActive, onBack]);
+
+  const username = note?.Username || "Kullanıcı";
+  const fullName = getFullName(note);
+  const avatarLetter = (username || fullName || "K").charAt(0).toUpperCase();
+
+  return (
+    <div className="discovery-page-content note-detail-page">
+      <header className="discovery-page-header">
+        <div>
+          <p className="eyebrow">NOT DETAYI</p>
+          <h1>{note ? getNoteTitle(note) : "Not"}</h1>
+        </div>
+
+        <button
+          className="discovery-back-button"
+          type="button"
+          onClick={onBack}
+          aria-label="Geri dön"
+        >
+          ‹
+          <span>Geri</span>
+        </button>
+      </header>
+
+      <div className="discovery-page-body">
+        {loading && <LoadingState compact />}
+
+        {!loading && errorMessage && (
+          <ErrorState message={errorMessage} onRetry={loadNote} compact />
+        )}
+
+        {!loading && note && (
+          <article className="note-detail-card">
+            <div className="note-detail-topline">
+              <button
+                className="note-detail-author"
+                type="button"
+                onClick={() => onOpenUser?.(note.UserId)}
+                disabled={!note.UserId || !onOpenUser}
+                title="Kullanıcı profilini aç"
+              >
+                <span className="note-detail-avatar" aria-hidden="true">
+                  {avatarLetter}
+                </span>
+                <span>
+                  <strong>{username}</strong>
+                  <small>{fullName || username}</small>
+                </span>
+              </button>
+
+              <ReadOnlyRatingStars value={note.Rating} />
+            </div>
+
+            <button
+              className="note-detail-place"
+              type="button"
+              onClick={() => onOpenPlace?.(note.PlaceId)}
+              disabled={!note.PlaceId || !onOpenPlace}
+              title="Mekanı haritada aç"
+            >
+              <strong>{note.PlaceName || "İsimsiz mekan"}</strong>
+              {note.FormattedAddress && <span>{note.FormattedAddress}</span>}
+            </button>
+
+            <section className="note-detail-copy">
+              <h2>Detay</h2>
+              <p>{note.Content || "Bu not için detay eklenmemiş."}</p>
+            </section>
+
+            <dl className="note-detail-meta">
+              <div>
+                <dt>Ziyaret tarihi</dt>
+                <dd>{formatDate(note.VisitedDate) || "Belirtilmedi"}</dd>
+              </div>
+              <div>
+                <dt>Not zamanı</dt>
+                <dd>
+                  {formatDate(note.CreatedDate, {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }) || "Belirtilmedi"}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="note-detail-coming-soon">
+              <strong>Puanlamalar ve fotoğraflar</strong>
+              <span>Yakında bu notta burada yer alacak.</span>
+            </div>
+          </article>
+        )}
+      </div>
     </div>
   );
 }

@@ -144,9 +144,23 @@ function ListPage({ username = "Kullanıcı" }) {
 
             return (
               <article key={entry.id} className="note-feed-card">
-                <div className="note-feed-avatar" aria-hidden="true">
-                  {username.charAt(0).toUpperCase()}
-                </div>
+                {note.UserId && onOpenUser ? (
+                  <button
+                    className="note-feed-avatar note-feed-avatar-button"
+                    type="button"
+                    onClick={() => onOpenUser(note.UserId)}
+                    title="Kullanıcı profilini aç"
+                    aria-label={`${username} profilini aç`}
+                  >
+                    <span aria-hidden="true">
+                      {username.charAt(0).toUpperCase()}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="note-feed-avatar" aria-hidden="true">
+                    {username.charAt(0).toUpperCase()}
+                  </div>
+                )}
 
                 <div className="note-feed-content">
                   <header className="note-feed-header">

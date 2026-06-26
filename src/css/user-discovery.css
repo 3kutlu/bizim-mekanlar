@@ -26,6 +26,17 @@
   background: #202735;
 }
 
+.user-search-trigger svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
 .page-content {
   position: relative;
 }
@@ -157,10 +168,15 @@
   background: #0e1116;
 }
 
-.user-search-input-wrap > span {
-  color: #aeb8cb;
-  font-size: 22px;
-  line-height: 1;
+.user-search-input-wrap > svg {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #aeb8cb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
 }
 
 .user-search-input-wrap input {
