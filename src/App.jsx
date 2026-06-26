@@ -766,7 +766,11 @@ function App() {
         discoveryStack.length > 0 ? " app-shell-with-discovery" : ""
       }`}
     >
-      <header className="topbar">
+      <header
+        className={`topbar${
+          isNotificationsOpen ? " topbar-notifications-open" : ""
+        }`}
+      >
         <button
           className="logo-button"
           type="button"
