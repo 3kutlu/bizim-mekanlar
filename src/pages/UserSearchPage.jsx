@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase.js";
+import { MESSAGE_KEY, t } from "../i18n/messages.js";
 import "../css/user-discovery.css";
 
 function getFullName(user) {
@@ -61,7 +62,7 @@ export default function UserSearchPage({
       if (error) {
         console.error("Kullanıcı araması başarısız:", error);
         setUsers([]);
-        setErrorMessage("Kullanıcılar şu an aranamadı. Tekrar dene.");
+        setErrorMessage(MESSAGE_KEY.USER_SEARCH_FAILED);
       } else {
         setUsers(data ?? []);
       }
@@ -118,7 +119,7 @@ export default function UserSearchPage({
 
         {!isLoading && errorMessage && (
           <p className="user-search-error" role="alert">
-            {errorMessage}
+            {t(errorMessage)}
           </p>
         )}
 

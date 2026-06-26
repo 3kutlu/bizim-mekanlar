@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase.js";
+import { getErrorMessageKey, MESSAGE_KEY, t } from "../i18n/messages.js";
 import "../css/user-discovery.css";
 
 function getFullName(profile) {
@@ -59,13 +60,15 @@ export default function UserProfilePage({
     if (error) {
       console.error("Kullanıcı profili alınamadı:", error);
       setProfile(null);
-      setErrorMessage(error.message || "Profil şu an yüklenemedi.");
+      setErrorMessage(
+        getErrorMessageKey(error, MESSAGE_KEY.EXTERNAL_PROFILE_LOAD_FAILED)
+      );
     } else {
       const profileData = Array.isArray(data) ? data[0] : data;
 
       if (!profileData) {
         setProfile(null);
-        setErrorMessage("Kullanıcı bulunamadı veya artık aktif değil.");
+        setErrorMessage(MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE);
       } else {
         setProfile(profileData);
       }
@@ -115,7 +118,9 @@ export default function UserProfilePage({
 
     if (error) {
       console.error("Takip işlemi başarısız:", error);
-      setErrorMessage(error.message || "Takip işlemi gerçekleştirilemedi.");
+      setErrorMessage(
+        getErrorMessageKey(error, MESSAGE_KEY.FOLLOW_ACTION_FAILED)
+      );
       setIsActionLoading(false);
       return;
     }
@@ -170,7 +175,7 @@ export default function UserProfilePage({
 
         {!isLoading && errorMessage && !profile && (
           <div className="foreign-profile-state foreign-profile-state-error">
-            <p>{errorMessage}</p>
+            <p>{t(errorMessage)}</p>
             <button type="button" onClick={loadProfile}>
               Tekrar dene
             </button>
@@ -245,7 +250,7 @@ export default function UserProfilePage({
 
             {errorMessage && profile && (
               <p className="foreign-profile-action-error" role="alert">
-                {errorMessage}
+                {t(errorMessage)}
               </p>
             )}
 

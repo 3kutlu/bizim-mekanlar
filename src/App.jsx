@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase.js";
-import AuthPage from "./AuthPage.jsx";
+import {
+  getErrorMessageKey,
+  MESSAGE_KEY,
+  t,
+} from "./i18n/messages.js";
+import AuthPage from "./pages/AuthPage.jsx";
 import MapPage from "./pages/MapPage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
@@ -20,15 +25,15 @@ const EMPTY_SUMMARY = {
 const PROFILE_COLLECTIONS = {
   notes: {
     title: "Notlar",
-    emptyMessage: "Henüz not bulunmuyor.",
+    emptyMessageKey: MESSAGE_KEY.PROFILE_COLLECTION_NOTES_EMPTY,
   },
   followers: {
     title: "Takipçiler",
-    emptyMessage: "Henüz takipçi bulunmuyor.",
+    emptyMessageKey: MESSAGE_KEY.PROFILE_COLLECTION_FOLLOWERS_EMPTY,
   },
   following: {
     title: "Takip edilenler",
-    emptyMessage: "Henüz takip edilen hesap bulunmuyor.",
+    emptyMessageKey: MESSAGE_KEY.PROFILE_COLLECTION_FOLLOWING_EMPTY,
   },
 };
 
@@ -203,7 +208,9 @@ function App() {
 
       if (error) {
         console.error("Oturum alınamadı:", error);
-        setAppMessage(error.message);
+        setAppMessage(
+          getErrorMessageKey(error, MESSAGE_KEY.SESSION_LOAD_FAILED)
+        );
       }
 
       setSession(data.session);
@@ -295,7 +302,7 @@ function App() {
       console.error("Profil alınamadı:", profileQueryError);
       setProfile(null);
       setSummary(EMPTY_SUMMARY);
-      setProfileError("Profil bilgilerin yüklenemedi.");
+      setProfileError(MESSAGE_KEY.PROFILE_LOAD_FAILED);
       setProfileLoading(false);
       return;
     }
@@ -303,9 +310,7 @@ function App() {
     if (!profileData) {
       setProfile(null);
       setSummary(EMPTY_SUMMARY);
-      setProfileError(
-        "Hesabın oluşturuldu fakat profil kaydın bulunamadı. Lütfen yeniden giriş yapmayı dene."
-      );
+      setProfileError(MESSAGE_KEY.PROFILE_RECORD_MISSING);
       setProfileLoading(false);
       return;
     }
@@ -340,7 +345,7 @@ function App() {
 
       if (error) {
         console.error("Bildirimler alınamadı:", error);
-        setNotificationsError("Bildirimler şu an yüklenemedi.");
+        setNotificationsError(MESSAGE_KEY.NOTIFICATIONS_LOAD_FAILED);
       } else {
         setNotifications(data ?? []);
       }
@@ -374,7 +379,7 @@ function App() {
       if (error) {
         console.error("Takip hareketleri alınamadı:", error);
         setFollowActivity([]);
-        setFollowActivityError("Takip hareketleri şu an yüklenemedi.");
+        setFollowActivityError(MESSAGE_KEY.FOLLOW_ACTIVITY_LOAD_FAILED);
       } else {
         setFollowActivity(data ?? []);
       }
@@ -461,7 +466,7 @@ function App() {
 
     if (error) {
       console.error("Not bildirimleri okundu işaretlenemedi:", error);
-      setAppMessage("Not bildirimleri okundu işaretlenemedi.");
+      setAppMessage(MESSAGE_KEY.NOTE_NOTIFICATIONS_MARK_READ_FAILED);
       return;
     }
 
@@ -473,7 +478,7 @@ function App() {
 
     if (error) {
       console.error("Takip gelişmeleri okundu işaretlenemedi:", error);
-      setAppMessage("Takip gelişmeleri okundu işaretlenemedi.");
+      setAppMessage(MESSAGE_KEY.FOLLOW_ACTIVITY_MARK_READ_FAILED);
       return;
     }
 
@@ -500,7 +505,7 @@ function App() {
 
     if (error) {
       console.error("Şehirler alınamadı:", error);
-      setCitiesError("Şehir listesi yüklenemedi.");
+      setCitiesError(MESSAGE_KEY.CITIES_LOAD_FAILED);
     } else {
       setCities(data ?? []);
     }
@@ -531,7 +536,7 @@ function App() {
     const normalizedPlaceId = Number(placeId);
 
     if (!Number.isInteger(normalizedPlaceId) || normalizedPlaceId <= 0) {
-      setAppMessage("Mekan konumu açılamadı.");
+      setAppMessage(MESSAGE_KEY.PLACE_TARGET_INVALID);
       return;
     }
 
@@ -541,7 +546,9 @@ function App() {
 
     if (error) {
       console.error("Mekan konumu alınamadı:", error);
-      setAppMessage(error.message || "Mekan konumu şu an açılamadı.");
+      setAppMessage(
+        getErrorMessageKey(error, MESSAGE_KEY.PLACE_TARGET_LOAD_FAILED)
+      );
       return;
     }
 
@@ -550,7 +557,7 @@ function App() {
     const longitude = Number(place?.Longitude);
 
     if (!place || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      setAppMessage("Mekan konum bilgisi geçersiz.");
+      setAppMessage(MESSAGE_KEY.PLACE_TARGET_LOCATION_INVALID);
       return;
     }
 
@@ -649,7 +656,9 @@ function App() {
 
       if (error) {
         console.error("Takip isteği yanıtlanamadı:", error);
-        setAppMessage(error.message || "Takip isteği yanıtlanamadı.");
+        setAppMessage(
+          getErrorMessageKey(error, MESSAGE_KEY.FOLLOW_REQUEST_RESPONSE_FAILED)
+        );
         throw error;
       }
 
@@ -692,7 +701,7 @@ function App() {
     };
 
     if (Number(countByType[type] ?? 0) === 0) {
-      setProfileNotice(config.emptyMessage);
+      setProfileNotice(config.emptyMessageKey);
       return;
     }
 
@@ -711,7 +720,9 @@ function App() {
 
     if (error) {
       console.error("Çıkış yapılamadı:", error);
-      setAppMessage(error.message);
+      setAppMessage(
+        getErrorMessageKey(error, MESSAGE_KEY.SIGN_OUT_FAILED)
+      );
       return;
     }
 
@@ -741,7 +752,7 @@ function App() {
           <div className="empty-state">
             <div className="empty-icon">!</div>
             <h2>Profil yüklenemedi</h2>
-            <p>{profileError || "Bir hata oluştu."}</p>
+            <p>{t(profileError || MESSAGE_KEY.PROFILE_LOAD_FAILED)}</p>
             <button
               className="secondary-button"
               type="button"
@@ -835,7 +846,7 @@ function App() {
 
       {appMessage && (
         <div className="app-message" role="status">
-          {appMessage}
+          {t(appMessage)}
         </div>
       )}
 
@@ -1003,7 +1014,7 @@ function ListPage({ refreshKey, onOpenPlace, onOpenUser, onOpenNote }) {
     if (error) {
       console.error("Akış notları alınamadı:", error);
       setNotes([]);
-      setErrorMessage("Akış şu an yüklenemedi. Tekrar dene.");
+      setErrorMessage(MESSAGE_KEY.FEED_LOAD_FAILED);
     } else {
       setNotes(data ?? []);
     }
@@ -1105,7 +1116,7 @@ function ProfilePage({
 
         {profileNotice && (
           <p className="profile-stat-notice" role="status">
-            {profileNotice}
+            {t(profileNotice)}
           </p>
         )}
 
@@ -1166,7 +1177,7 @@ function ProfileCollectionPage({
     if (error) {
       console.error("Profil listesi alınamadı:", error);
       setItems([]);
-      setErrorMessage("Liste şu an yüklenemedi. Tekrar dene.");
+      setErrorMessage(MESSAGE_KEY.COLLECTION_LOAD_FAILED);
     } else {
       setItems(data ?? []);
     }
@@ -1393,13 +1404,15 @@ function NoteDetailPage({
     if (error) {
       console.error("Not detayı alınamadı:", error);
       setNote(null);
-      setErrorMessage(error.message || "Not şu an açılamadı.");
+      setErrorMessage(
+        getErrorMessageKey(error, MESSAGE_KEY.NOTE_LOAD_FAILED)
+      );
     } else {
       const detail = Array.isArray(data) ? data[0] : data;
 
       if (!detail) {
         setNote(null);
-        setErrorMessage("Not bulunamadı veya erişime kapalı.");
+        setErrorMessage(MESSAGE_KEY.NOTE_NOT_FOUND_OR_RESTRICTED);
       } else {
         setNote(detail);
       }
@@ -1574,7 +1587,7 @@ function ErrorState({ message, onRetry, compact = false }) {
     <div
       className={`list-state list-state-error${compact ? " list-state-compact" : ""}`}
     >
-      <p>{message}</p>
+      <p>{t(message)}</p>
       <button type="button" onClick={onRetry}>
         Tekrar dene
       </button>
@@ -1646,15 +1659,13 @@ function ProfileEditModal({
 
     if (normalizedUsername === profile.Username) {
       setUsernameAvailable(true);
-      setUsernameMessage("Mevcut kullanıcı adın.");
+      setUsernameMessage(MESSAGE_KEY.USERNAME_CURRENT);
       return true;
     }
 
     if (!/^[a-z0-9._]{3,30}$/.test(normalizedUsername)) {
       setUsernameAvailable(false);
-      setUsernameMessage(
-        "3-30 karakter kullan: harf, rakam, nokta veya alt çizgi."
-      );
+      setUsernameMessage(MESSAGE_KEY.USERNAME_INVALID_FORMAT);
       return false;
     }
 
@@ -1665,16 +1676,14 @@ function ProfileEditModal({
     if (error) {
       console.error("Kullanıcı adı kontrolü yapılamadı:", error);
       setUsernameAvailable(null);
-      setUsernameMessage("Kullanıcı adı şu an kontrol edilemedi.");
+      setUsernameMessage(MESSAGE_KEY.USERNAME_CHECK_FAILED);
       return false;
     }
 
     const isAvailable = Boolean(data);
     setUsernameAvailable(isAvailable);
     setUsernameMessage(
-      isAvailable
-        ? "Bu kullanıcı adı kullanılabilir."
-        : "Bu kullanıcı adı alınmış."
+      isAvailable ? MESSAGE_KEY.USERNAME_AVAILABLE : MESSAGE_KEY.USERNAME_TAKEN
     );
 
     return isAvailable;
@@ -1685,24 +1694,24 @@ function ProfileEditModal({
     setSaveError("");
 
     if (!form.firstName.trim()) {
-      setSaveError("İsim zorunlu.");
+      setSaveError(MESSAGE_KEY.PROFILE_FIRST_NAME_REQUIRED);
       return;
     }
 
     if (!form.birthDate) {
-      setSaveError("Doğum tarihi zorunlu.");
+      setSaveError(MESSAGE_KEY.PROFILE_BIRTH_DATE_REQUIRED);
       return;
     }
 
     if (!form.cityId) {
-      setSaveError("Şehir seçmelisin.");
+      setSaveError(MESSAGE_KEY.PROFILE_CITY_REQUIRED);
       return;
     }
 
     const usernameIsValid = await checkUsername();
 
     if (!usernameIsValid) {
-      setSaveError("Devam etmek için kullanılabilir bir kullanıcı adı seç.");
+      setSaveError(MESSAGE_KEY.PROFILE_USERNAME_MUST_BE_AVAILABLE);
       return;
     }
 
@@ -1721,7 +1730,9 @@ function ProfileEditModal({
 
     if (error) {
       console.error("Profil güncellenemedi:", error);
-      setSaveError(error.message || "Profil güncellenemedi.");
+      setSaveError(
+        getErrorMessageKey(error, MESSAGE_KEY.PROFILE_UPDATE_FAILED)
+      );
       setSaving(false);
       return;
     }
@@ -1786,7 +1797,7 @@ function ProfileEditModal({
                 usernameAvailable === false ? "profile-field-error" : ""
               }`}
             >
-              {usernameMessage}
+              {t(usernameMessage)}
             </p>
           )}
 
@@ -1882,8 +1893,12 @@ function ProfileEditModal({
             </span>
           </label>
 
-          {citiesError && <p className="profile-save-error">{citiesError}</p>}
-          {saveError && <p className="profile-save-error">{saveError}</p>}
+          {citiesError && (
+            <p className="profile-save-error">{t(citiesError)}</p>
+          )}
+          {saveError && (
+            <p className="profile-save-error">{t(saveError)}</p>
+          )}
 
           <div className="profile-modal-actions">
             <button

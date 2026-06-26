@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  getErrorMessageKey,
+  MESSAGE_KEY,
+  t,
+} from "../i18n/messages.js";
 import "../css/notifications.css";
 
 function formatNotificationTime(value) {
@@ -168,7 +173,7 @@ export default function NotificationsPopover({
     const actorUserId = Number(activity?.ActorUserId);
 
     if (!Number.isInteger(actorUserId) || actorUserId <= 0) {
-      setActionError("Takip isteği bilgisi geçersiz.");
+      setActionError(MESSAGE_KEY.FOLLOW_REQUEST_INVALID);
       return;
     }
 
@@ -179,7 +184,9 @@ export default function NotificationsPopover({
       await onRespondToRequest(activity, accept);
     } catch (error) {
       console.error("Takip isteği yanıtlanamadı:", error);
-      setActionError(error?.message || "Takip isteği yanıtlanamadı.");
+      setActionError(
+        getErrorMessageKey(error, MESSAGE_KEY.FOLLOW_REQUEST_RESPONSE_FAILED)
+      );
     } finally {
       setProcessingFollowerUserId(null);
     }
@@ -292,7 +299,7 @@ export default function NotificationsPopover({
 
             {!isCurrentTabLoading && currentTabError && (
               <div className="notification-state notification-state-error">
-                <p>{currentTabError}</p>
+                <p>{t(currentTabError)}</p>
                 <button
                   type="button"
                   onClick={() =>
@@ -395,7 +402,7 @@ export default function NotificationsPopover({
               )}
 
             {actionError && (
-              <p className="notification-action-error">{actionError}</p>
+              <p className="notification-action-error">{t(actionError)}</p>
             )}
           </div>
         </section>
