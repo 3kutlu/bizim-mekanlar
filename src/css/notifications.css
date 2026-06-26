@@ -289,3 +289,34 @@
     max-height: calc(100dvh - 78px);
   }
 }
+
+@media (max-width: 640px) {
+  .notification-menu {
+    position: static;
+  }
+
+  .notification-popover {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 72px);
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    z-index: 1000;
+  }
+
+  .notification-popover-header,
+  .notification-popover-body {
+    min-width: 0;
+  }
+
+  .notification-popover-header h2,
+  .notification-item-copy,
+  .notification-item-copy strong,
+  .notification-item-copy span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
