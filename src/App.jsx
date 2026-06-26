@@ -4,6 +4,7 @@ import AuthPage from "./AuthPage.jsx";
 import MapPage from "./pages/MapPage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
+import NotificationsPopover from "./components/NotificationsPopover.jsx";
 import "./css/app-shell.css";
 import "./css/list-page.css";
 import "./css/profile-page.css";
@@ -69,6 +70,11 @@ function App() {
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [mapTarget, setMapTarget] = useState(null);
   const [discoveryStack, setDiscoveryStack] = useState([]);
+
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState("");
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   const [cities, setCities] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
@@ -221,6 +227,103 @@ function App() {
     await loadSummary(profile?.UserId);
   }, [loadSummary, profile?.UserId]);
 
+  const loadNotifications = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!profile?.UserId) {
+        setNotifications([]);
+        setNotificationsError("");
+        setNotificationsLoading(false);
+        return;
+      }
+
+      if (!silent) {
+        setNotificationsLoading(true);
+      }
+
+      setNotificationsError("");
+
+      const { data, error } = await supabase.rpc("GetMyNotifications", {
+        p_limit: 40,
+      });
+
+      if (error) {
+        console.error("Bildirimler alınamadı:", error);
+        setNotificationsError("Bildirimler şu an yüklenemedi.");
+      } else {
+        setNotifications(data ?? []);
+      }
+
+      if (!silent) {
+        setNotificationsLoading(false);
+      }
+    },
+    [profile?.UserId]
+  );
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!profile?.UserId) {
+      return undefined;
+    }
+
+    const channel = supabase
+      .channel(`notifications:${profile.UserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "Notifications",
+        },
+        () => {
+          loadNotifications({ silent: true });
+        }
+      )
+      .subscribe((status, error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("Bildirim Realtime bağlantısı kurulamadı:", error);
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadNotifications, profile?.UserId]);
+
+  const unreadNotificationCount = Number(notifications[0]?.UnreadCount ?? 0);
+
+  const handleNotificationToggle = useCallback(async () => {
+    const willOpen = !isNotificationsOpen;
+    setIsNotificationsOpen(willOpen);
+
+    if (!willOpen || unreadNotificationCount === 0) {
+      return;
+    }
+
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.IsRead
+          ? notification
+          : {
+              ...notification,
+              IsRead: true,
+              UnreadCount: 0,
+            }
+      )
+    );
+
+    const { error } = await supabase.rpc("MarkMyNotificationsRead");
+
+    if (error) {
+      console.error("Bildirimler okundu işaretlenemedi:", error);
+      setAppMessage("Bildirimler okundu işaretlenemedi.");
+      await loadNotifications();
+    }
+  }, [isNotificationsOpen, loadNotifications, unreadNotificationCount]);
+
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
@@ -354,6 +457,41 @@ function App() {
     [closeDiscovery, ownUserId, pushDiscoveryScreen]
   );
 
+  const handleOpenNotification = useCallback(
+    (notification) => {
+      setIsNotificationsOpen(false);
+
+      if (notification?.ActorUserId) {
+        handleOpenUserProfile(notification.ActorUserId);
+      }
+    },
+    [handleOpenUserProfile]
+  );
+
+  const handleFollowRequestResponse = useCallback(
+    async (notification, accept) => {
+      const { error } = await supabase.rpc("RespondToFollowRequest", {
+        p_follower_user_id: notification.ActorUserId,
+        p_accept: accept,
+      });
+
+      if (error) {
+        console.error("Takip isteği yanıtlanamadı:", error);
+        setAppMessage(error.message || "Takip isteği yanıtlanamadı.");
+        throw error;
+      }
+
+      setNotifications((current) =>
+        current.filter(
+          (item) => item.NotificationId !== notification.NotificationId
+        )
+      );
+
+      await refreshProfileSummary();
+    },
+    [refreshProfileSummary]
+  );
+
   const handleOpenCollectionForUser = useCallback(
     (context) => {
       if (!context?.userId || !context?.username || !context?.type) {
@@ -411,6 +549,9 @@ function App() {
     setActivePage("map");
     setProfile(null);
     setSummary(EMPTY_SUMMARY);
+    setNotifications([]);
+    setNotificationsError("");
+    setIsNotificationsOpen(false);
   };
 
   if (loading || (session?.user && profileLoading)) {
@@ -486,6 +627,18 @@ function App() {
               Profil
             </button>
           </nav>
+
+          <NotificationsPopover
+            isOpen={isNotificationsOpen}
+            notifications={notifications}
+            isLoading={notificationsLoading}
+            errorMessage={notificationsError}
+            unreadCount={unreadNotificationCount}
+            onToggle={handleNotificationToggle}
+            onRetry={loadNotifications}
+            onOpenNotification={handleOpenNotification}
+            onRespondToRequest={handleFollowRequestResponse}
+          />
 
           <button
             className="user-search-trigger"
