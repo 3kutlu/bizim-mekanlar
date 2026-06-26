@@ -31,6 +31,7 @@
 .notification-trigger:focus-visible,
 .user-search-trigger:focus-visible,
 .notification-item-main:focus-visible,
+.notification-tabs button:focus-visible,
 .notification-request-actions button:focus-visible {
   outline: 2px solid #9cbaff;
   outline-offset: 3px;
@@ -88,8 +89,57 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 18px 18px 15px;
+  padding: 18px 18px 12px;
+}
+
+.notification-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 0 16px 12px;
   border-bottom: 1px solid #2b323e;
+}
+
+.notification-tabs button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #9ea8b9;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.notification-tabs button:hover,
+.notification-tabs button:focus-visible {
+  border-color: #3a4559;
+  background: #1c222d;
+  color: #edf1fa;
+}
+
+.notification-tabs .notification-tab-active {
+  border-color: #485777;
+  background: #242d3e;
+  color: #f3f6ff;
+}
+
+.notification-tab-count {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 5px;
+  background: #dfe8f8;
+  color: #172033;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .notification-popover-header .eyebrow {
@@ -112,6 +162,7 @@
 .notification-popover-body {
   min-height: 144px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .notification-list {

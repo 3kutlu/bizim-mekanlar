@@ -74,6 +74,11 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState("");
+
+  const [followActivity, setFollowActivity] = useState([]);
+  const [followActivityLoading, setFollowActivityLoading] = useState(false);
+  const [followActivityError, setFollowActivityError] = useState("");
+
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   const [cities, setCities] = useState([]);
@@ -193,7 +198,7 @@ function App() {
     const { data: profileData, error: profileQueryError } = await supabase
       .from("Users")
       .select(
-        "UserId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, IsActive"
+        "UserId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, AccountVisibilityStatusId, IsActive"
       )
       .eq("AuthUserId", session.user.id)
       .eq("IsActive", true)
@@ -260,9 +265,47 @@ function App() {
     [profile?.UserId]
   );
 
+  const loadFollowActivity = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!profile?.UserId) {
+        setFollowActivity([]);
+        setFollowActivityError("");
+        setFollowActivityLoading(false);
+        return;
+      }
+
+      if (!silent) {
+        setFollowActivityLoading(true);
+      }
+
+      setFollowActivityError("");
+
+      const { data, error } = await supabase.rpc("GetMyFollowActivity", {
+        p_limit: 40,
+      });
+
+      if (error) {
+        console.error("Takip hareketleri alınamadı:", error);
+        setFollowActivity([]);
+        setFollowActivityError("Takip hareketleri şu an yüklenemedi.");
+      } else {
+        setFollowActivity(data ?? []);
+      }
+
+      if (!silent) {
+        setFollowActivityLoading(false);
+      }
+    },
+    [profile?.UserId]
+  );
+
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
+
+  useEffect(() => {
+    loadFollowActivity();
+  }, [loadFollowActivity]);
 
   useEffect(() => {
     if (!profile?.UserId) {
@@ -270,7 +313,7 @@ function App() {
     }
 
     const channel = supabase
-      .channel(`notifications:${profile.UserId}`)
+      .channel(`notification-center:${profile.UserId}`)
       .on(
         "postgres_changes",
         {
@@ -280,6 +323,18 @@ function App() {
         },
         () => {
           loadNotifications({ silent: true });
+          loadFollowActivity({ silent: true });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "UserFollows",
+        },
+        () => {
+          loadFollowActivity({ silent: true });
         }
       )
       .subscribe((status, error) => {
@@ -291,38 +346,40 @@ function App() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadNotifications, profile?.UserId]);
+  }, [loadFollowActivity, loadNotifications, profile?.UserId]);
 
-  const unreadNotificationCount = Number(notifications[0]?.UnreadCount ?? 0);
+  const unreadNoteCount = Number(notifications[0]?.UnreadCount ?? 0);
+  const unreadFollowActivityCount = Number(
+    followActivity[0]?.UnreadCount ?? 0
+  );
+  const unreadNotificationCount = unreadNoteCount + unreadFollowActivityCount;
 
   const handleNotificationToggle = useCallback(async () => {
     const willOpen = !isNotificationsOpen;
     setIsNotificationsOpen(willOpen);
 
-    if (!willOpen || unreadNotificationCount === 0) {
+    if (!willOpen) {
       return;
     }
 
-    setNotifications((current) =>
-      current.map((notification) =>
-        notification.IsRead
-          ? notification
-          : {
-              ...notification,
-              IsRead: true,
-              UnreadCount: 0,
-            }
-      )
-    );
+    await Promise.all([
+      loadNotifications({ silent: true }),
+      loadFollowActivity({ silent: true }),
+    ]);
 
     const { error } = await supabase.rpc("MarkMyNotificationsRead");
 
     if (error) {
       console.error("Bildirimler okundu işaretlenemedi:", error);
       setAppMessage("Bildirimler okundu işaretlenemedi.");
-      await loadNotifications();
+      return;
     }
-  }, [isNotificationsOpen, loadNotifications, unreadNotificationCount]);
+
+    await Promise.all([
+      loadNotifications({ silent: true }),
+      loadFollowActivity({ silent: true }),
+    ]);
+  }, [isNotificationsOpen, loadFollowActivity, loadNotifications]);
 
   useEffect(() => {
     loadProfile();
@@ -363,7 +420,7 @@ function App() {
   };
 
   const handleFollowChanged = async () => {
-    await refreshProfileSummary();
+    await Promise.all([refreshProfileSummary(), loadFollowActivity({ silent: true })]);
     setNotesRefreshKey((currentKey) => currentKey + 1);
   };
 
@@ -469,9 +526,9 @@ function App() {
   );
 
   const handleFollowRequestResponse = useCallback(
-    async (notification, accept) => {
+    async (activity, accept) => {
       const { error } = await supabase.rpc("RespondToFollowRequest", {
-        p_follower_user_id: notification.ActorUserId,
+        p_follower_user_id: activity.ActorUserId,
         p_accept: accept,
       });
 
@@ -481,15 +538,13 @@ function App() {
         throw error;
       }
 
-      setNotifications((current) =>
-        current.filter(
-          (item) => item.NotificationId !== notification.NotificationId
-        )
-      );
-
-      await refreshProfileSummary();
+      await Promise.all([
+        refreshProfileSummary(),
+        loadFollowActivity({ silent: true }),
+        loadNotifications({ silent: true }),
+      ]);
     },
-    [refreshProfileSummary]
+    [loadFollowActivity, loadNotifications, refreshProfileSummary]
   );
 
   const handleOpenCollectionForUser = useCallback(
@@ -551,6 +606,8 @@ function App() {
     setSummary(EMPTY_SUMMARY);
     setNotifications([]);
     setNotificationsError("");
+    setFollowActivity([]);
+    setFollowActivityError("");
     setIsNotificationsOpen(false);
   };
 
@@ -631,11 +688,15 @@ function App() {
           <NotificationsPopover
             isOpen={isNotificationsOpen}
             notifications={notifications}
+            followActivity={followActivity}
             isLoading={notificationsLoading}
+            followActivityLoading={followActivityLoading}
             errorMessage={notificationsError}
+            followActivityError={followActivityError}
             unreadCount={unreadNotificationCount}
             onToggle={handleNotificationToggle}
-            onRetry={loadNotifications}
+            onRetryNotifications={loadNotifications}
+            onRetryFollowActivity={loadFollowActivity}
             onOpenNotification={handleOpenNotification}
             onRespondToRequest={handleFollowRequestResponse}
           />
@@ -921,6 +982,9 @@ function ProfilePage({
         >
           {summary.CityName && <span>⌖ {summary.CityName}</span>}
           {profile.ZodiacSign && <span>✦ {profile.ZodiacSign}</span>}
+          {profile.AccountVisibilityStatusId === 2 && (
+            <span>⌁ Gizli hesap</span>
+          )}
         </div>
 
         <button className="profile-edit-button" type="button" onClick={onEdit}>
@@ -1187,6 +1251,7 @@ function ProfileEditModal({
     lastName: profile.LastName ?? "",
     birthDate: profile.BirthDate ?? "",
     cityId: String(profile.CityId ?? ""),
+    isPrivateAccount: profile.AccountVisibilityStatusId === 2,
   });
   const [usernameMessage, setUsernameMessage] = useState("");
   const [usernameAvailable, setUsernameAvailable] = useState(null);
@@ -1292,6 +1357,9 @@ function ProfileEditModal({
       p_last_name: form.lastName.trim() || null,
       p_birth_date: form.birthDate,
       p_city_id: Number(form.cityId),
+      p_account_visibility_code: form.isPrivateAccount
+        ? "PRIVATE"
+        : "PUBLIC",
     });
 
     if (error) {
@@ -1429,6 +1497,32 @@ function ProfileEditModal({
             E-posta
             <input type="email" value={profile.Email ?? ""} disabled />
             <small>E-posta adresin şu an Supabase hesabından yönetiliyor.</small>
+          </label>
+
+          <label className="profile-privacy-toggle">
+            <input
+              type="checkbox"
+              checked={form.isPrivateAccount}
+              disabled={saving}
+              onChange={(event) =>
+                updateField("isPrivateAccount", event.target.checked)
+              }
+            />
+
+            <span className="profile-privacy-copy">
+              <strong>Gizli hesap</strong>
+              <small>
+                {form.isPrivateAccount
+                  ? "Notların ve takip listelerin yalnızca kabul ettiğin takipçilere görünür."
+                  : profile.AccountVisibilityStatusId === 2
+                    ? "Hesabını herkese açık yaptığında bekleyen takip istekleri de kabul edilir."
+                    : "Profilin, notların ve takip listelerin herkese açık olur."}
+              </small>
+            </span>
+
+            <span className="profile-privacy-switch" aria-hidden="true">
+              <span />
+            </span>
           </label>
 
           {citiesError && <p className="profile-save-error">{citiesError}</p>}

@@ -102,8 +102,10 @@ export default function UserProfilePage({
     setIsActionLoading(true);
     setErrorMessage("");
 
-    const isFollowing = profile.FollowStatusCode === "ACCEPTED";
-    const { error } = isFollowing
+    const shouldRemoveFollowRelation = ["ACCEPTED", "PENDING"].includes(
+      profile.FollowStatusCode
+    );
+    const { error } = shouldRemoveFollowRelation
       ? await supabase.rpc("UnfollowUser", {
           p_following_user_id: profile.UserId,
         })
@@ -134,7 +136,7 @@ export default function UserProfilePage({
     followStatus === "ACCEPTED"
       ? "Takip ediliyor"
       : followStatus === "PENDING"
-        ? "İstek gönderildi"
+        ? "İsteği geri çek"
         : visibilityIsPrivate
           ? followStatus === "REJECTED"
             ? "Tekrar istek gönder"
@@ -250,9 +252,9 @@ export default function UserProfilePage({
             <button
               className={`foreign-profile-follow-button ${
                 followStatus === "ACCEPTED" ? "foreign-profile-following" : ""
-              }`}
+              } ${followStatus === "PENDING" ? "foreign-profile-pending" : ""}`}
               type="button"
-              disabled={isActionLoading || followStatus === "PENDING"}
+              disabled={isActionLoading}
               onClick={handleFollowAction}
             >
               {isActionLoading ? "İşleniyor..." : followButtonLabel}

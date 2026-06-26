@@ -430,6 +430,18 @@ button.foreign-profile-stat:focus-visible {
   color: #ffd7dc;
 }
 
+.foreign-profile-pending {
+  border: 1px solid #5d4c58;
+  background: #251d23;
+  color: #ffe0e6;
+}
+
+.foreign-profile-pending:hover:not(:disabled) {
+  border-color: #8c626e;
+  background: #342129;
+  color: #fff;
+}
+
 .foreign-profile-state {
   min-height: 220px;
   display: grid;
