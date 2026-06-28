@@ -45,41 +45,92 @@ export default function UserProfilePage({
   const [errorMessage, setErrorMessage] = useState("");
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  const loadProfile = useCallback(async () => {
-    if (!userId) {
-      return;
-    }
+  const loadProfile = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!userId) {
+        return;
+      }
 
-    setIsLoading(true);
-    setErrorMessage("");
+      if (!silent) {
+        setIsLoading(true);
+        setErrorMessage("");
+      }
 
-    const { data, error } = await supabase.rpc("GetExternalUserProfile", {
-      p_profile_user_id: userId,
-    });
+      const { data, error } = await supabase.rpc("GetExternalUserProfile", {
+        p_profile_user_id: userId,
+      });
 
-    if (error) {
-      console.error("Kullanıcı profili alınamadı:", error);
-      setProfile(null);
-      setErrorMessage(
-        getErrorMessageKey(error, MESSAGE_KEY.EXTERNAL_PROFILE_LOAD_FAILED)
-      );
-    } else {
+      if (error) {
+        console.error("Kullanıcı profili alınamadı:", error);
+
+        // Arka plan senkronizasyonu, ekrandaki çalışan profili kaldırmaz
+        // veya kullanıcıya yeni hata yüzeyi açmaz.
+        if (!silent) {
+          setProfile(null);
+          setErrorMessage(
+            getErrorMessageKey(error, MESSAGE_KEY.EXTERNAL_PROFILE_LOAD_FAILED)
+          );
+        }
+
+        if (!silent) {
+          setIsLoading(false);
+        }
+        return;
+      }
+
       const profileData = Array.isArray(data) ? data[0] : data;
 
       if (!profileData) {
-        setProfile(null);
-        setErrorMessage(MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE);
-      } else {
-        setProfile(profileData);
+        if (!silent) {
+          setProfile(null);
+          setErrorMessage(MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE);
+          setIsLoading(false);
+        }
+        return;
       }
-    }
 
-    setIsLoading(false);
-  }, [userId]);
+      setProfile(profileData);
+      setErrorMessage("");
+
+      if (!silent) {
+        setIsLoading(false);
+      }
+    },
+    [userId]
+  );
 
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!isActive || !userId) {
+      return undefined;
+    }
+
+    const channel = supabase
+      .channel(`external-profile-follow-state:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "UserFollows",
+        },
+        () => {
+          void loadProfile({ silent: true });
+        }
+      )
+      .subscribe((status, error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("Profil takip durumu Realtime bağlantısı kurulamadı:", error);
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isActive, loadProfile, userId]);
 
   useEffect(() => {
     if (!isActive || isActionLoading) {
@@ -125,8 +176,31 @@ export default function UserProfilePage({
       return;
     }
 
-    await Promise.all([loadProfile(), onFollowChanged?.()]);
+    // Kullanıcı aksiyonu anında görür; ekranı loading durumuna düşürme.
+    const nextFollowStatus = shouldRemoveFollowRelation
+      ? "NONE"
+      : profile.AccountVisibilityCode === "PRIVATE"
+        ? "PENDING"
+        : "ACCEPTED";
+
+    setProfile((currentProfile) =>
+      currentProfile
+        ? {
+            ...currentProfile,
+            FollowStatusCode: nextFollowStatus,
+          }
+        : currentProfile
+    );
     setIsActionLoading(false);
+
+    // RPC sonucu doğru state'i zaten değiştirdi. Ardından arka planda
+    // profile/badge/sayıları yeniden doğrula; kullanıcı bu işlemi fark etmez.
+    void Promise.all([
+      loadProfile({ silent: true }),
+      Promise.resolve(onFollowChanged?.()),
+    ]).catch((refreshError) => {
+      console.error("Takip işlemi sonrası sessiz yenileme başarısız:", refreshError);
+    });
   };
 
   const visibilityIsPrivate = profile?.AccountVisibilityCode === "PRIVATE";

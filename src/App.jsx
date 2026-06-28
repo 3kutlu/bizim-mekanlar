@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "./supabase.js";
 import {
   getErrorMessageKey,
   MESSAGE_KEY,
   t,
 } from "./i18n/messages.js";
+import {
+  getVenueCategoryIcon,
+  getVenueCategoryLabel,
+} from "./utils/venueCategory.js";
 import AuthPage from "./pages/AuthPage.jsx";
 import MapPage from "./pages/MapPage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
@@ -21,6 +26,8 @@ const EMPTY_SUMMARY = {
   FollowingCount: 0,
   NoteCount: 0,
 };
+
+const SILENT_NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
 
 const PROFILE_COLLECTIONS = {
   notes: {
@@ -161,6 +168,7 @@ function App() {
   const [profileNotice, setProfileNotice] = useState("");
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [mapTarget, setMapTarget] = useState(null);
+  const [placeReviewFilter, setPlaceReviewFilter] = useState(null);
   const [discoveryStack, setDiscoveryStack] = useState([]);
 
   const [notifications, setNotifications] = useState([]);
@@ -335,9 +343,8 @@ function App() {
 
       if (!silent) {
         setNotificationsLoading(true);
+        setNotificationsError("");
       }
-
-      setNotificationsError("");
 
       const { data, error } = await supabase.rpc("GetMyNotifications", {
         p_limit: 40,
@@ -345,9 +352,15 @@ function App() {
 
       if (error) {
         console.error("Bildirimler alınamadı:", error);
-        setNotificationsError(MESSAGE_KEY.NOTIFICATIONS_LOAD_FAILED);
+
+        // Arka plan yenilemelerinde mevcut UI'ı ve hata durumunu bozma.
+        // Kullanıcı popover'ı açtığında görünür yükleme/tekrar dene akışı çalışır.
+        if (!silent) {
+          setNotificationsError(MESSAGE_KEY.NOTIFICATIONS_LOAD_FAILED);
+        }
       } else {
         setNotifications(data ?? []);
+        setNotificationsError("");
       }
 
       if (!silent) {
@@ -368,9 +381,8 @@ function App() {
 
       if (!silent) {
         setFollowActivityLoading(true);
+        setFollowActivityError("");
       }
-
-      setFollowActivityError("");
 
       const { data, error } = await supabase.rpc("GetMyFollowActivity", {
         p_limit: 40,
@@ -378,10 +390,15 @@ function App() {
 
       if (error) {
         console.error("Takip hareketleri alınamadı:", error);
-        setFollowActivity([]);
-        setFollowActivityError(MESSAGE_KEY.FOLLOW_ACTIVITY_LOAD_FAILED);
+
+        // Sessiz arka plan kontrolünde mevcut listeyi koru.
+        if (!silent) {
+          setFollowActivity([]);
+          setFollowActivityError(MESSAGE_KEY.FOLLOW_ACTIVITY_LOAD_FAILED);
+        }
       } else {
         setFollowActivity(data ?? []);
+        setFollowActivityError("");
       }
 
       if (!silent) {
@@ -390,6 +407,13 @@ function App() {
     },
     [profile?.UserId]
   );
+
+  const refreshNotificationCenter = useCallback(async () => {
+    await Promise.all([
+      loadNotifications({ silent: true }),
+      loadFollowActivity({ silent: true }),
+    ]);
+  }, [loadFollowActivity, loadNotifications]);
 
   useEffect(() => {
     loadNotifications();
@@ -409,13 +433,12 @@ function App() {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "Notifications",
         },
         () => {
-          loadNotifications({ silent: true });
-          loadFollowActivity({ silent: true });
+          void refreshNotificationCenter();
         }
       )
       .on(
@@ -426,10 +449,16 @@ function App() {
           table: "UserFollows",
         },
         () => {
-          loadFollowActivity({ silent: true });
+          void refreshNotificationCenter();
         }
       )
       .subscribe((status, error) => {
+        if (status === "SUBSCRIBED") {
+          // Bağlantı tekrar kurulduğunda kaçan eventleri sessizce toparla.
+          void refreshNotificationCenter();
+          return;
+        }
+
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error("Bildirim Realtime bağlantısı kurulamadı:", error);
         }
@@ -438,7 +467,36 @@ function App() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadFollowActivity, loadNotifications, profile?.UserId]);
+  }, [profile?.UserId, refreshNotificationCenter]);
+
+  useEffect(() => {
+    if (!profile?.UserId) {
+      return undefined;
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshNotificationCenter();
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshNotificationCenter();
+      }
+    }, SILENT_NOTIFICATION_REFRESH_INTERVAL_MS);
+
+    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("online", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("online", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [profile?.UserId, refreshNotificationCenter]);
 
   const unreadNoteCount = Number(notifications[0]?.UnreadCount ?? 0);
   const unreadFollowActivityCount = Number(
@@ -454,10 +512,7 @@ function App() {
       return;
     }
 
-    await Promise.all([
-      loadNotifications({ silent: true }),
-      loadFollowActivity({ silent: true }),
-    ]);
+    await refreshNotificationCenter();
 
     // Popover Notlar sekmesinde açılıyor. Bu yüzden yalnızca not
     // bildirimlerini okundu sayıyoruz; Takip sekmesindeki gelişmeler
@@ -471,7 +526,7 @@ function App() {
     }
 
     await loadNotifications({ silent: true });
-  }, [isNotificationsOpen, loadFollowActivity, loadNotifications]);
+  }, [isNotificationsOpen, loadNotifications, refreshNotificationCenter]);
 
   const handleFollowActivityViewed = useCallback(async () => {
     const { error } = await supabase.rpc("MarkMyFollowActivityRead");
@@ -523,8 +578,16 @@ function App() {
     setNotesRefreshKey((currentKey) => currentKey + 1);
   };
 
+  const handleNoteDeleted = async () => {
+    await refreshProfileSummary();
+    setNotesRefreshKey((currentKey) => currentKey + 1);
+  };
+
   const handleFollowChanged = async () => {
-    await Promise.all([refreshProfileSummary(), loadFollowActivity({ silent: true })]);
+    await Promise.all([
+      refreshProfileSummary(),
+      refreshNotificationCenter(),
+    ]);
     setNotesRefreshKey((currentKey) => currentKey + 1);
   };
 
@@ -540,7 +603,7 @@ function App() {
       return;
     }
 
-    const { data, error } = await supabase.rpc("GetPlaceMapTarget", {
+    const { data, error } = await supabase.rpc("GetPlaceMapTargetV2", {
       p_place_id: normalizedPlaceId,
     });
 
@@ -569,6 +632,7 @@ function App() {
       address: place.FormattedAddress,
       cityName: place.CityName,
       postalCode: place.PostalCode,
+      venueCategoryCode: place.VenueCategoryCode ?? null,
       location: {
         lat: latitude,
         lng: longitude,
@@ -578,6 +642,26 @@ function App() {
     closeDiscovery();
     setActivePage("map");
   }, [closeDiscovery]);
+
+  const handleOpenPlaceReviews = useCallback(
+    (place) => {
+      const placeId = Number(place?.placeId);
+
+      if (!Number.isInteger(placeId) || placeId <= 0) {
+        return;
+      }
+
+      setPlaceReviewFilter({
+        requestId: `${placeId}-${Date.now()}`,
+        placeId,
+        placeName: String(place?.placeName ?? "Mekan").trim() || "Mekan",
+        venueCategoryCode: place?.venueCategoryCode ?? null,
+      });
+      closeDiscovery();
+      setActivePage("list");
+    },
+    [closeDiscovery]
+  );
 
   const ownUserId = profile?.UserId ?? null;
 
@@ -664,11 +748,10 @@ function App() {
 
       await Promise.all([
         refreshProfileSummary(),
-        loadFollowActivity({ silent: true }),
-        loadNotifications({ silent: true }),
+        refreshNotificationCenter(),
       ]);
     },
-    [loadFollowActivity, loadNotifications, refreshProfileSummary]
+    [refreshNotificationCenter, refreshProfileSummary]
   );
 
   const handleOpenCollectionForUser = useCallback(
@@ -861,6 +944,9 @@ function App() {
             onNoteCreated={handleNoteCreated}
             focusPlace={mapTarget}
             onFocusHandled={clearMapTarget}
+            notesRefreshKey={notesRefreshKey}
+            isActive={activePage === "map"}
+            onOpenPlaceReviews={handleOpenPlaceReviews}
           />
         </section>
 
@@ -872,6 +958,8 @@ function App() {
         >
           <ListPage
             refreshKey={notesRefreshKey}
+            placeReviewFilter={placeReviewFilter}
+            onClearPlaceReviewFilter={() => setPlaceReviewFilter(null)}
             onOpenPlace={handleOpenPlaceOnMap}
             onOpenUser={handleOpenUserProfile}
             onOpenNote={handleOpenNote}
@@ -929,9 +1017,11 @@ function App() {
                     <NoteDetailPage
                       noteId={screen.noteId}
                       isActive={isActive}
+                      currentUserId={ownUserId}
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceOnMap}
                       onOpenUser={handleOpenUserProfile}
+                      onNoteDeleted={handleNoteDeleted}
                     />
                   )}
 
@@ -941,6 +1031,7 @@ function App() {
                       profileUsername={screen.username}
                       type={screen.collectionType}
                       isActive={isActive}
+                      refreshKey={notesRefreshKey}
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceOnMap}
                       onOpenUser={handleOpenUserProfile}
@@ -1000,38 +1091,91 @@ function App() {
 
 
 
-function ListPage({ refreshKey, onOpenPlace, onOpenUser, onOpenNote }) {
+function ListPage({
+  refreshKey,
+  placeReviewFilter,
+  onClearPlaceReviewFilter,
+  onOpenPlace,
+  onOpenUser,
+  onOpenNote,
+}) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const isPlaceReviewMode = Boolean(placeReviewFilter?.placeId);
+  const venueIcon = getVenueCategoryIcon(placeReviewFilter?.venueCategoryCode);
 
   const loadNotes = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("GetFollowingFeedNoteCards");
+    const request = isPlaceReviewMode
+      ? supabase.rpc("GetPlaceVisibleNoteCards", {
+          p_place_id: Number(placeReviewFilter.placeId),
+        })
+      : supabase.rpc("GetFollowingFeedNoteCardsV2");
+
+    const { data, error } = await request;
 
     if (error) {
-      console.error("Akış notları alınamadı:", error);
+      console.error(
+        isPlaceReviewMode
+          ? "Mekan yorumları alınamadı:"
+          : "Akış notları alınamadı:",
+        error
+      );
       setNotes([]);
-      setErrorMessage(MESSAGE_KEY.FEED_LOAD_FAILED);
+      setErrorMessage(
+        isPlaceReviewMode
+          ? MESSAGE_KEY.PLACE_REVIEWS_LOAD_FAILED
+          : MESSAGE_KEY.FEED_LOAD_FAILED
+      );
     } else {
       setNotes(data ?? []);
     }
 
     setLoading(false);
-  }, []);
+  }, [isPlaceReviewMode, placeReviewFilter?.placeId]);
 
   useEffect(() => {
     loadNotes();
-  }, [loadNotes, refreshKey]);
+  }, [loadNotes, refreshKey, placeReviewFilter?.requestId]);
+
+  const headingTitle = isPlaceReviewMode
+    ? `${placeReviewFilter.placeName} yorumları`
+    : "Takip ettiklerin";
+  const headingDescription = isPlaceReviewMode
+    ? "Kendi notların, herkese açık hesaplar ve seni kabul eden gizli hesapların yorumları burada."
+    : "Senin ve takip ettiğin kişilerin en yeni notları burada.";
 
   return (
     <section className="list-page page-section">
       <div className="page-heading list-page-heading">
-        <p className="eyebrow">AKIŞ</p>
-        <h1>Takip ettiklerin</h1>
-        <p>Senin ve takip ettiğin kişilerin en yeni notları burada.</p>
+        <p className="eyebrow">{isPlaceReviewMode ? "MEKAN YORUMLARI" : "AKIŞ"}</p>
+        <h1 className={isPlaceReviewMode ? "place-review-list-title" : undefined}>
+          {isPlaceReviewMode && (
+            <span
+              className="venue-category-icon venue-category-icon-page-title"
+              title={getVenueCategoryLabel(placeReviewFilter?.venueCategoryCode)}
+              aria-hidden="true"
+            >
+              {venueIcon}
+            </span>
+          )}
+          {headingTitle}
+        </h1>
+        <p>{headingDescription}</p>
+
+        {isPlaceReviewMode && (
+          <button
+            className="place-review-reset-button"
+            type="button"
+            onClick={onClearPlaceReviewFilter}
+          >
+            Takip ettiklerin akışına dön
+          </button>
+        )}
       </div>
 
       {loading && <LoadingState />}
@@ -1042,9 +1186,17 @@ function ListPage({ refreshKey, onOpenPlace, onOpenUser, onOpenNote }) {
 
       {!loading && !errorMessage && notes.length === 0 && (
         <EmptyCollectionState
-          icon="✦"
-          title="Akışta henüz not yok"
-          message="Sen veya takip ettiğin kişiler not eklediğinde burada göreceksin."
+          icon={isPlaceReviewMode ? "✦" : "✦"}
+          title={
+            isPlaceReviewMode
+              ? "Bu mekanda sana görünür yorum yok"
+              : "Akışta henüz not yok"
+          }
+          message={
+            isPlaceReviewMode
+              ? "İlk yorumu sen ekleyebilirsin."
+              : "Sen veya takip ettiğin kişiler not eklediğinde burada göreceksin."
+          }
         />
       )}
 
@@ -1148,6 +1300,7 @@ function ProfileCollectionPage({
   profileUsername,
   type,
   isActive,
+  refreshKey,
   onBack,
   onOpenPlace,
   onOpenUser,
@@ -1164,7 +1317,7 @@ function ProfileCollectionPage({
 
     const request =
       type === "notes"
-        ? supabase.rpc("GetProfileNoteCards", {
+        ? supabase.rpc("GetProfileNoteCardsV2", {
             p_profile_user_id: profileUserId,
           })
         : supabase.rpc("GetProfileConnections", {
@@ -1187,7 +1340,7 @@ function ProfileCollectionPage({
 
   useEffect(() => {
     loadCollection();
-  }, [loadCollection]);
+  }, [loadCollection, refreshKey]);
 
   useEffect(() => {
     if (!isActive) {
@@ -1351,6 +1504,13 @@ function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser, onOpenNote 
                     disabled={!note.PlaceId}
                     title="Mekanı haritada aç"
                   >
+                    <span
+                      className="venue-category-icon venue-category-icon-feed"
+                      title={getVenueCategoryLabel(note.VenueCategoryCode)}
+                      aria-hidden="true"
+                    >
+                      {getVenueCategoryIcon(note.VenueCategoryCode)}
+                    </span>
                     {note.PlaceName}
                   </button>
                 </div>
@@ -1385,19 +1545,24 @@ function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser, onOpenNote 
 function NoteDetailPage({
   noteId,
   isActive,
+  currentUserId,
   onBack,
   onOpenPlace,
   onOpenUser,
+  onNoteDeleted,
 }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const loadNote = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("GetPlaceNoteDetail", {
+    const { data, error } = await supabase.rpc("GetPlaceNoteDetailV2", {
       p_place_note_id: noteId,
     });
 
@@ -1431,28 +1596,73 @@ function NoteDetailPage({
     }
 
     const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        onBack();
+      if (event.key !== "Escape") {
+        return;
       }
+
+      if (isDeleteModalOpen) {
+        if (!isDeleting) {
+          setIsDeleteModalOpen(false);
+          setDeleteError("");
+        }
+        return;
+      }
+
+      onBack();
     };
 
     window.addEventListener("keydown", handleEscape);
 
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [isActive, onBack]);
+  }, [isActive, isDeleteModalOpen, isDeleting, onBack]);
 
   const username = note?.Username || "Kullanıcı";
   const fullName = getFullName(note);
   const avatarLetter = (username || fullName || "K").charAt(0).toUpperCase();
+  const isOwnNote =
+    Number.isInteger(Number(note?.UserId)) &&
+    Number.isInteger(Number(currentUserId)) &&
+    Number(note.UserId) === Number(currentUserId);
+
+  const closeDeleteModal = () => {
+    if (isDeleting) {
+      return;
+    }
+
+    setIsDeleteModalOpen(false);
+    setDeleteError("");
+  };
+
+  const handleDelete = async () => {
+    if (!note?.PlaceNoteId || !isOwnNote || isDeleting) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError("");
+
+    const { error } = await supabase.rpc("DeleteMyPlaceNote", {
+      p_place_note_id: Number(note.PlaceNoteId),
+    });
+
+    if (error) {
+      console.error("Not silinemedi:", error);
+      setDeleteError(
+        getErrorMessageKey(error, MESSAGE_KEY.NOTE_DELETE_FAILED)
+      );
+      setIsDeleting(false);
+      return;
+    }
+
+    await Promise.resolve(onNoteDeleted?.());
+    setIsDeleteModalOpen(false);
+    setIsDeleting(false);
+    onBack();
+  };
 
   return (
     <div className="discovery-page-content note-detail-page">
-      <header className="discovery-page-header">
-        <div>
-          <p className="eyebrow">NOT DETAYI</p>
-          <h1>{note ? getNoteTitle(note) : "Not"}</h1>
-        </div>
-
+      <header className="discovery-page-header note-detail-page-header">
         <button
           className="discovery-back-button"
           type="button"
@@ -1462,6 +1672,24 @@ function NoteDetailPage({
           ‹
           <span>Geri</span>
         </button>
+
+        {note && (
+          <button
+            className="note-detail-page-author"
+            type="button"
+            onClick={() => onOpenUser?.(note.UserId)}
+            disabled={!note.UserId || !onOpenUser}
+            title="Kullanıcı profilini aç"
+          >
+            <span className="note-detail-avatar" aria-hidden="true">
+              {avatarLetter}
+            </span>
+            <span className="note-detail-page-author-copy">
+              <strong>{fullName || username}</strong>
+              <small>@{username}</small>
+            </span>
+          </button>
+        )}
       </header>
 
       <div className="discovery-page-body">
@@ -1474,22 +1702,7 @@ function NoteDetailPage({
         {!loading && note && (
           <article className="note-detail-card">
             <div className="note-detail-topline">
-              <button
-                className="note-detail-author"
-                type="button"
-                onClick={() => onOpenUser?.(note.UserId)}
-                disabled={!note.UserId || !onOpenUser}
-                title="Kullanıcı profilini aç"
-              >
-                <span className="note-detail-avatar" aria-hidden="true">
-                  {avatarLetter}
-                </span>
-                <span>
-                  <strong>{username}</strong>
-                  <small>{fullName || username}</small>
-                </span>
-              </button>
-
+              <h1 className="note-detail-title">{getNoteTitle(note)}</h1>
               <ReadOnlyRatingStars value={note.Rating} />
             </div>
 
@@ -1500,7 +1713,16 @@ function NoteDetailPage({
               disabled={!note.PlaceId || !onOpenPlace}
               title="Mekanı haritada aç"
             >
-              <strong>{note.PlaceName || "İsimsiz mekan"}</strong>
+              <strong className="note-detail-place-title">
+                <span
+                  className="venue-category-icon venue-category-icon-detail"
+                  title={getVenueCategoryLabel(note.VenueCategoryCode)}
+                  aria-hidden="true"
+                >
+                  {getVenueCategoryIcon(note.VenueCategoryCode)}
+                </span>
+                {note.PlaceName || "İsimsiz mekan"}
+              </strong>
               {note.FormattedAddress && <span>{note.FormattedAddress}</span>}
             </button>
 
@@ -1532,9 +1754,107 @@ function NoteDetailPage({
               <strong>Puanlamalar ve fotoğraflar</strong>
               <span>Yakında bu notta burada yer alacak.</span>
             </div>
+
+            {isOwnNote && (
+              <button
+                type="button"
+                className="note-detail-delete-button"
+                onClick={() => {
+                  setDeleteError("");
+                  setIsDeleteModalOpen(true);
+                }}
+              >
+                Notu sil
+              </button>
+            )}
           </article>
         )}
       </div>
+
+      {isDeleteModalOpen &&
+        createPortal(
+          <NoteDeleteConfirmModal
+            isDeleting={isDeleting}
+            errorMessage={deleteError}
+            onCancel={closeDeleteModal}
+            onConfirm={handleDelete}
+          />,
+          document.body
+        )}
+    </div>
+  );
+}
+
+function NoteDeleteConfirmModal({
+  isDeleting,
+  errorMessage,
+  onCancel,
+  onConfirm,
+}) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const handleBackdropMouseDown = (event) => {
+    if (!isDeleting && event.target === event.currentTarget) {
+      onCancel();
+    }
+  };
+
+  return (
+    <div
+      className="note-delete-modal-backdrop"
+      role="presentation"
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <section
+        ref={dialogRef}
+        className="note-delete-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="note-delete-title"
+        aria-describedby="note-delete-description"
+        tabIndex={-1}
+      >
+        <p className="eyebrow">NOTU SİL</p>
+        <h2 id="note-delete-title">Bu not silinsin mi?</h2>
+        <p id="note-delete-description">
+          Bu not artık hiçbir listede, mekan yorumlarında veya haritada görünmeyecek.
+        </p>
+
+        {errorMessage && (
+          <p className="note-delete-modal-error" role="alert">
+            {t(errorMessage)}
+          </p>
+        )}
+
+        <div className="note-delete-modal-actions">
+          <button
+            type="button"
+            className="note-delete-modal-cancel"
+            disabled={isDeleting}
+            onClick={onCancel}
+          >
+            Vazgeç
+          </button>
+          <button
+            type="button"
+            className="note-delete-modal-confirm"
+            disabled={isDeleting}
+            onClick={onConfirm}
+          >
+            {isDeleting ? "Siliniyor..." : "Notu sil"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

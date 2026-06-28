@@ -500,3 +500,214 @@
     margin-left: auto;
   }
 }
+
+
+/* REQUIRED NOTE FIELDS */
+.note-modal-input[aria-invalid="true"],
+.note-modal-textarea[aria-invalid="true"] {
+  border-color: #ef8f9b;
+}
+
+.note-modal-input[aria-invalid="true"]:focus,
+.note-modal-textarea[aria-invalid="true"]:focus {
+  border-color: #ff9eaa;
+  box-shadow: 0 0 0 3px rgba(239, 143, 155, 0.14);
+}
+
+.note-rating-picker-error {
+  border: 1px solid #ef8f9b;
+  border-radius: 12px;
+  padding: 7px 9px;
+}
+
+.note-modal-field-error {
+  margin: -1px 0 0;
+  color: #ffabb4;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* The button looks inactive until the required fields are complete,
+   but remains actionable so a click can reveal the missing-field errors. */
+.note-modal-save-incomplete {
+  opacity: 0.56;
+}
+
+.note-modal-save-incomplete:not(:disabled) {
+  cursor: pointer;
+}
+
+.note-modal-save-incomplete:not(:disabled):hover {
+  opacity: 0.72;
+}
+
+/* V1.5.0 — sosyal mekan markerları + seçili mekan yorum özeti */
+.social-map-venue-marker {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  background: #15181f;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.36);
+  cursor: pointer;
+  transform: rotate(-45deg);
+}
+
+.social-map-venue-marker::after {
+  position: absolute;
+  z-index: -1;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.22);
+  content: "";
+  transform: translate(-1px, 16px);
+}
+
+.social-map-venue-marker-icon {
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 1;
+  transform: rotate(45deg);
+}
+
+.social-map-venue-marker-count {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  min-width: 19px;
+  min-height: 19px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: #415884;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+  transform: rotate(45deg);
+}
+
+.social-map-cluster-marker {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border: 3px solid rgba(255, 255, 255, 0.94);
+  border-radius: 50%;
+  background: #273754;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 850;
+  box-shadow:
+    0 0 0 5px rgba(39, 55, 84, 0.42),
+    0 6px 18px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.social-map-cluster-marker:hover {
+  background: #334c76;
+  transform: scale(1.06);
+}
+
+.selected-place-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selected-place-card .venue-category-icon-map {
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.selected-place-card .selected-place-review-status,
+.selected-place-card .selected-place-review-empty,
+.selected-place-card .selected-place-unsupported {
+  margin: -2px 0 0;
+  color: #60636c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.selected-place-card .selected-place-unsupported {
+  color: #8a3d3d;
+}
+
+.selected-place-card .selected-place-review-button {
+  border: 1px solid #cfd5df;
+  background: #f7f8fb;
+  color: #283042;
+}
+
+.selected-place-card .selected-place-review-button:hover:not(:disabled) {
+  border-color: #8996ad;
+  background: #eef1f7;
+}
+
+.selected-place-card .selected-place-review-button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.selected-place-card .selected-place-add-note {
+  background: #161616;
+}
+
+@media (max-width: 700px) {
+  .social-map-venue-marker {
+    width: 38px;
+    height: 38px;
+  }
+
+  .social-map-venue-marker-icon {
+    font-size: 18px;
+  }
+
+  .social-map-cluster-marker {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+
+/* v1.5.3 — seçili mekan kartını kapat */
+.selected-place-copy {
+  padding-right: 38px;
+}
+
+.selected-place-card .selected-place-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c7ced9;
+  border-radius: 50%;
+  padding: 0;
+  background: #f7f8fb;
+  color: #3d4553;
+  font-size: 23px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.selected-place-card .selected-place-close:hover,
+.selected-place-card .selected-place-close:focus-visible {
+  border-color: #8d99ad;
+  background: #e8ecf3;
+  color: #111827;
+}

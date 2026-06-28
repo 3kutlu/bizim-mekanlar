@@ -51,14 +51,19 @@ export const MESSAGE_KEY = Object.freeze({
   EXTERNAL_PROFILE_LOAD_FAILED: "EXTERNAL_PROFILE_LOAD_FAILED",
   USER_NOT_FOUND_OR_INACTIVE: "USER_NOT_FOUND_OR_INACTIVE",
   USER_SEARCH_FAILED: "USER_SEARCH_FAILED",
+  PLACE_REVIEWS_LOAD_FAILED: "PLACE_REVIEWS_LOAD_FAILED",
 
   NOTE_TITLE_REQUIRED: "NOTE_TITLE_REQUIRED",
   NOTE_RATING_REQUIRED: "NOTE_RATING_REQUIRED",
+  NOTE_DETAIL_REQUIRED: "NOTE_DETAIL_REQUIRED",
   NOTE_SAVE_FAILED: "NOTE_SAVE_FAILED",
+  NOTE_DELETE_FAILED: "NOTE_DELETE_FAILED",
+  NOTE_DELETE_NOT_ALLOWED: "NOTE_DELETE_NOT_ALLOWED",
   PLACE_DATA_INCOMPLETE: "PLACE_DATA_INCOMPLETE",
   PLACE_LOCATION_INVALID: "PLACE_LOCATION_INVALID",
   PLACE_SUGGESTIONS_LOAD_FAILED: "PLACE_SUGGESTIONS_LOAD_FAILED",
   PLACE_SELECTION_FAILED: "PLACE_SELECTION_FAILED",
+  PLACE_CATEGORY_INVALID: "PLACE_CATEGORY_INVALID",
   MAPS_API_KEY_MISSING: "MAPS_API_KEY_MISSING",
   MAPS_ID_MISSING: "MAPS_ID_MISSING",
 
@@ -151,12 +156,19 @@ const TURKISH_MESSAGES = Object.freeze({
     "Kullanıcı bulunamadı veya artık aktif değil.",
   [MESSAGE_KEY.USER_SEARCH_FAILED]:
     "Kullanıcılar şu an aranamadı. Tekrar dene.",
+  [MESSAGE_KEY.PLACE_REVIEWS_LOAD_FAILED]:
+    "Bu mekanın yorumları şu an yüklenemedi. Tekrar dene.",
 
   [MESSAGE_KEY.NOTE_TITLE_REQUIRED]: "Not başlığı zorunlu.",
   [MESSAGE_KEY.NOTE_RATING_REQUIRED]:
     "1 ile 5 arasında bir puan vermelisin.",
+  [MESSAGE_KEY.NOTE_DETAIL_REQUIRED]: "Not detayı zorunlu.",
   [MESSAGE_KEY.NOTE_SAVE_FAILED]:
     "Not kaydedilemedi. Lütfen tekrar dene.",
+  [MESSAGE_KEY.NOTE_DELETE_FAILED]:
+    "Not silinemedi. Lütfen tekrar dene.",
+  [MESSAGE_KEY.NOTE_DELETE_NOT_ALLOWED]:
+    "Bu not silinemedi veya artık mevcut değil.",
   [MESSAGE_KEY.PLACE_DATA_INCOMPLETE]:
     "Mekanın Google'dan gelen adı, adresi veya şehir bilgisi eksik. Lütfen listeden tekrar seç.",
   [MESSAGE_KEY.PLACE_LOCATION_INVALID]:
@@ -164,6 +176,8 @@ const TURKISH_MESSAGES = Object.freeze({
   [MESSAGE_KEY.PLACE_SUGGESTIONS_LOAD_FAILED]:
     "Arama sonuçları alınamadı.",
   [MESSAGE_KEY.PLACE_SELECTION_FAILED]: "Mekan seçilemedi.",
+  [MESSAGE_KEY.PLACE_CATEGORY_INVALID]:
+    "Bu mekan türüne henüz not eklenemiyor.",
   [MESSAGE_KEY.MAPS_API_KEY_MISSING]: "Google Maps API anahtarı bulunamadı.",
   [MESSAGE_KEY.MAPS_ID_MISSING]: "Google Maps Map ID bulunamadı.",
 

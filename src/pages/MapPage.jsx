@@ -10,17 +10,38 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
-import { supabase } from "../supabase.js";
-import "../css/map-page.css";
 import { createPortal } from "react-dom";
+import { supabase } from "../supabase.js";
+import {
+  createAppError,
+  getErrorMessageKey,
+  MESSAGE_KEY,
+  t,
+} from "../i18n/messages.js";
+import {
+  getVenueCategoryFromGooglePlace,
+  getVenueCategoryIcon,
+  getVenueCategoryLabel,
+  isSupportedVenueCategory,
+} from "../utils/venueCategory.js";
+import "../css/map-page.css";
 
 const ankaraCenter = {
   lat: 39.9334,
   lng: 32.8597,
 };
+
+const MAP_NOTE_LIMIT = 700;
+const CLUSTER_PIXEL_RADIUS_BY_ZOOM = [
+  { maxZoom: 5, radius: 72 },
+  { maxZoom: 8, radius: 62 },
+  { maxZoom: 11, radius: 52 },
+  { maxZoom: Infinity, radius: 42 },
+];
 
 const cleanText = (value) => String(value ?? "").trim();
 
@@ -44,6 +65,160 @@ function getAddressComponentText(addressComponents, ...types) {
   return "";
 }
 
+function formatReviewLinkLabel(count) {
+  const normalizedCount = Math.max(0, Number(count) || 0);
+
+  if (normalizedCount > 9) {
+    return "9+ yorumu gör";
+  }
+
+  return `${normalizedCount} yorumu gör`;
+}
+
+function getPlaceEligibility(place) {
+  return place?.isEligible !== false && isSupportedVenueCategory(place?.venueCategoryCode);
+}
+
+function getPointDistance(left, right) {
+  const deltaX = left.x - right.x;
+  const deltaY = left.y - right.y;
+
+  return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+}
+
+function toWorldPixelPoint(latitude, longitude, zoom) {
+  const worldSize = 256 * 2 ** zoom;
+  const normalizedLongitude = (Number(longitude) + 180) / 360;
+  const latitudeRadians = (Number(latitude) * Math.PI) / 180;
+  const mercator = Math.log(Math.tan(Math.PI / 4 + latitudeRadians / 2));
+  const normalizedLatitude = (1 - mercator / Math.PI) / 2;
+
+  return {
+    x: normalizedLongitude * worldSize,
+    y: normalizedLatitude * worldSize,
+  };
+}
+
+function getClusterRadius(zoom) {
+  const match = CLUSTER_PIXEL_RADIUS_BY_ZOOM.find(
+    (item) => zoom <= item.maxZoom
+  );
+
+  return match?.radius ?? 48;
+}
+
+function buildMapClusters(places, zoom) {
+  const clusterRadius = getClusterRadius(zoom);
+  const clusters = [];
+
+  for (const place of places) {
+    const latitude = Number(place?.Latitude);
+    const longitude = Number(place?.Longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      continue;
+    }
+
+    const worldPoint = toWorldPixelPoint(latitude, longitude, zoom);
+    let targetCluster = null;
+
+    for (const cluster of clusters) {
+      const distance = getPointDistance(worldPoint, cluster.worldCenter);
+
+      if (distance <= clusterRadius) {
+        targetCluster = cluster;
+        break;
+      }
+    }
+
+    if (!targetCluster) {
+      clusters.push({
+        places: [place],
+        latitudeTotal: latitude,
+        longitudeTotal: longitude,
+        worldCenter: worldPoint,
+      });
+      continue;
+    }
+
+    targetCluster.places.push(place);
+    targetCluster.latitudeTotal += latitude;
+    targetCluster.longitudeTotal += longitude;
+
+    const count = targetCluster.places.length;
+    const latitudeCenter = targetCluster.latitudeTotal / count;
+    const longitudeCenter = targetCluster.longitudeTotal / count;
+
+    targetCluster.worldCenter = toWorldPixelPoint(
+      latitudeCenter,
+      longitudeCenter,
+      zoom
+    );
+  }
+
+  return clusters.map((cluster, index) => {
+    const count = cluster.places.length;
+
+    return {
+      id: cluster.places
+        .map((place) => place.PlaceId)
+        .sort((left, right) => Number(left) - Number(right))
+        .join("-"),
+      index,
+      places: cluster.places,
+      position: {
+        lat: cluster.latitudeTotal / count,
+        lng: cluster.longitudeTotal / count,
+      },
+      isCluster: count > 1,
+    };
+  });
+}
+
+function getSelectedPlaceFromGooglePlace(place) {
+  const location = place?.location;
+  const latitude = location?.lat?.();
+  const longitude = location?.lng?.();
+  const venueCategoryCode = getVenueCategoryFromGooglePlace(place);
+
+  return {
+    id: cleanText(place?.id),
+    name: cleanText(place?.displayName) || "İsimsiz mekan",
+    address: cleanText(place?.formattedAddress),
+    cityName: getAddressComponentText(
+      place?.addressComponents,
+      "administrative_area_level_1",
+      "locality"
+    ),
+    postalCode: getAddressComponentText(place?.addressComponents, "postal_code"),
+    venueCategoryCode,
+    isEligible: isSupportedVenueCategory(venueCategoryCode),
+    location: {
+      lat: latitude,
+      lng: longitude,
+    },
+  };
+}
+
+function getSelectedPlaceFromMapRow(place) {
+  return {
+    placeId: Number(place?.PlaceId) || null,
+    id: cleanText(place?.GooglePlaceId),
+    name: cleanText(place?.Name) || "İsimsiz mekan",
+    address: cleanText(place?.FormattedAddress),
+    cityName: cleanText(place?.CityName),
+    postalCode: cleanText(place?.PostalCode),
+    venueCategoryCode: cleanText(place?.VenueCategoryCode) || null,
+    isEligible: true,
+    reviewCount: Math.max(0, Number(place?.VisibleNoteCount) || 0),
+    selectionSource: "social-map-marker",
+    location: {
+      lat: Number(place?.Latitude),
+      lng: Number(place?.Longitude),
+    },
+  };
+}
+
 async function createPlaceNote(selectedPlace, { title, content, rating }) {
   const googlePlaceId = cleanText(selectedPlace?.id);
   const name = cleanText(selectedPlace?.name);
@@ -53,16 +228,14 @@ async function createPlaceNote(selectedPlace, { title, content, rating }) {
   const longitude = Number(selectedPlace?.location?.lng);
 
   if (!googlePlaceId || !name || !formattedAddress || !cityName) {
-    throw new Error(
-      "Mekanın Google'dan gelen adı, adresi veya şehir bilgisi eksik. Lütfen listeden tekrar seç."
-    );
+    throw createAppError(MESSAGE_KEY.PLACE_DATA_INCOMPLETE);
   }
 
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    throw new Error("Mekanın konum bilgisi geçersiz.");
+    throw createAppError(MESSAGE_KEY.PLACE_LOCATION_INVALID);
   }
 
-  const { data, error } = await supabase.rpc("CreatePlaceNoteWithReview", {
+  const { data, error } = await supabase.rpc("CreatePlaceNoteWithReviewV2", {
     p_google_place_id: googlePlaceId,
     p_name: name,
     p_formatted_address: formattedAddress,
@@ -71,8 +244,9 @@ async function createPlaceNote(selectedPlace, { title, content, rating }) {
     p_latitude: latitude,
     p_longitude: longitude,
     p_title: title,
-    p_content: content || null,
+    p_content: content,
     p_rating: rating,
+    p_venue_category_code: cleanText(selectedPlace?.venueCategoryCode) || null,
   });
 
   if (error) {
@@ -82,13 +256,24 @@ async function createPlaceNote(selectedPlace, { title, content, rating }) {
   return data;
 }
 
-
-function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
+function MapPage({
+  onNoteCreated,
+  focusPlace,
+  onFocusHandled,
+  notesRefreshKey,
+  isActive,
+  onOpenPlaceReviews,
+}) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
 
   const [userLocation, setUserLocation] = useState(null);
   const [selectedPlace, setSelectedPlace] = useState(null);
+  const [selectedPlaceReviewSummary, setSelectedPlaceReviewSummary] = useState({
+    count: 0,
+    placeId: null,
+    isLoading: false,
+  });
   const [locationMessage, setLocationMessage] = useState("");
 
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -100,12 +285,11 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
 
   const locationMessageTimerRef = useRef(null);
   const hasShownLocationIssueRef = useRef(false);
-
   const selectedPlaceCardRef = useRef(null);
   const [selectedPlaceCardHeight, setSelectedPlaceCardHeight] = useState(0);
-
   const mapRef = useRef(null);
   const initialFocusLockRef = useRef(false);
+  const selectedPlaceRequestRef = useRef(0);
 
   const clearLocationMessage = useCallback(() => {
     if (locationMessageTimerRef.current) {
@@ -123,7 +307,6 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
       }
 
       hasShownLocationIssueRef.current = true;
-
       clearLocationMessage();
       setLocationMessage(message);
 
@@ -137,8 +320,7 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      showInitialLocationIssue("Tarayıcın konum özelliğini desteklemiyor.");
-
+      showInitialLocationIssue(MESSAGE_KEY.LOCATION_UNSUPPORTED);
       return () => clearLocationMessage();
     }
 
@@ -149,18 +331,17 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
           lng: position.coords.longitude,
           accuracy: position.coords.accuracy,
         });
-
         clearLocationMessage();
       },
       (error) => {
-        const messages = {
-          1: "Konum izni verilmedi.",
-          2: "Konum bilgisi alınamadı.",
-          3: "Konum isteği zaman aşımına uğradı.",
+        const messageKeys = {
+          1: MESSAGE_KEY.LOCATION_PERMISSION_DENIED,
+          2: MESSAGE_KEY.LOCATION_UNAVAILABLE,
+          3: MESSAGE_KEY.LOCATION_TIMEOUT,
         };
 
         showInitialLocationIssue(
-          messages[error.code] || "Konum bilgisi alınamadı."
+          messageKeys[error.code] || MESSAGE_KEY.LOCATION_UNAVAILABLE
         );
       },
       {
@@ -183,11 +364,8 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     }
 
     const card = selectedPlaceCardRef.current;
-
     const updateCardHeight = () => {
-      setSelectedPlaceCardHeight(
-        Math.ceil(card.getBoundingClientRect().height)
-      );
+      setSelectedPlaceCardHeight(Math.ceil(card.getBoundingClientRect().height));
     };
 
     updateCardHeight();
@@ -196,12 +374,78 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     observer.observe(card);
 
     return () => observer.disconnect();
-  }, [selectedPlace]);
+  }, [selectedPlace, selectedPlaceReviewSummary]);
+
+  useEffect(() => {
+    if (!selectedPlace?.id) {
+      setSelectedPlaceReviewSummary({
+        count: 0,
+        placeId: null,
+        isLoading: false,
+      });
+      return;
+    }
+
+    const requestId = ++selectedPlaceRequestRef.current;
+    const fallbackCount = Math.max(0, Number(selectedPlace.reviewCount) || 0);
+
+    setSelectedPlaceReviewSummary({
+      count: fallbackCount,
+      placeId: Number(selectedPlace.placeId) || null,
+      isLoading: true,
+    });
+
+    const loadReviewSummary = async () => {
+      const { data, error } = await supabase.rpc(
+        "GetPlaceVisibleReviewSummary",
+        {
+          p_google_place_id: selectedPlace.id,
+        }
+      );
+
+      if (requestId !== selectedPlaceRequestRef.current) {
+        return;
+      }
+
+      if (error) {
+        console.error("Mekan yorum özeti alınamadı:", error);
+        setSelectedPlaceReviewSummary((current) => ({
+          ...current,
+          isLoading: false,
+        }));
+        return;
+      }
+
+      const summary = Array.isArray(data) ? data[0] : data;
+      setSelectedPlaceReviewSummary({
+        count: Math.max(0, Number(summary?.VisibleReviewCount) || 0),
+        placeId: Number(summary?.PlaceId) || Number(selectedPlace.placeId) || null,
+        isLoading: false,
+      });
+    };
+
+    void loadReviewSummary();
+  }, [notesRefreshKey, selectedPlace?.id, selectedPlace?.placeId, selectedPlace?.reviewCount]);
 
   const resetNoteForm = useCallback(() => {
     setNoteTitle("");
     setNoteDraft("");
     setNoteRating(0);
+    setNoteSaveError("");
+  }, []);
+
+  const handleNoteTitleChange = useCallback((value) => {
+    setNoteTitle(value);
+    setNoteSaveError("");
+  }, []);
+
+  const handleNoteDraftChange = useCallback((value) => {
+    setNoteDraft(value);
+    setNoteSaveError("");
+  }, []);
+
+  const handleNoteRatingChange = useCallback((value) => {
+    setNoteRating(value);
     setNoteSaveError("");
   }, []);
 
@@ -224,6 +468,22 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     [onFocusHandled, resetNoteForm]
   );
 
+  const clearSelectedPlace = useCallback(() => {
+    if (isSavingNote) {
+      return;
+    }
+
+    selectedPlaceRequestRef.current += 1;
+    setIsNoteModalOpen(false);
+    resetNoteForm();
+    setSelectedPlace(null);
+    setSelectedPlaceReviewSummary({
+      count: 0,
+      placeId: null,
+      isLoading: false,
+    });
+  }, [isSavingNote, resetNoteForm]);
+
   const goToSelectedPlace = useCallback(() => {
     if (!mapRef.current || !selectedPlace?.location) {
       return;
@@ -234,7 +494,7 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
   }, [selectedPlace]);
 
   const openNoteModal = () => {
-    if (!selectedPlace) {
+    if (!selectedPlace || !getPlaceEligibility(selectedPlace)) {
       return;
     }
 
@@ -251,6 +511,18 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     resetNoteForm();
   };
 
+  const handleOpenPlaceReviews = useCallback(() => {
+    if (!selectedPlaceReviewSummary.placeId || !selectedPlace) {
+      return;
+    }
+
+    onOpenPlaceReviews?.({
+      placeId: selectedPlaceReviewSummary.placeId,
+      placeName: selectedPlace.name,
+      venueCategoryCode: selectedPlace.venueCategoryCode,
+    });
+  }, [onOpenPlaceReviews, selectedPlace, selectedPlaceReviewSummary.placeId]);
+
   const saveNoteDraft = async () => {
     const title = cleanText(noteTitle);
     const content = cleanText(noteDraft);
@@ -261,12 +533,17 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     }
 
     if (!title) {
-      setNoteSaveError("Not başlığı zorunlu.");
+      setNoteSaveError(MESSAGE_KEY.NOTE_TITLE_REQUIRED);
       return;
     }
 
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      setNoteSaveError("1 ile 5 arasında bir puan vermelisin.");
+      setNoteSaveError(MESSAGE_KEY.NOTE_RATING_REQUIRED);
+      return;
+    }
+
+    if (!content) {
+      setNoteSaveError(MESSAGE_KEY.NOTE_DETAIL_REQUIRED);
       return;
     }
 
@@ -274,41 +551,30 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
     setNoteSaveError("");
 
     try {
-      const placeNoteId = await createPlaceNote(selectedPlace, {
+      await createPlaceNote(selectedPlace, {
         title,
         content,
-        rating,
-      });
-
-      console.log("Not Supabase'e kaydedildi:", {
-        placeNoteId,
-        place: selectedPlace,
-        title,
         rating,
       });
 
       setIsNoteModalOpen(false);
       resetNoteForm();
 
-      Promise.resolve(onNoteCreated?.()).catch((error) => {
-        console.error("Profil istatistikleri yenilenemedi:", error);
-      });
+      await Promise.resolve(onNoteCreated?.());
     } catch (error) {
       console.error("Not kaydedilirken hata oluştu:", error);
-      setNoteSaveError(
-        error?.message || "Not kaydedilemedi. Lütfen tekrar dene."
-      );
+      setNoteSaveError(getErrorMessageKey(error, MESSAGE_KEY.NOTE_SAVE_FAILED));
     } finally {
       setIsSavingNote(false);
     }
   };
 
   if (!apiKey) {
-    return <p>Google Maps API key bulunamadı.</p>;
+    return <p>{t(MESSAGE_KEY.MAPS_API_KEY_MISSING)}</p>;
   }
 
   if (!mapId) {
-    return <p>Google Maps Map ID bulunamadı.</p>;
+    return <p>{t(MESSAGE_KEY.MAPS_ID_MISSING)}</p>;
   }
 
   return (
@@ -320,7 +586,7 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
             defaultCenter={ankaraCenter}
             defaultZoom={15}
             gestureHandling="greedy"
-            clickableIcons={false}
+            clickableIcons
             disableDefaultUI={true}
             className="google-map"
           >
@@ -334,7 +600,13 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
               focusLockRef={initialFocusLockRef}
               onFocus={handleExternalPlaceFocus}
             />
+            <PoiPlaceClickHandler onPlaceSelected={handlePlaceSelected} />
             <PlaceSearch onPlaceSelected={handlePlaceSelected} />
+            <SocialVenueNotesLayer
+              isActive={isActive}
+              refreshKey={notesRefreshKey}
+              onPlaceSelected={handlePlaceSelected}
+            />
             <UserLocationMarker userLocation={userLocation} />
             <SelectedPlaceMarker selectedPlace={selectedPlace} />
             <MapBottomControls
@@ -348,31 +620,34 @@ function MapPage({ onNoteCreated, focusPlace, onFocusHandled }) {
           {selectedPlace && (
             <SelectedPlaceCard
               selectedPlace={selectedPlace}
+              reviewSummary={selectedPlaceReviewSummary}
               cardRef={selectedPlaceCardRef}
               onTitleClick={goToSelectedPlace}
               onAddNote={openNoteModal}
+              onOpenReviews={handleOpenPlaceReviews}
+              onClose={clearSelectedPlace}
             />
           )}
         </div>
 
-      {isNoteModalOpen &&
-        selectedPlace &&
-        createPortal(
-          <AddNoteModal
-            placeName={selectedPlace.name}
-            noteTitle={noteTitle}
-            noteDraft={noteDraft}
-            noteRating={noteRating}
-            isSaving={isSavingNote}
-            saveError={noteSaveError}
-            onTitleChange={setNoteTitle}
-            onNoteChange={setNoteDraft}
-            onRatingChange={setNoteRating}
-            onCancel={closeNoteModal}
-            onSave={saveNoteDraft}
-          />,
-          document.body
-        )}
+        {isNoteModalOpen &&
+          selectedPlace &&
+          createPortal(
+            <AddNoteModal
+              placeName={selectedPlace.name}
+              noteTitle={noteTitle}
+              noteDraft={noteDraft}
+              noteRating={noteRating}
+              isSaving={isSavingNote}
+              saveError={noteSaveError}
+              onTitleChange={handleNoteTitleChange}
+              onNoteChange={handleNoteDraftChange}
+              onRatingChange={handleNoteRatingChange}
+              onCancel={closeNoteModal}
+              onSave={saveNoteDraft}
+            />,
+            document.body
+          )}
       </APIProvider>
     </section>
   );
@@ -412,42 +687,104 @@ function InitialLocationFocus({ userLocation, focusLockRef }) {
 
 function ExternalPlaceFocus({ place, focusLockRef, onFocus }) {
   const map = useMap();
+  const placesLibrary = useMapsLibrary("places");
   const handledRequestRef = useRef(null);
 
   useEffect(() => {
     if (!map || !place?.requestId || !place?.location) {
-      return;
+      return undefined;
     }
 
     if (handledRequestRef.current === place.requestId) {
-      return;
+      return undefined;
     }
 
     const latitude = Number(place.location.lat);
     const longitude = Number(place.location.lng);
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return;
+      return undefined;
     }
 
-    handledRequestRef.current = place.requestId;
-    focusLockRef.current = true;
+    const googlePlaceId = cleanText(place.id);
+    const initialVenueCategoryCode =
+      cleanText(place.venueCategoryCode) || null;
+    const needsVenueLookup =
+      !isSupportedVenueCategory(initialVenueCategoryCode) &&
+      Boolean(googlePlaceId);
 
-    map.panTo({ lat: latitude, lng: longitude });
-    map.setZoom(17);
+    /*
+     * Liste/not kartından gelindiğinde eski Places kayıtlarında kategori
+     * boş olabilir. Places library hazır değilken "desteklenmiyor" kartını
+     * erken açmak yerine, Google tür bilgisini alabilene kadar bekliyoruz.
+     */
+    if (
+      needsVenueLookup &&
+      (!placesLibrary || typeof placesLibrary.Place !== "function")
+    ) {
+      return undefined;
+    }
 
-    onFocus({
-      id: cleanText(place.id),
-      name: cleanText(place.name) || "İsimsiz mekan",
-      address: cleanText(place.address),
-      cityName: cleanText(place.cityName),
-      postalCode: cleanText(place.postalCode),
-      location: {
-        lat: latitude,
-        lng: longitude,
-      },
-    });
-  }, [focusLockRef, map, onFocus, place]);
+    let isCancelled = false;
+
+    const focusResolvedPlace = async () => {
+      let venueCategoryCode = initialVenueCategoryCode;
+
+      if (needsVenueLookup) {
+        try {
+          const googlePlace = new placesLibrary.Place({ id: googlePlaceId });
+
+          await googlePlace.fetchFields({
+            fields: ["primaryType", "types"],
+          });
+
+          const resolvedVenueCategoryCode =
+            getVenueCategoryFromGooglePlace(googlePlace);
+
+          if (isSupportedVenueCategory(resolvedVenueCategoryCode)) {
+            venueCategoryCode = resolvedVenueCategoryCode;
+          }
+        } catch (error) {
+          console.warn(
+            "Liste/not kartından açılan mekanın kategorisi doğrulanamadı:",
+            error
+          );
+        }
+      }
+
+      if (isCancelled) {
+        return;
+      }
+
+      handledRequestRef.current = place.requestId;
+      focusLockRef.current = true;
+
+      map.panTo({ lat: latitude, lng: longitude });
+      map.setZoom(17);
+
+      onFocus({
+        placeId: Number(place.placeId) || null,
+        id: googlePlaceId,
+        name: cleanText(place.name) || "İsimsiz mekan",
+        address: cleanText(place.address),
+        cityName: cleanText(place.cityName),
+        postalCode: cleanText(place.postalCode),
+        venueCategoryCode: venueCategoryCode || null,
+        isEligible: isSupportedVenueCategory(venueCategoryCode),
+        selectionSource: "external-place-target",
+        location: {
+          lat: latitude,
+          lng: longitude,
+        },
+      });
+    };
+
+    void focusResolvedPlace();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [focusLockRef, map, onFocus, place, placesLibrary]);
 
   return null;
 }
@@ -500,7 +837,17 @@ function UserLocationMarker({ userLocation }) {
 }
 
 function SelectedPlaceMarker({ selectedPlace }) {
-  if (!selectedPlace?.location) {
+  /*
+   * Liste/not kartından gelen mekanların zaten kayıtlı bir PlaceId'si var.
+   * Aynı konumda sosyal mekan markerı da bulunduğunda ikinci kırmızı pin
+   * üst üste biniyordu. Kırmızı seçili-mekan pini sadece arama/POI ile
+   * seçilmiş, henüz kayıtlı olmayan mekanlarda gösterilir.
+   */
+  if (
+    !selectedPlace?.location ||
+    selectedPlace?.selectionSource === "social-map-marker" ||
+    Number(selectedPlace?.placeId) > 0
+  ) {
     return null;
   }
 
@@ -509,7 +856,7 @@ function SelectedPlaceMarker({ selectedPlace }) {
       position={selectedPlace.location}
       anchorLeft="-50%"
       anchorTop="-50%"
-      zIndex={60}
+      zIndex={90}
       clickable={false}
       title={`Seçilen mekan: ${selectedPlace.name}`}
     >
@@ -518,6 +865,280 @@ function SelectedPlaceMarker({ selectedPlace }) {
       </div>
     </AdvancedMarker>
   );
+}
+
+function SocialVenueNotesLayer({ isActive, refreshKey, onPlaceSelected }) {
+  const map = useMap();
+  const placesLibrary = useMapsLibrary("places");
+  const [places, setPlaces] = useState([]);
+  const [zoom, setZoom] = useState(15);
+  const requestIdRef = useRef(0);
+  const debounceTimerRef = useRef(null);
+
+  const loadVisiblePlaces = useCallback(async () => {
+    if (!map || !isActive) {
+      return;
+    }
+
+    const bounds = map.getBounds();
+
+    if (!bounds) {
+      return;
+    }
+
+    const southWest = bounds.getSouthWest();
+    const northEast = bounds.getNorthEast();
+    const south = Number(southWest?.lat?.());
+    const west = Number(southWest?.lng?.());
+    const north = Number(northEast?.lat?.());
+    const east = Number(northEast?.lng?.());
+
+    if (![south, west, north, east].every(Number.isFinite)) {
+      return;
+    }
+
+    const requestId = ++requestIdRef.current;
+    const mapZoom = Number(map.getZoom());
+
+    if (Number.isFinite(mapZoom)) {
+      setZoom(mapZoom);
+    }
+
+    const { data, error } = await supabase.rpc("GetVisibleMapVenueNotes", {
+      p_south: south,
+      p_west: west,
+      p_north: north,
+      p_east: east,
+      p_limit: MAP_NOTE_LIMIT,
+    });
+
+    if (requestId !== requestIdRef.current) {
+      return;
+    }
+
+    if (error) {
+      console.error("Haritadaki sosyal mekan notları alınamadı:", error);
+      return;
+    }
+
+    setPlaces(data ?? []);
+  }, [isActive, map]);
+
+  useEffect(() => {
+    if (!map || !isActive) {
+      return undefined;
+    }
+
+    const scheduleLoad = () => {
+      if (debounceTimerRef.current) {
+        window.clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = window.setTimeout(() => {
+        void loadVisiblePlaces();
+      }, 180);
+    };
+
+    const listener = map.addListener("idle", scheduleLoad);
+    scheduleLoad();
+
+    return () => {
+      listener.remove();
+
+      if (debounceTimerRef.current) {
+        window.clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [isActive, loadVisiblePlaces, map, refreshKey]);
+
+  const clusters = useMemo(() => buildMapClusters(places, zoom), [places, zoom]);
+
+  const openPlace = useCallback(
+    async (place) => {
+      let selectedPlace = getSelectedPlaceFromMapRow(place);
+
+      if (
+        !selectedPlace.id ||
+        !Number.isFinite(selectedPlace.location.lat) ||
+        !Number.isFinite(selectedPlace.location.lng)
+      ) {
+        return;
+      }
+
+      /*
+       * v1.5.0 öncesinde kaydedilen mekanların VenueCategoryCode alanı boş.
+       * Social marker seçimi Places tablosundan geldiği için bu kayıtlar
+       * Google tür kontrolünü atlıyordu ve kart yanlışlıkla "desteklenmiyor"
+       * durumuna düşüyordu. Sadece kategori eksikse, placeId ile Google'dan
+       * tür bilgisini sessizce tamamla.
+       */
+      if (
+        !isSupportedVenueCategory(selectedPlace.venueCategoryCode) &&
+        placesLibrary &&
+        typeof placesLibrary.Place === "function"
+      ) {
+        try {
+          const googlePlace = new placesLibrary.Place({
+            id: selectedPlace.id,
+          });
+
+          await googlePlace.fetchFields({
+            fields: ["primaryType", "types"],
+          });
+
+          const venueCategoryCode =
+            getVenueCategoryFromGooglePlace(googlePlace);
+
+          if (isSupportedVenueCategory(venueCategoryCode)) {
+            selectedPlace = {
+              ...selectedPlace,
+              venueCategoryCode,
+              isEligible: true,
+            };
+          }
+        } catch (error) {
+          console.warn(
+            "Harita markerı için mekan kategorisi doğrulanamadı:",
+            error
+          );
+        }
+      }
+
+      map?.panTo(selectedPlace.location);
+      onPlaceSelected(selectedPlace);
+    },
+    [map, onPlaceSelected, placesLibrary]
+  );
+
+  const openCluster = (cluster) => {
+    if (!map || !cluster?.position) {
+      return;
+    }
+
+    const nextZoom = Math.min((Number(map.getZoom()) || zoom) + 2, 18);
+    map.panTo(cluster.position);
+    map.setZoom(nextZoom);
+  };
+
+  return (
+    <>
+      {clusters.map((cluster) => {
+        if (cluster.isCluster) {
+          return (
+            <AdvancedMarker
+              key={`cluster-${cluster.id}`}
+              position={cluster.position}
+              anchorLeft="-50%"
+              anchorTop="-50%"
+              zIndex={70}
+              title={`${cluster.places.length} mekan notu`}
+              onClick={() => openCluster(cluster)}
+            >
+              <div className="social-map-cluster-marker" aria-hidden="true">
+                <span>{cluster.places.length}</span>
+              </div>
+            </AdvancedMarker>
+          );
+        }
+
+        const place = cluster.places[0];
+        const venueIcon = getVenueCategoryIcon(place?.VenueCategoryCode);
+        const reviewCount = Math.max(0, Number(place?.VisibleNoteCount) || 0);
+
+        return (
+          <AdvancedMarker
+            key={`venue-${place.PlaceId}`}
+            position={{
+              lat: Number(place.Latitude),
+              lng: Number(place.Longitude),
+            }}
+            anchorLeft="-50%"
+            anchorTop="-100%"
+            zIndex={65}
+            title={`${place.Name} · ${reviewCount} yorum`}
+            onClick={() => {
+              void openPlace(place);
+            }}
+          >
+            <div className="social-map-venue-marker" aria-hidden="true">
+              <span className="social-map-venue-marker-icon">{venueIcon}</span>
+              {reviewCount > 1 && (
+                <span className="social-map-venue-marker-count">{reviewCount > 9 ? "9+" : reviewCount}</span>
+              )}
+            </div>
+          </AdvancedMarker>
+        );
+      })}
+    </>
+  );
+}
+
+function PoiPlaceClickHandler({ onPlaceSelected }) {
+  const map = useMap();
+  const placesLibrary = useMapsLibrary("places");
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!map || !placesLibrary || typeof placesLibrary.Place !== "function") {
+      return undefined;
+    }
+
+    const listener = map.addListener("click", async (event) => {
+      const placeId = cleanText(event?.placeId);
+
+      if (!placeId) {
+        return;
+      }
+
+      event.stop?.();
+      const requestId = ++requestIdRef.current;
+
+      try {
+        const place = new placesLibrary.Place({ id: placeId });
+
+        await place.fetchFields({
+          fields: [
+            "displayName",
+            "formattedAddress",
+            "addressComponents",
+            "location",
+            "id",
+            "primaryType",
+            "types",
+          ],
+        });
+
+        if (requestId !== requestIdRef.current || !place.location) {
+          return;
+        }
+
+        const selectedPlace = getSelectedPlaceFromGooglePlace(place);
+        const latitude = Number(selectedPlace.location.lat);
+        const longitude = Number(selectedPlace.location.lng);
+
+        if (
+          !selectedPlace.id ||
+          !selectedPlace.name ||
+          !selectedPlace.address ||
+          !selectedPlace.cityName ||
+          !Number.isFinite(latitude) ||
+          !Number.isFinite(longitude)
+        ) {
+          return;
+        }
+
+        map.panTo(selectedPlace.location);
+        onPlaceSelected(selectedPlace);
+      } catch (error) {
+        console.error("Haritadaki mekan seçilemedi:", error);
+      }
+    });
+
+    return () => listener.remove();
+  }, [map, onPlaceSelected, placesLibrary]);
+
+  return null;
 }
 
 function PlaceSearch({ onPlaceSelected }) {
@@ -562,8 +1183,7 @@ function PlaceSearch({ onPlaceSelected }) {
         setErrorMessage("");
 
         if (!sessionTokenRef.current) {
-          sessionTokenRef.current =
-            new placesLibrary.AutocompleteSessionToken();
+          sessionTokenRef.current = new placesLibrary.AutocompleteSessionToken();
         }
 
         const { suggestions: rawSuggestions } =
@@ -606,7 +1226,7 @@ function PlaceSearch({ onPlaceSelected }) {
 
         console.error("Autocomplete isteği başarısız:", error);
         setSuggestions([]);
-        setErrorMessage("Arama sonuçları alınamadı.");
+        setErrorMessage(MESSAGE_KEY.PLACE_SUGGESTIONS_LOAD_FAILED);
       } finally {
         if (requestId === requestIdRef.current) {
           setIsLoading(false);
@@ -637,6 +1257,8 @@ function PlaceSearch({ onPlaceSelected }) {
           "location",
           "viewport",
           "id",
+          "primaryType",
+          "types",
         ],
       });
 
@@ -644,31 +1266,24 @@ function PlaceSearch({ onPlaceSelected }) {
         return;
       }
 
-      const location = {
-        lat: place.location.lat(),
-        lng: place.location.lng(),
-      };
+      const selectedPlace = getSelectedPlaceFromGooglePlace(place);
+      const latitude = Number(selectedPlace.location.lat);
+      const longitude = Number(selectedPlace.location.lng);
 
-      const selectedPlace = {
-        id: cleanText(place.id),
-        name: cleanText(place.displayName) || "İsimsiz mekan",
-        address: cleanText(place.formattedAddress),
-        cityName: getAddressComponentText(
-          place.addressComponents,
-          "administrative_area_level_1",
-          "locality"
-        ),
-        postalCode: getAddressComponentText(
-          place.addressComponents,
-          "postal_code"
-        ),
-        location,
-      };
+      if (
+        !selectedPlace.id ||
+        !selectedPlace.address ||
+        !selectedPlace.cityName ||
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude)
+      ) {
+        return;
+      }
 
       if (place.viewport) {
         map.fitBounds(place.viewport);
       } else {
-        map.panTo(location);
+        map.panTo(selectedPlace.location);
         map.setZoom(17);
       }
 
@@ -678,7 +1293,7 @@ function PlaceSearch({ onPlaceSelected }) {
       sessionTokenRef.current = new placesLibrary.AutocompleteSessionToken();
     } catch (error) {
       console.error("Mekan seçilirken hata oluştu:", error);
-      setErrorMessage("Mekan seçilemedi.");
+      setErrorMessage(MESSAGE_KEY.PLACE_SELECTION_FAILED);
     }
   };
 
@@ -705,9 +1320,7 @@ function PlaceSearch({ onPlaceSelected }) {
 
       {(suggestions.length > 0 || isLoading || errorMessage) && (
         <div className="place-search-results">
-          {isLoading && (
-            <div className="place-search-status">Aranıyor...</div>
-          )}
+          {isLoading && <div className="place-search-status">Aranıyor...</div>}
 
           {!isLoading &&
             suggestions.map((suggestion) => (
@@ -718,21 +1331,16 @@ function PlaceSearch({ onPlaceSelected }) {
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => handleSelect(suggestion)}
               >
-                <span className="place-search-result-title">
-                  {suggestion.title}
-                </span>
-
+                <span className="place-search-result-title">{suggestion.title}</span>
                 {suggestion.subtitle && (
-                  <span className="place-search-result-subtitle">
-                    {suggestion.subtitle}
-                  </span>
+                  <span className="place-search-result-subtitle">{suggestion.subtitle}</span>
                 )}
               </button>
             ))}
 
           {errorMessage && !isLoading && (
             <div className="place-search-status place-search-error">
-              {errorMessage}
+              {t(errorMessage)}
             </div>
           )}
         </div>
@@ -743,10 +1351,18 @@ function PlaceSearch({ onPlaceSelected }) {
 
 function SelectedPlaceCard({
   selectedPlace,
+  reviewSummary,
   cardRef,
   onTitleClick,
   onAddNote,
+  onOpenReviews,
+  onClose,
 }) {
+  const canAddNote = getPlaceEligibility(selectedPlace);
+  const reviewCount = Math.max(0, Number(reviewSummary?.count) || 0);
+  const venueIcon = getVenueCategoryIcon(selectedPlace?.venueCategoryCode);
+  const venueLabel = getVenueCategoryLabel(selectedPlace?.venueCategoryCode);
+
   const handleTitleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -756,6 +1372,16 @@ function SelectedPlaceCard({
 
   return (
     <div ref={cardRef} className="selected-place-card">
+      <button
+        type="button"
+        className="selected-place-close"
+        onClick={onClose}
+        aria-label="Seçili mekanı kapat"
+        title="Mekanı kapat"
+      >
+        ×
+      </button>
+
       <div className="selected-place-copy">
         <strong
           className="selected-place-title"
@@ -765,15 +1391,41 @@ function SelectedPlaceCard({
           onClick={onTitleClick}
           onKeyDown={handleTitleKeyDown}
         >
+          <span className="venue-category-icon venue-category-icon-map" title={venueLabel}>
+            {venueIcon}
+          </span>
           {selectedPlace.name}
         </strong>
 
         {selectedPlace.address && <span>{selectedPlace.address}</span>}
       </div>
 
-      <button type="button" onClick={onAddNote}>
-        Bu mekana not ekle
-      </button>
+      {canAddNote ? (
+        <>
+          {reviewSummary?.isLoading ? (
+            <p className="selected-place-review-status">Yorumlar kontrol ediliyor...</p>
+          ) : reviewCount > 0 ? (
+            <button
+              type="button"
+              className="selected-place-review-button"
+              onClick={onOpenReviews}
+              disabled={!reviewSummary?.placeId}
+            >
+              {formatReviewLinkLabel(reviewCount)}
+            </button>
+          ) : (
+            <p className="selected-place-review-empty">İlk yorumu sen yap.</p>
+          )}
+
+          <button type="button" className="selected-place-add-note" onClick={onAddNote}>
+            Bu mekana not ekle
+          </button>
+        </>
+      ) : (
+        <p className="selected-place-unsupported">
+          Bu uygulamada yalnızca yeme-içme, spor ve kültür/aktivite mekanlarına not ekleyebilirsin.
+        </p>
+      )}
     </div>
   );
 }
@@ -792,6 +1444,7 @@ function AddNoteModal({
   onSave,
 }) {
   const titleInputRef = useRef(null);
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
 
   useEffect(() => {
     titleInputRef.current?.focus();
@@ -816,7 +1469,32 @@ function AddNoteModal({
     }
   };
 
-  const canSave = Boolean(cleanText(noteTitle)) && Number(noteRating) >= 1;
+  const validation = {
+    title: !cleanText(noteTitle),
+    rating:
+      !Number.isInteger(Number(noteRating)) ||
+      Number(noteRating) < 1 ||
+      Number(noteRating) > 5,
+    detail: !cleanText(noteDraft),
+  };
+
+  const canSave = !validation.title && !validation.rating && !validation.detail;
+  const showTitleError = hasAttemptedSave && validation.title;
+  const showRatingError = hasAttemptedSave && validation.rating;
+  const showDetailError = hasAttemptedSave && validation.detail;
+
+  const handleSaveAttempt = () => {
+    if (isSaving) {
+      return;
+    }
+
+    if (!canSave) {
+      setHasAttemptedSave(true);
+      return;
+    }
+
+    onSave();
+  };
 
   return (
     <div
@@ -844,18 +1522,36 @@ function AddNoteModal({
             type="text"
             value={noteTitle}
             disabled={isSaving}
+            aria-invalid={showTitleError}
+            aria-describedby={showTitleError ? "note-title-error" : undefined}
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder="Kısa bir başlık yaz"
             maxLength={120}
           />
+          {showTitleError && (
+            <p id="note-title-error" className="note-modal-field-error" role="alert">
+              {t(MESSAGE_KEY.NOTE_TITLE_REQUIRED)}
+            </p>
+          )}
         </label>
 
         <div className="note-modal-field">
           <span>Puanın</span>
-          <div className="note-rating-picker" role="radiogroup" aria-label="Puanın">
+          <div
+            className={`note-rating-picker${
+              showRatingError ? " note-rating-picker-error" : ""
+            }`}
+            role="radiogroup"
+            aria-label="Puanın"
+            aria-describedby={showRatingError ? "note-rating-error" : undefined}
+          >
             {[1, 2, 3, 4, 5].map((rating) => (
               <button
-                className={rating <= Number(noteRating) ? "note-rating-star note-rating-star-active" : "note-rating-star"}
+                className={
+                  rating <= Number(noteRating)
+                    ? "note-rating-star note-rating-star-active"
+                    : "note-rating-star"
+                }
                 type="button"
                 key={rating}
                 role="radio"
@@ -869,26 +1565,36 @@ function AddNoteModal({
             ))}
             <strong>{noteRating ? `${noteRating} / 5` : "Puan ver"}</strong>
           </div>
+          {showRatingError && (
+            <p id="note-rating-error" className="note-modal-field-error" role="alert">
+              {t(MESSAGE_KEY.NOTE_RATING_REQUIRED)}
+            </p>
+          )}
         </div>
 
         <label className="note-modal-field">
-          <span>
-            Detay <small>(opsiyonel)</small>
-          </span>
+          <span>Detay</span>
           <textarea
             className="note-modal-textarea"
             value={noteDraft}
             disabled={isSaving}
+            aria-invalid={showDetailError}
+            aria-describedby={showDetailError ? "note-detail-error" : undefined}
             onChange={(event) => onNoteChange(event.target.value)}
             placeholder="Bu mekan hakkında ne düşünüyorsun?"
             aria-label="Not detayı"
             maxLength={1000}
           />
+          {showDetailError && (
+            <p id="note-detail-error" className="note-modal-field-error" role="alert">
+              {t(MESSAGE_KEY.NOTE_DETAIL_REQUIRED)}
+            </p>
+          )}
         </label>
 
         {saveError && (
           <p className="note-modal-error" role="alert">
-            {saveError}
+            {t(saveError)}
           </p>
         )}
 
@@ -904,9 +1610,12 @@ function AddNoteModal({
 
           <button
             type="button"
-            className="note-modal-save"
-            disabled={!canSave || isSaving}
-            onClick={onSave}
+            className={`note-modal-save${
+              canSave ? "" : " note-modal-save-incomplete"
+            }`}
+            disabled={isSaving}
+            aria-disabled={!canSave || isSaving}
+            onClick={handleSaveAttempt}
           >
             {isSaving ? "Kaydediliyor..." : "Kaydet"}
           </button>
@@ -915,7 +1624,6 @@ function AddNoteModal({
     </div>
   );
 }
-
 
 function MapBottomControls({
   userLocation,
@@ -949,7 +1657,7 @@ function MapBottomControls({
     >
       {locationMessage && (
         <div className="location-message" role="status">
-          {locationMessage}
+          {t(locationMessage)}
         </div>
       )}
 
@@ -958,9 +1666,7 @@ function MapBottomControls({
         className="location-button"
         aria-label="Konumuma git"
         title={
-          userLocation
-            ? "Konumuma git"
-            : "Konum bilgisi henüz alınamadı"
+          userLocation ? "Konumuma git" : "Konum bilgisi henüz alınamadı"
         }
         disabled={!userLocation}
         onClick={goToMyLocation}
