@@ -81,12 +81,32 @@ const TYPE_SETS = Object.freeze({
   [VENUE_CATEGORY_CODE.CULTURE_ACTIVITY]: new Set([
     "movie_theater",
     "museum",
+    "art_museum",
+    "history_museum",
     "art_gallery",
+    "art_studio",
     "performing_arts_theater",
     "concert_hall",
+    "opera_house",
+    "philharmonic_hall",
+    "auditorium",
+    "amphitheatre",
     "cultural_center",
+    "cultural_landmark",
+    "historical_place",
+    "historical_landmark",
+    "monument",
+    "castle",
+    "sculpture",
+    "tourist_attraction",
+    "visitor_center",
+    "national_park",
+    "state_park",
+    "botanical_garden",
+    "planetarium",
     "bowling_alley",
     "amusement_center",
+    "amusement_park",
     "video_arcade",
   ]),
 });
@@ -108,8 +128,10 @@ export function getVenueCategoryLabel(categoryCode) {
 }
 
 export function isSupportedVenueCategory(categoryCode) {
-  return Object.prototype.hasOwnProperty.call(CATEGORY_META, categoryCode) &&
-    categoryCode !== VENUE_CATEGORY_CODE.OTHER;
+  return (
+    Object.prototype.hasOwnProperty.call(CATEGORY_META, categoryCode) &&
+    categoryCode !== VENUE_CATEGORY_CODE.OTHER
+  );
 }
 
 export function getVenueCategoryFromGooglePlace(place) {
