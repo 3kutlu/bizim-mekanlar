@@ -63,9 +63,7 @@ button:disabled {
   background: rgba(13, 15, 19, 0.92);
   backdrop-filter: blur(14px);
 }
-.topbar-notifications-open {
-  z-index: 300;
-}
+
 .logo-button {
   border: 0;
   border-radius: 8px;
@@ -303,6 +301,7 @@ button:disabled {
     padding-bottom: calc(82px + env(safe-area-inset-bottom));
   }
 
+  /* Varsayılan alt menü: Android ve masaüstü mobil görünümü. */
   .bottom-nav {
     position: fixed;
     z-index: 100;
@@ -328,6 +327,7 @@ button:disabled {
     gap: 3px;
     border: 0;
     border-radius: 12px;
+    padding: 4px;
     background: transparent;
     color: #8e97a8;
     font-size: 11px;
@@ -343,7 +343,156 @@ button:disabled {
     color: #f1f4ff;
   }
 
+  /* iOS: hareketli liquid-glass lens yalnızca bu ek class ile açılır. */
+  .bottom-nav.bottom-nav-liquid-glass {
+    --liquid-x: 0px;
+    --liquid-stretch: 0;
+    --liquid-tilt: 0deg;
+
+    isolation: isolate;
+    height: 72px;
+    min-height: 72px;
+    padding: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-top-color: rgba(255, 255, 255, 0.58);
+    border-radius: 25px;
+    background:
+      linear-gradient(
+        132deg,
+        rgba(255, 255, 255, 0.2) 0%,
+        rgba(255, 255, 255, 0.07) 42%,
+        rgba(193, 213, 255, 0.12) 100%
+      ),
+      rgba(15, 19, 29, 0.5);
+    box-shadow:
+      0 16px 42px rgba(0, 0, 0, 0.38),
+      0 2px 8px rgba(4, 8, 17, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.48),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+    -webkit-backdrop-filter: blur(26px) saturate(165%) contrast(108%);
+    backdrop-filter: blur(26px) saturate(165%) contrast(108%);
+    touch-action: pan-y;
+    user-select: none;
+  }
+
+  .bottom-nav-liquid-glass::before {
+    position: absolute;
+    z-index: 0;
+    top: 6px;
+    bottom: 6px;
+    left: 6px;
+    width: calc((100% - 12px) / 3);
+    border: 1px solid rgba(255, 255, 255, 0.46);
+    border-top-color: rgba(255, 255, 255, 0.76);
+    border-radius: 19px;
+    background:
+      radial-gradient(
+        105% 95% at 20% -18%,
+        rgba(255, 255, 255, 0.6) 0%,
+        rgba(255, 255, 255, 0.16) 45%,
+        transparent 78%
+      ),
+      linear-gradient(
+        134deg,
+        rgba(215, 230, 255, 0.3),
+        rgba(255, 255, 255, 0.08) 50%,
+        rgba(204, 220, 255, 0.2)
+      ),
+      rgba(234, 242, 255, 0.09);
+    box-shadow:
+      0 7px 19px rgba(2, 8, 22, 0.27),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+    content: "";
+    pointer-events: none;
+    transform: translate3d(var(--liquid-x), 0, 0)
+      scaleX(calc(1 + var(--liquid-stretch))) rotate(var(--liquid-tilt));
+    transform-origin: center;
+    transition:
+      transform 520ms cubic-bezier(0.2, 1.28, 0.32, 1),
+      filter 180ms ease;
+    will-change: transform;
+  }
+
+  .bottom-nav-liquid-glass::after {
+    position: absolute;
+    z-index: 0;
+    top: -24px;
+    left: -6%;
+    width: 62%;
+    height: 58px;
+    border-radius: 50%;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(255, 255, 255, 0.24) 0%,
+      rgba(255, 255, 255, 0.06) 44%,
+      transparent 75%
+    );
+    content: "";
+    filter: blur(6px);
+    opacity: 0.82;
+    pointer-events: none;
+    transform: rotate(-14deg);
+  }
+
+  .bottom-nav-liquid-glass[data-dragging="true"]::before {
+    transition: none;
+    filter: brightness(1.07) saturate(1.18);
+  }
+
+  .bottom-nav-liquid-glass button {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    min-height: 58px;
+    border-radius: 19px;
+    padding: 6px 4px;
+    background: transparent;
+    color: rgba(229, 234, 247, 0.66);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+    transition:
+      color 170ms ease,
+      text-shadow 170ms ease,
+      transform 170ms ease;
+  }
+
+  .bottom-nav-liquid-glass button:active {
+    transform: scale(0.97);
+  }
+
+  .bottom-nav-liquid-glass button:hover:not(.bottom-nav-active),
+  .bottom-nav-liquid-glass button:focus-visible:not(.bottom-nav-active) {
+    color: rgba(247, 250, 255, 0.94);
+  }
+
+  .bottom-nav-liquid-glass button span {
+    transition: transform 240ms cubic-bezier(0.2, 1.28, 0.32, 1);
+  }
+
+  .bottom-nav-liquid-glass .bottom-nav-active {
+    background: transparent;
+    color: #ffffff;
+    text-shadow:
+      0 1px 2px rgba(1, 5, 14, 0.45),
+      0 0 18px rgba(224, 237, 255, 0.22);
+  }
+
+  .bottom-nav-liquid-glass .bottom-nav-active span {
+    transform: translateY(-1px) scale(1.06);
+  }
+
   .app-message {
     padding: 10px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav-liquid-glass::before,
+  .bottom-nav-liquid-glass button,
+  .bottom-nav-liquid-glass button span {
+    transition-duration: 1ms;
   }
 }
