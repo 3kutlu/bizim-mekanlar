@@ -75,6 +75,17 @@ function formatReviewLinkLabel(count) {
   return `${normalizedCount} yorumu gör`;
 }
 
+
+function formatAverageRating(value) {
+  const rating = Number(value);
+
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    return "";
+  }
+
+  return rating.toFixed(1);
+}
+
 function getPlaceEligibility(place) {
   return place?.isEligible !== false && isSupportedVenueCategory(place?.venueCategoryCode);
 }
@@ -273,6 +284,9 @@ function MapPage({
     count: 0,
     placeId: null,
     isLoading: false,
+    averageRating: null,
+    ratingCount: 0,
+    isRatingLoading: false,
   });
   const [locationMessage, setLocationMessage] = useState("");
 
@@ -382,6 +396,9 @@ function MapPage({
         count: 0,
         placeId: null,
         isLoading: false,
+        averageRating: null,
+        ratingCount: 0,
+        isRatingLoading: false,
       });
       return;
     }
@@ -393,39 +410,72 @@ function MapPage({
       count: fallbackCount,
       placeId: Number(selectedPlace.placeId) || null,
       isLoading: true,
+      averageRating: null,
+      ratingCount: 0,
+      isRatingLoading: true,
     });
 
-    const loadReviewSummary = async () => {
-      const { data, error } = await supabase.rpc(
-        "GetPlaceVisibleReviewSummary",
-        {
+    const loadPlaceCardSummary = async () => {
+      const [visibleReviewResult, ratingResult] = await Promise.all([
+        supabase.rpc("GetPlaceVisibleReviewSummary", {
           p_google_place_id: selectedPlace.id,
-        }
-      );
+        }),
+        supabase.rpc("GetPlaceRatingSummary", {
+          p_google_place_id: selectedPlace.id,
+        }),
+      ]);
 
       if (requestId !== selectedPlaceRequestRef.current) {
         return;
       }
 
-      if (error) {
-        console.error("Mekan yorum özeti alınamadı:", error);
-        setSelectedPlaceReviewSummary((current) => ({
-          ...current,
-          isLoading: false,
-        }));
-        return;
+      if (visibleReviewResult.error) {
+        console.error(
+          "Mekan görünür yorum özeti alınamadı:",
+          visibleReviewResult.error
+        );
       }
 
-      const summary = Array.isArray(data) ? data[0] : data;
+      if (ratingResult.error) {
+        console.error("Mekan genel puanı alınamadı:", ratingResult.error);
+      }
+
+      const visibleSummary = Array.isArray(visibleReviewResult.data)
+        ? visibleReviewResult.data[0]
+        : visibleReviewResult.data;
+      const ratingSummary = Array.isArray(ratingResult.data)
+        ? ratingResult.data[0]
+        : ratingResult.data;
+
       setSelectedPlaceReviewSummary({
-        count: Math.max(0, Number(summary?.VisibleReviewCount) || 0),
-        placeId: Number(summary?.PlaceId) || Number(selectedPlace.placeId) || null,
+        count: visibleReviewResult.error
+          ? fallbackCount
+          : Math.max(0, Number(visibleSummary?.VisibleReviewCount) || 0),
+        placeId:
+          Number(visibleSummary?.PlaceId) ||
+          Number(ratingSummary?.PlaceId) ||
+          Number(selectedPlace.placeId) ||
+          null,
         isLoading: false,
+        averageRating: ratingResult.error
+          ? null
+          : Number.isFinite(Number(ratingSummary?.AverageRating))
+            ? Number(ratingSummary.AverageRating)
+            : null,
+        ratingCount: ratingResult.error
+          ? 0
+          : Math.max(0, Number(ratingSummary?.RatingCount) || 0),
+        isRatingLoading: false,
       });
     };
 
-    void loadReviewSummary();
-  }, [notesRefreshKey, selectedPlace?.id, selectedPlace?.placeId, selectedPlace?.reviewCount]);
+    void loadPlaceCardSummary();
+  }, [
+    notesRefreshKey,
+    selectedPlace?.id,
+    selectedPlace?.placeId,
+    selectedPlace?.reviewCount,
+  ]);
 
   const resetNoteForm = useCallback(() => {
     setNoteTitle("");
@@ -481,6 +531,9 @@ function MapPage({
       count: 0,
       placeId: null,
       isLoading: false,
+      averageRating: null,
+      ratingCount: 0,
+      isRatingLoading: false,
     });
   }, [isSavingNote, resetNoteForm]);
 
@@ -1398,6 +1451,14 @@ function SelectedPlaceCard({
         </strong>
 
         {selectedPlace.address && <span>{selectedPlace.address}</span>}
+
+        <p className="selected-place-rating" aria-live="polite">
+          {reviewSummary?.isRatingLoading
+            ? "Genel puan yükleniyor..."
+            : Number(reviewSummary?.ratingCount) > 0
+              ? `${formatAverageRating(reviewSummary?.averageRating)} / 5 ☆`
+              : "Henüz puan yok"}
+        </p>
       </div>
 
       {canAddNote ? (

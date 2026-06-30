@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase.js";
 import {
@@ -133,6 +133,212 @@ function ReadOnlyRatingStars({ value }) {
         </span>
       ))}
     </span>
+  );
+}
+
+
+const EMPTY_NOTE_REACTION_SUMMARY = Object.freeze({
+  UpCount: 0,
+  DownCount: 0,
+  MyReactionCode: null,
+});
+
+function normalizeReactionSummary(value) {
+  const code = String(value?.MyReactionCode ?? "").trim().toUpperCase();
+
+  return {
+    UpCount: Math.max(0, Number(value?.UpCount) || 0),
+    DownCount: Math.max(0, Number(value?.DownCount) || 0),
+    MyReactionCode: code === "UP" || code === "DOWN" ? code : null,
+  };
+}
+
+/*
+  Feed, profile collection ve note-detail RPC'leri bazı yerlerde alanları
+  farklı casing ile döndürebiliyor. Reaksiyonu her zaman notun kendi ID'sine
+  bağlamak için tek bir normalizer kullanıyoruz.
+*/
+function getReactionNoteId(note) {
+  const candidate =
+    note?.PlaceNoteId ??
+    note?.PlaceNoteID ??
+    note?.placeNoteId ??
+    note?.NoteId ??
+    note?.NoteID ??
+    note?.noteId ??
+    note?.Id ??
+    note?.id ??
+    null;
+
+  const normalizedId = Number(candidate);
+
+  return Number.isInteger(normalizedId) && normalizedId > 0
+    ? normalizedId
+    : null;
+}
+
+/*
+  Supabase JSONB dönen RPC'leri doğrudan dizi, stringleşmiş JSON veya
+  { data: [] } / { items: [] } şeklinde alabilir. Hepsini kart bazlı
+  reaction summary listesine çeviriyoruz.
+*/
+function getReactionSummaryRows(payload) {
+  let normalizedPayload = payload;
+
+  if (typeof normalizedPayload === "string") {
+    try {
+      normalizedPayload = JSON.parse(normalizedPayload);
+    } catch {
+      return [];
+    }
+  }
+
+  if (Array.isArray(normalizedPayload)) {
+    return normalizedPayload;
+  }
+
+  if (Array.isArray(normalizedPayload?.data)) {
+    return normalizedPayload.data;
+  }
+
+  if (Array.isArray(normalizedPayload?.items)) {
+    return normalizedPayload.items;
+  }
+
+  if (
+    normalizedPayload &&
+    typeof normalizedPayload === "object" &&
+    getReactionNoteId(normalizedPayload)
+  ) {
+    return [normalizedPayload];
+  }
+
+  return [];
+}
+
+function NoteReactionControls({
+  noteId,
+  noteOwnerUserId,
+  currentUserId,
+  summary,
+  onSummaryChange,
+  variant = "feed",
+}) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const normalizedNoteId = Number(noteId);
+  const normalizedOwnerId = Number(noteOwnerUserId);
+  const normalizedCurrentUserId = Number(currentUserId);
+  const isOwnNote =
+    Number.isInteger(normalizedOwnerId) &&
+    Number.isInteger(normalizedCurrentUserId) &&
+    normalizedOwnerId === normalizedCurrentUserId;
+  const reactionSummary = normalizeReactionSummary(summary);
+
+  const updateReaction = async (event, requestedCode) => {
+    event.stopPropagation();
+
+    if (
+      isOwnNote ||
+      isSaving ||
+      !Number.isInteger(normalizedNoteId) ||
+      normalizedNoteId <= 0
+    ) {
+      return;
+    }
+
+    const nextCode =
+      reactionSummary.MyReactionCode === requestedCode ? null : requestedCode;
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    const { data, error } = await supabase.rpc("SetMyPlaceNoteReaction", {
+      p_place_note_id: normalizedNoteId,
+      p_reaction_code: nextCode,
+    });
+
+    if (error) {
+      console.error("Not reaksiyonu güncellenemedi:", error);
+      setErrorMessage(error.message || "Reaksiyon güncellenemedi.");
+      setIsSaving(false);
+      return;
+    }
+
+    const nextSummary = Array.isArray(data) ? data[0] : data;
+    onSummaryChange?.(normalizedNoteId, normalizeReactionSummary(nextSummary));
+    setIsSaving(false);
+  };
+
+  const controlsClassName = `note-reactions note-reactions-${variant}`;
+
+  if (isOwnNote) {
+    return (
+      <div
+        className={`${controlsClassName} note-reactions-readonly`}
+        aria-label={`${reactionSummary.UpCount} beğeni, ${reactionSummary.DownCount} beğenmeme`}
+      >
+        <span className="note-reaction-static">
+          <strong>{reactionSummary.UpCount}</strong>
+          <span aria-hidden="true">👍</span>
+        </span>
+        <span className="note-reaction-static">
+          <strong>{reactionSummary.DownCount}</strong>
+          <span aria-hidden="true">👎</span>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={controlsClassName} aria-label="Not reaksiyonları">
+      <button
+        className={`note-reaction-button note-reaction-up${
+          reactionSummary.MyReactionCode === "UP" ? " note-reaction-active" : ""
+        }`}
+        type="button"
+        disabled={isSaving || !Number.isInteger(normalizedNoteId)}
+        aria-pressed={reactionSummary.MyReactionCode === "UP"}
+        aria-label={`${reactionSummary.UpCount} beğeni. ${
+          reactionSummary.MyReactionCode === "UP" ? "Beğeniyi kaldır" : "Beğen"
+        }`}
+        title={reactionSummary.MyReactionCode === "UP" ? "Beğeniyi kaldır" : "Beğen"}
+        onClick={(event) => updateReaction(event, "UP")}
+      >
+        <strong>{reactionSummary.UpCount}</strong>
+        <span aria-hidden="true">👍</span>
+      </button>
+
+      <button
+        className={`note-reaction-button note-reaction-down${
+          reactionSummary.MyReactionCode === "DOWN" ? " note-reaction-active" : ""
+        }`}
+        type="button"
+        disabled={isSaving || !Number.isInteger(normalizedNoteId)}
+        aria-pressed={reactionSummary.MyReactionCode === "DOWN"}
+        aria-label={`${reactionSummary.DownCount} beğenmeme. ${
+          reactionSummary.MyReactionCode === "DOWN"
+            ? "Beğenmemeyi kaldır"
+            : "Beğenme"
+        }`}
+        title={
+          reactionSummary.MyReactionCode === "DOWN"
+            ? "Beğenmemeyi kaldır"
+            : "Beğenme"
+        }
+        onClick={(event) => updateReaction(event, "DOWN")}
+      >
+        <strong>{reactionSummary.DownCount}</strong>
+        <span aria-hidden="true">👎</span>
+      </button>
+
+      {errorMessage && (
+        <span className="note-reaction-error" role="alert">
+          {errorMessage}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -930,7 +1136,13 @@ function App() {
     (notification) => {
       setIsNotificationsOpen(false);
 
-      if (notification?.NotificationTypeCode === "FOLLOWING_NOTE") {
+      const isNoteNotification = [
+        "FOLLOWING_NOTE",
+        "NOTE_REACTION_UP",
+        "NOTE_REACTION_DOWN",
+      ].includes(notification?.NotificationTypeCode);
+
+      if (isNoteNotification) {
         const noteId = Number(
           notification?.PlaceNoteId ?? notification?.NoteId ?? 0
         );
@@ -1177,6 +1389,7 @@ function App() {
             refreshKey={notesRefreshKey}
             placeReviewFilter={placeReviewFilter}
             onClearPlaceReviewFilter={() => setPlaceReviewFilter(null)}
+            currentUserId={ownUserId}
             onOpenPlace={handleOpenPlaceOnMap}
             onOpenUser={handleOpenUserProfile}
             onOpenNote={handleOpenNote}
@@ -1249,6 +1462,7 @@ function App() {
                       type={screen.collectionType}
                       isActive={isActive}
                       refreshKey={notesRefreshKey}
+                      currentUserId={ownUserId}
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceOnMap}
                       onOpenUser={handleOpenUserProfile}
@@ -1291,6 +1505,7 @@ function ListPage({
   refreshKey,
   placeReviewFilter,
   onClearPlaceReviewFilter,
+  currentUserId,
   onOpenPlace,
   onOpenUser,
   onOpenNote,
@@ -1399,6 +1614,7 @@ function ListPage({
       {!loading && !errorMessage && notes.length > 0 && (
         <NoteFeed
           notes={notes}
+          currentUserId={currentUserId}
           onOpenPlace={onOpenPlace}
           onOpenUser={onOpenUser}
           onOpenNote={onOpenNote}
@@ -1497,6 +1713,7 @@ function ProfileCollectionPage({
   type,
   isActive,
   refreshKey,
+  currentUserId,
   onBack,
   onOpenPlace,
   onOpenUser,
@@ -1593,6 +1810,7 @@ function ProfileCollectionPage({
           <NoteFeed
             notes={items}
             compact
+            currentUserId={currentUserId}
             onOpenPlace={onOpenPlace}
             onOpenUser={onOpenUser}
             onOpenNote={onOpenNote}
@@ -1607,17 +1825,100 @@ function ProfileCollectionPage({
   );
 }
 
-function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser, onOpenNote }) {
+function NoteFeed({
+  notes,
+  compact = false,
+  currentUserId,
+  onOpenPlace,
+  onOpenUser,
+  onOpenNote,
+}) {
+  const [reactionSummaries, setReactionSummaries] = useState({});
+  const [reactionSummariesLoading, setReactionSummariesLoading] = useState(false);
+
+  const noteIds = useMemo(
+    () =>
+      [...new Set(
+        notes
+          .map(getReactionNoteId)
+          .filter(Boolean)
+      )],
+    [notes]
+  );
+  const noteIdsKey = noteIds.join(",");
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (noteIds.length === 0) {
+      setReactionSummaries({});
+      setReactionSummariesLoading(false);
+      return undefined;
+    }
+
+    setReactionSummariesLoading(true);
+
+    const loadReactionSummaries = async () => {
+      const { data, error } = await supabase.rpc(
+        "GetPlaceNoteReactionSummaries",
+        {
+          p_place_note_ids: noteIds,
+        }
+      );
+
+      if (!isCurrent) {
+        return;
+      }
+
+      if (error) {
+        console.error("Not reaksiyon özetleri alınamadı:", error);
+        setReactionSummaries({});
+        setReactionSummariesLoading(false);
+        return;
+      }
+
+      const nextSummaries = {};
+
+      for (const row of getReactionSummaryRows(data)) {
+        const noteId = getReactionNoteId(row);
+
+        if (noteId) {
+          nextSummaries[noteId] = normalizeReactionSummary(row);
+        }
+      }
+
+      setReactionSummaries(nextSummaries);
+      setReactionSummariesLoading(false);
+    };
+
+    void loadReactionSummaries();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [noteIdsKey]);
+
+  const handleReactionSummaryChange = useCallback((noteId, summary) => {
+    setReactionSummaries((current) => ({
+      ...current,
+      [noteId]: normalizeReactionSummary(summary),
+    }));
+  }, []);
+
   return (
-    <div className={`note-feed${compact ? " note-feed-compact" : ""}`}>
-      {notes.map((note) => {
+    <div
+      className={`note-feed${compact ? " note-feed-compact" : ""}`}
+      aria-busy={reactionSummariesLoading}
+    >
+      {notes.map((note, index) => {
         const username = note.Username || "Kullanıcı";
         const title = getNoteTitle(note);
-        const canOpenNote = Boolean(note.PlaceNoteId && onOpenNote);
+        const noteId = getReactionNoteId(note);
+        const canOpenNote = Boolean(noteId && onOpenNote);
 
         const openNote = () => {
           if (canOpenNote) {
-            onOpenNote(note.PlaceNoteId);
+            onOpenNote(noteId);
           }
         };
 
@@ -1639,7 +1940,10 @@ function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser, onOpenNote 
             className={`note-feed-card${
               canOpenNote ? " note-feed-card-clickable" : ""
             }`}
-            key={note.PlaceNoteId}
+            key={
+              noteId ??
+              `note-${note.UserId ?? "unknown"}-${note.CreatedDate ?? "undated"}-${index}`
+            }
             onClick={openNote}
             onKeyDown={handleCardKeyDown}
             tabIndex={canOpenNote ? 0 : undefined}
@@ -1717,6 +2021,19 @@ function NoteFeed({ notes, compact = false, onOpenPlace, onOpenUser, onOpenNote 
                 <span>{formatNoteRating(note.Rating)}</span>
               </div>
 
+              <NoteReactionControls
+                noteId={noteId}
+                noteOwnerUserId={note.UserId}
+                currentUserId={currentUserId}
+                summary={
+                  noteId
+                    ? reactionSummaries[noteId] ?? EMPTY_NOTE_REACTION_SUMMARY
+                    : EMPTY_NOTE_REACTION_SUMMARY
+                }
+                onSummaryChange={handleReactionSummaryChange}
+                variant="feed"
+              />
+
               <time
                 className="note-feed-created-time"
                 dateTime={note.CreatedDate}
@@ -1753,10 +2070,16 @@ function NoteDetailPage({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [reactionSummary, setReactionSummary] = useState(
+    EMPTY_NOTE_REACTION_SUMMARY
+  );
+  const [reactionSummaryLoading, setReactionSummaryLoading] = useState(false);
 
   const loadNote = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
+    setReactionSummary(EMPTY_NOTE_REACTION_SUMMARY);
+    setReactionSummaryLoading(true);
 
     const { data, error } = await supabase.rpc("GetPlaceNoteDetailV2", {
       p_place_note_id: noteId,
@@ -1768,18 +2091,42 @@ function NoteDetailPage({
       setErrorMessage(
         getErrorMessageKey(error, MESSAGE_KEY.NOTE_LOAD_FAILED)
       );
-    } else {
-      const detail = Array.isArray(data) ? data[0] : data;
-
-      if (!detail) {
-        setNote(null);
-        setErrorMessage(MESSAGE_KEY.NOTE_NOT_FOUND_OR_RESTRICTED);
-      } else {
-        setNote(detail);
-      }
+      setReactionSummaryLoading(false);
+      setLoading(false);
+      return;
     }
 
+    const detail = Array.isArray(data) ? data[0] : data;
+
+    if (!detail) {
+      setNote(null);
+      setErrorMessage(MESSAGE_KEY.NOTE_NOT_FOUND_OR_RESTRICTED);
+      setReactionSummaryLoading(false);
+      setLoading(false);
+      return;
+    }
+
+    setNote(detail);
     setLoading(false);
+
+    const { data: reactionData, error: reactionError } = await supabase.rpc(
+      "GetPlaceNoteReactionSummary",
+      {
+        p_place_note_id: Number(detail.PlaceNoteId),
+      }
+    );
+
+    if (reactionError) {
+      console.error("Not reaksiyon özeti alınamadı:", reactionError);
+    } else {
+      setReactionSummary(
+        normalizeReactionSummary(
+          Array.isArray(reactionData) ? reactionData[0] : reactionData
+        )
+      );
+    }
+
+    setReactionSummaryLoading(false);
   }, [noteId]);
 
   useEffect(() => {
@@ -1896,7 +2243,10 @@ function NoteDetailPage({
         )}
 
         {!loading && note && (
-          <article className="note-detail-card">
+          <article
+            className="note-detail-card"
+            aria-busy={reactionSummaryLoading}
+          >
             <div className="note-detail-topline">
               <h1 className="note-detail-title">{getNoteTitle(note)}</h1>
               <ReadOnlyRatingStars value={note.Rating} />
@@ -1945,6 +2295,17 @@ function NoteDetailPage({
                 </dd>
               </div>
             </dl>
+
+            <NoteReactionControls
+              noteId={note.PlaceNoteId}
+              noteOwnerUserId={note.UserId}
+              currentUserId={currentUserId}
+              summary={reactionSummary}
+              onSummaryChange={(_noteId, nextSummary) =>
+                setReactionSummary(normalizeReactionSummary(nextSummary))
+              }
+              variant="detail"
+            />
 
             <div className="note-detail-coming-soon">
               <strong>Puanlamalar ve fotoğraflar</strong>

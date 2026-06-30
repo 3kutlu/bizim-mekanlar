@@ -912,3 +912,108 @@
 .note-detail-coming-soon {
   min-width: 0;
 }
+
+
+/* v1.3.0 — not reaksiyonları */
+.note-reactions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.note-reaction-button,
+.note-reaction-static {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #364055;
+  border-radius: 10px;
+  padding: 6px 9px;
+  background: #121722;
+  color: #b8c2d4;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.note-reaction-button {
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.note-reaction-button:hover:not(:disabled),
+.note-reaction-button:focus-visible {
+  border-color: #7083ad;
+  background: #1b2433;
+  color: #f3f6ff;
+}
+
+.note-reaction-button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.note-reaction-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.note-reaction-button strong,
+.note-reaction-static strong {
+  color: #eef2fb;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.note-reaction-button span,
+.note-reaction-static span {
+  font-size: 15px;
+}
+
+.note-reaction-up.note-reaction-active {
+  border-color: #4c8f68;
+  background: rgba(49, 121, 77, 0.2);
+  color: #c7f1d5;
+}
+
+.note-reaction-down.note-reaction-active {
+  border-color: #a96772;
+  background: rgba(136, 55, 69, 0.2);
+  color: #ffd2d8;
+}
+
+.note-reactions-readonly {
+  cursor: default;
+}
+
+.note-reaction-static {
+  border-color: #303848;
+  background: #11151d;
+  color: #aeb8ca;
+}
+
+.note-reaction-error {
+  flex-basis: 100%;
+  color: #ffb4b4;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.note-reactions-detail {
+  margin-top: 0;
+  padding-top: 2px;
+}
+
+@media (max-width: 520px) {
+  .note-reaction-button,
+  .note-reaction-static {
+    min-height: 30px;
+    padding: 6px 8px;
+  }
+}

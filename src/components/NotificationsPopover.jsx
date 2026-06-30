@@ -46,14 +46,40 @@ function formatNotificationTime(value) {
   }).format(date);
 }
 
+function isNoteNotificationType(typeCode) {
+  return [
+    "FOLLOWING_NOTE",
+    "NOTE_REACTION_UP",
+    "NOTE_REACTION_DOWN",
+  ].includes(typeCode);
+}
+
 function getNoteNotificationCopy(notification) {
   const actor = notification?.ActorUsername || "Bir kullanıcı";
 
-  return {
-    icon: "✦",
-    title: `${actor} yeni bir not ekledi.`,
-    detail: notification?.PlaceName || "Takip ettiğin bir mekânda.",
-  };
+  switch (notification?.NotificationTypeCode) {
+    case "NOTE_REACTION_UP":
+      return {
+        icon: "👍",
+        title: `${actor} notunu beğendi.`,
+        detail: notification?.PlaceName || "Notunu görmek için dokun.",
+      };
+
+    case "NOTE_REACTION_DOWN":
+      return {
+        icon: "👎",
+        title: `${actor} notunu beğenmedi.`,
+        detail: notification?.PlaceName || "Notunu görmek için dokun.",
+      };
+
+    case "FOLLOWING_NOTE":
+    default:
+      return {
+        icon: "✦",
+        title: `${actor} yeni bir not ekledi.`,
+        detail: notification?.PlaceName || "Takip ettiğin bir mekânda.",
+      };
+  }
 }
 
 function getFollowActivityCopy(activity) {
@@ -118,8 +144,8 @@ export default function NotificationsPopover({
 
   const noteNotifications = useMemo(
     () =>
-      safeNotifications.filter(
-        (notification) => notification?.NotificationTypeCode === "FOLLOWING_NOTE"
+      safeNotifications.filter((notification) =>
+        isNoteNotificationType(notification?.NotificationTypeCode)
       ),
     [safeNotifications]
   );
@@ -353,7 +379,24 @@ export default function NotificationsPopover({
                             !item?.IsRead ? " notification-item-unread" : ""
                           }`}
                           type="button"
-                          onClick={() => onOpenNotification(item)}
+                          onClick={() => {
+                            /*
+                              Mevcut App.jsx sadece FOLLOWING_NOTE tipini not
+                              detayına yönlendiriyor. Reaksiyon bildirimlerini de
+                              aynı not akışı üzerinden açarak geriye dönük uyumu
+                              koruyoruz.
+                            */
+                            const notificationToOpen = isNoteNotificationType(
+                              item?.NotificationTypeCode
+                            )
+                              ? {
+                                  ...item,
+                                  NotificationTypeCode: "FOLLOWING_NOTE",
+                                }
+                              : item;
+
+                            onOpenNotification(notificationToOpen);
+                          }}
                         >
                           <span
                             className="notification-item-icon"
