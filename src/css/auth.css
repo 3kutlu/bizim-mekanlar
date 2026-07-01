@@ -137,6 +137,58 @@
   line-height: 1.4;
 }
 
+.auth-passwordless-note {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 9px;
+  margin: -2px 0 0;
+  border: 1px solid #30405a;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #141d2b;
+  color: #c8d5ef;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.auth-passwordless-note > span {
+  color: #aebfff;
+  font-size: 16px;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.auth-otp-input {
+  min-height: 58px !important;
+  border-radius: 13px !important;
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.38em;
+  text-align: center;
+}
+
+.auth-otp-input::placeholder {
+  color: #626b7c;
+  letter-spacing: 0.26em;
+}
+
+.auth-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 18px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #aebfff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auth-back-button:hover:not(:disabled) {
+  color: #d6e1ff;
+}
+
 .primary-button {
   width: 100%;
   min-height: 48px;
@@ -163,8 +215,14 @@
   color: #9cbaff;
 }
 
-.text-button:hover {
+.text-button:hover:not(:disabled) {
   color: #c5d6ff;
+}
+
+.text-button:disabled,
+.auth-back-button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }
 
 .auth-message {
@@ -187,5 +245,10 @@
 
   .auth-form-row {
     grid-template-columns: 1fr;
+  }
+
+  .auth-otp-input {
+    font-size: 24px;
+    letter-spacing: 0.31em;
   }
 }
