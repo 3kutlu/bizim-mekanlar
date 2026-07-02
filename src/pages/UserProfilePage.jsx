@@ -5,6 +5,7 @@ import {
   getVenueCategoryIcon,
   getVenueCategoryLabel,
 } from "../utils/venueCategory.js";
+import { createSignedNotePhotoUrls } from "../utils/notePhotos.js";
 import "../css/user-discovery.css";
 
 const PROFILE_TABS = Object.freeze({
@@ -258,6 +259,9 @@ export default function UserProfilePage({
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesError, setNotesError] = useState("");
+  const [photos, setPhotos] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosError, setPhotosError] = useState("");
   const [savedLists, setSavedLists] = useState([]);
   const [savedListsLoading, setSavedListsLoading] = useState(false);
   const [savedListsError, setSavedListsError] = useState("");
@@ -396,6 +400,38 @@ export default function UserProfilePage({
     setNotesLoading(false);
   }, [canViewProfileContent, profile?.UserId]);
 
+  const loadPhotos = useCallback(async () => {
+    if (!profile?.UserId || !canViewProfileContent) {
+      return;
+    }
+
+    setPhotosLoading(true);
+    setPhotosError("");
+
+    const { data, error } = await supabase.rpc("GetVisibleUserPlaceNotePhotos", {
+      p_profile_user_id: Number(profile.UserId),
+      p_limit: 80,
+    });
+
+    if (error) {
+      console.error("Dış profil fotoğrafları alınamadı:", error);
+      setPhotos([]);
+      setPhotosError("Fotoğraflar şu an yüklenemedi. Tekrar dene.");
+      setPhotosLoading(false);
+      return;
+    }
+
+    try {
+      setPhotos(await createSignedNotePhotoUrls(data ?? []));
+    } catch (signedUrlError) {
+      console.error("Dış profil fotoğraf bağlantıları oluşturulamadı:", signedUrlError);
+      setPhotos([]);
+      setPhotosError("Fotoğraflar şu an görüntülenemedi. Tekrar dene.");
+    }
+
+    setPhotosLoading(false);
+  }, [canViewProfileContent, profile?.UserId]);
+
   const loadSavedLists = useCallback(async () => {
     if (!profile?.UserId || !canViewProfileContent) {
       return;
@@ -428,6 +464,10 @@ export default function UserProfilePage({
       void loadNotes();
     }
 
+    if (activeTab === PROFILE_TABS.PHOTOS) {
+      void loadPhotos();
+    }
+
     if (activeTab === PROFILE_TABS.SAVED) {
       void loadSavedLists();
     }
@@ -435,6 +475,7 @@ export default function UserProfilePage({
     activeTab,
     canViewProfileContent,
     loadNotes,
+    loadPhotos,
     loadSavedLists,
     placeListsRefreshKey,
     profile,
@@ -525,7 +566,43 @@ export default function UserProfilePage({
     }
 
     if (activeTab === PROFILE_TABS.PHOTOS) {
-      return <EmptyProfileTab type={PROFILE_TABS.PHOTOS} />;
+      if (photosLoading) {
+        return <div className="foreign-profile-tab-loading">Fotoğraflar yükleniyor...</div>;
+      }
+
+      if (photosError) {
+        return (
+          <div className="foreign-profile-tab-state foreign-profile-tab-state-error">
+            <h3>Fotoğraflar yüklenemedi</h3>
+            <p>{photosError}</p>
+            <button type="button" onClick={loadPhotos}>
+              Tekrar dene
+            </button>
+          </div>
+        );
+      }
+
+      if (photos.length === 0) {
+        return <EmptyProfileTab type={PROFILE_TABS.PHOTOS} />;
+      }
+
+      return (
+        <div className="foreign-profile-photo-grid" aria-label="Paylaşılan fotoğraflar">
+          {photos.map((photo) => (
+            <button
+              className="foreign-profile-photo-tile"
+              type="button"
+              key={photo.PlaceNotePhotoId}
+              onClick={() => onOpenNote?.(Number(photo.PlaceNoteId))}
+              disabled={!photo.SignedUrl || !photo.PlaceNoteId || !onOpenNote}
+              title={`${photo.PlaceName || "Mekan"} notunu aç`}
+            >
+              <img src={photo.SignedUrl} alt={`${photo.PlaceName || "Mekan"} fotoğrafı`} />
+              <span>{photo.PlaceName || "Mekan"}</span>
+            </button>
+          ))}
+        </div>
+      );
     }
 
     if (activeTab === PROFILE_TABS.NOTES) {

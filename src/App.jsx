@@ -10,6 +10,14 @@ import {
   getVenueCategoryIcon,
   getVenueCategoryLabel,
 } from "./utils/venueCategory.js";
+import {
+  MAX_NOTE_PHOTOS,
+  createNotePhotoDrafts,
+  createSignedNotePhotoUrls,
+  getPhotoSelectionError,
+  revokeNotePhotoDrafts,
+  uploadMyNotePhotoDrafts,
+} from "./utils/notePhotos.js";
 import AuthPage from "./pages/AuthPage.jsx";
 import MapPage from "./pages/MapPage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
@@ -1869,6 +1877,9 @@ function ProfilePage({
   const [profileNotes, setProfileNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState("");
+  const [profilePhotos, setProfilePhotos] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosError, setPhotosError] = useState("");
   const [placeLists, setPlaceLists] = useState([]);
   const [listsLoading, setListsLoading] = useState(false);
   const [listsError, setListsError] = useState("");
@@ -1905,6 +1916,41 @@ function ProfilePage({
     setNotesLoading(false);
   }, [profile?.UserId]);
 
+  const loadProfilePhotos = useCallback(async () => {
+    if (!profile?.UserId) {
+      setProfilePhotos([]);
+      setPhotosError("");
+      setPhotosLoading(false);
+      return;
+    }
+
+    setPhotosLoading(true);
+    setPhotosError("");
+
+    const { data, error } = await supabase.rpc("GetVisibleUserPlaceNotePhotos", {
+      p_profile_user_id: Number(profile.UserId),
+      p_limit: 80,
+    });
+
+    if (error) {
+      console.error("Profil fotoğrafları alınamadı:", error);
+      setProfilePhotos([]);
+      setPhotosError("Fotoğraflar şu an yüklenemedi. Tekrar dene.");
+      setPhotosLoading(false);
+      return;
+    }
+
+    try {
+      setProfilePhotos(await createSignedNotePhotoUrls(data ?? []));
+    } catch (signedUrlError) {
+      console.error("Profil fotoğraf bağlantıları oluşturulamadı:", signedUrlError);
+      setProfilePhotos([]);
+      setPhotosError("Fotoğraflar şu an görüntülenemedi. Tekrar dene.");
+    }
+
+    setPhotosLoading(false);
+  }, [profile?.UserId]);
+
   const loadPlaceLists = useCallback(async () => {
     setListsLoading(true);
     setListsError("");
@@ -1929,6 +1975,14 @@ function ProfilePage({
 
     void loadProfileNotes();
   }, [activeTab, loadProfileNotes, notesRefreshKey]);
+
+  useEffect(() => {
+    if (activeTab !== PROFILE_TAB_IDS.PHOTOS) {
+      return;
+    }
+
+    void loadProfilePhotos();
+  }, [activeTab, loadProfilePhotos, notesRefreshKey]);
 
   useEffect(() => {
     if (activeTab !== PROFILE_TAB_IDS.SAVED) {
@@ -2064,7 +2118,15 @@ function ProfilePage({
             />
           )}
 
-          {activeTab === PROFILE_TAB_IDS.PHOTOS && <ProfilePhotosTab />}
+          {activeTab === PROFILE_TAB_IDS.PHOTOS && (
+            <ProfilePhotosTab
+              photos={profilePhotos}
+              loading={photosLoading}
+              errorMessage={photosError}
+              onRetry={loadProfilePhotos}
+              onOpenNote={onOpenNote}
+            />
+          )}
 
           {activeTab === PROFILE_TAB_IDS.SAVED && (
             <ProfileSavedTab
@@ -2146,17 +2208,49 @@ function ProfileNotesTab({
   );
 }
 
-function ProfilePhotosTab() {
+function ProfilePhotosTab({ photos, loading, errorMessage, onRetry, onOpenNote }) {
+  if (loading) {
+    return <LoadingState compact />;
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="profile-tab-error">
+        <p>{errorMessage}</p>
+        <button type="button" onClick={onRetry}>
+          Tekrar dene
+        </button>
+      </div>
+    );
+  }
+
+  if (photos.length === 0) {
+    return (
+      <div className="profile-tab-empty-state profile-photo-empty-state">
+        <span className="profile-tab-empty-icon" aria-hidden="true">
+          ◌
+        </span>
+        <h2>Henüz fotoğraf yok</h2>
+        <p>Notlarına fotoğraf eklediğinde burada bir galeri olarak göreceksin.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="profile-tab-empty-state profile-photo-empty-state">
-      <span className="profile-tab-empty-icon" aria-hidden="true">
-        ◌
-      </span>
-      <h2>Henüz fotoğraf yok</h2>
-      <p>
-        Mekan notlarına fotoğraf ekleme geldiğinde, paylaştığın yiyecek,
-        içecek ve mekan fotoğrafları burada görünecek.
-      </p>
+    <div className="profile-photo-grid" aria-label="Paylaşılan fotoğraflar">
+      {photos.map((photo) => (
+        <button
+          className="profile-photo-tile"
+          type="button"
+          key={photo.PlaceNotePhotoId}
+          onClick={() => onOpenNote?.(Number(photo.PlaceNoteId))}
+          disabled={!photo.SignedUrl || !photo.PlaceNoteId || !onOpenNote}
+          title={`${photo.PlaceName || "Mekan"} notunu aç`}
+        >
+          <img src={photo.SignedUrl} alt={`${photo.PlaceName || "Mekan"} fotoğrafı`} />
+          <span>{photo.PlaceName || "Mekan"}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -2980,10 +3074,13 @@ function PlaceDetailPage({
 }) {
   const [place, setPlace] = useState(null);
   const [notes, setNotes] = useState([]);
+  const [placePhotos, setPlacePhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notesLoading, setNotesLoading] = useState(true);
+  const [photosLoading, setPhotosLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [notesError, setNotesError] = useState("");
+  const [photosError, setPhotosError] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
   const normalizedPlaceId = Number(placeId);
@@ -2992,23 +3089,31 @@ function PlaceDetailPage({
     if (!Number.isInteger(normalizedPlaceId) || normalizedPlaceId <= 0) {
       setPlace(null);
       setNotes([]);
+      setPlacePhotos([]);
       setLoading(false);
       setNotesLoading(false);
+      setPhotosLoading(false);
       setErrorMessage("Mekan bilgisi bulunamadı.");
       return;
     }
 
     setLoading(true);
     setNotesLoading(true);
+    setPhotosLoading(true);
     setErrorMessage("");
     setNotesError("");
+    setPhotosError("");
 
-    const [placeResult, notesResult] = await Promise.all([
+    const [placeResult, notesResult, photosResult] = await Promise.all([
       supabase.rpc("GetPlaceMapTargetV2", {
         p_place_id: normalizedPlaceId,
       }),
       supabase.rpc("GetPlaceVisibleNoteCards", {
         p_place_id: normalizedPlaceId,
+      }),
+      supabase.rpc("GetPlaceVisibleNotePhotos", {
+        p_place_id: normalizedPlaceId,
+        p_limit: 120,
       }),
     ]);
 
@@ -3016,11 +3121,13 @@ function PlaceDetailPage({
       console.error("Mekan detayı alınamadı:", placeResult.error);
       setPlace(null);
       setNotes([]);
+      setPlacePhotos([]);
       setErrorMessage(
         getErrorMessageKey(placeResult.error, MESSAGE_KEY.PLACE_TARGET_LOAD_FAILED)
       );
       setLoading(false);
       setNotesLoading(false);
+      setPhotosLoading(false);
       return;
     }
 
@@ -3031,9 +3138,11 @@ function PlaceDetailPage({
     if (!placeData) {
       setPlace(null);
       setNotes([]);
+      setPlacePhotos([]);
       setErrorMessage("Mekan bulunamadı veya artık aktif değil.");
       setLoading(false);
       setNotesLoading(false);
+      setPhotosLoading(false);
       return;
     }
 
@@ -3051,6 +3160,23 @@ function PlaceDetailPage({
     }
 
     setNotesLoading(false);
+
+    if (photosResult.error) {
+      console.error("Mekan fotoğrafları alınamadı:", photosResult.error);
+      setPlacePhotos([]);
+      setPhotosError("Mekan fotoğrafları şu an yüklenemedi. Tekrar dene.");
+    } else {
+      try {
+        const signedPhotos = await createSignedNotePhotoUrls(photosResult.data ?? []);
+        setPlacePhotos(signedPhotos);
+      } catch (error) {
+        console.error("Mekan fotoğraf bağlantıları oluşturulamadı:", error);
+        setPlacePhotos([]);
+        setPhotosError("Mekan fotoğrafları şu an görüntülenemedi. Tekrar dene.");
+      }
+    }
+
+    setPhotosLoading(false);
   }, [normalizedPlaceId]);
 
   useEffect(() => {
@@ -3107,6 +3233,12 @@ function PlaceDetailPage({
   const hasMapCoordinates =
     Number.isFinite(Number(place?.Latitude)) &&
     Number.isFinite(Number(place?.Longitude));
+  const visiblePhotoCount = Number(
+    placePhotos[0]?.VisiblePhotoCount ?? placePhotos.length
+  );
+  const safePhotoCount = Number.isFinite(visiblePhotoCount)
+    ? visiblePhotoCount
+    : placePhotos.length;
 
   return (
     <div className="discovery-page-content place-detail-page">
@@ -3145,7 +3277,7 @@ function PlaceDetailPage({
                 <p className="place-detail-address">{place.FormattedAddress}</p>
               )}
 
-              <div className="place-detail-stat-row" aria-label="Mekan puanı ve yorum sayısı">
+              <div className="place-detail-stat-row" aria-label="Mekan puanı, yorum ve fotoğraf sayısı">
                 <div>
                   <strong>
                     {averageRating ? `${averageRating.toFixed(1)} / 5` : "Puan yok"}
@@ -3154,7 +3286,11 @@ function PlaceDetailPage({
                 </div>
                 <div>
                   <strong>{notes.length}</strong>
-                  <span>{notes.length === 1 ? "yorum" : "yorum"}</span>
+                  <span>yorum</span>
+                </div>
+                <div>
+                  <strong>{photosLoading ? "…" : safePhotoCount}</strong>
+                  <span>fotoğraf</span>
                 </div>
               </div>
 
@@ -3186,6 +3322,14 @@ function PlaceDetailPage({
                 Bu mekana not ekle
               </button>
             </section>
+
+            <PlacePhotoGallery
+              photos={placePhotos}
+              loading={photosLoading}
+              errorMessage={photosError}
+              onRetry={loadPlace}
+              onOpenNote={onOpenNote}
+            />
 
             <section className="place-detail-reviews" aria-label="Mekan yorumları">
               <div className="place-detail-reviews-heading">
@@ -3248,6 +3392,80 @@ function PlaceDetailPage({
         )}
       </div>
     </div>
+  );
+}
+
+function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOpenNote }) {
+  if (loading) {
+    return (
+      <section className="place-detail-photo-section" aria-busy="true">
+        <div className="place-detail-photo-heading">
+          <div>
+            <p className="eyebrow">FOTOĞRAFLAR</p>
+            <h2>Mekandan kareler</h2>
+          </div>
+        </div>
+        <p className="place-detail-photo-state">Fotoğraflar yükleniyor...</p>
+      </section>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <section className="place-detail-photo-section">
+        <div className="place-detail-photo-heading">
+          <div>
+            <p className="eyebrow">FOTOĞRAFLAR</p>
+            <h2>Mekandan kareler</h2>
+          </div>
+        </div>
+        <div className="place-detail-photo-error">
+          <p>{errorMessage}</p>
+          <button type="button" onClick={onRetry}>Tekrar dene</button>
+        </div>
+      </section>
+    );
+  }
+
+  if (photos.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="place-detail-photo-section" aria-label="Mekan fotoğrafları">
+      <div className="place-detail-photo-heading">
+        <div>
+          <p className="eyebrow">FOTOĞRAFLAR</p>
+          <h2>Mekandan kareler</h2>
+        </div>
+        <span>{Number(photos[0]?.VisiblePhotoCount ?? photos.length)}</span>
+      </div>
+
+      <div className="place-detail-photo-grid">
+        {photos.map((photo) => {
+          const author = String(photo?.Username ?? "").trim();
+          const title = String(photo?.NoteTitle ?? "").trim();
+          const label = author ? `@${author}` : title || "Notu aç";
+
+          return (
+            <button
+              className="place-detail-photo-tile"
+              type="button"
+              key={photo.PlaceNotePhotoId}
+              onClick={() => onOpenNote?.(Number(photo.PlaceNoteId))}
+              disabled={!photo.SignedUrl || !photo.PlaceNoteId || !onOpenNote}
+              title={author ? `${label} notunu aç` : "Not detayını aç"}
+            >
+              <img
+                src={photo.SignedUrl}
+                alt={author ? `${author} kullanıcısının mekan fotoğrafı` : "Mekan fotoğrafı"}
+              />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -3553,6 +3771,10 @@ function NoteDetailPage({
     EMPTY_NOTE_REACTION_SUMMARY
   );
   const [reactionSummaryLoading, setReactionSummaryLoading] = useState(false);
+  const [notePhotos, setNotePhotos] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+  const [photosError, setPhotosError] = useState("");
+  const [isPhotoManagerOpen, setIsPhotoManagerOpen] = useState(false);
   const actionMenuRef = useRef(null);
 
   const loadNote = useCallback(async () => {
@@ -3609,9 +3831,44 @@ function NoteDetailPage({
     setReactionSummaryLoading(false);
   }, [noteId]);
 
+  const loadNotePhotos = useCallback(async () => {
+    if (!Number.isInteger(Number(noteId)) || Number(noteId) <= 0) {
+      setNotePhotos([]);
+      setPhotosError("");
+      setPhotosLoading(false);
+      return;
+    }
+
+    setPhotosLoading(true);
+    setPhotosError("");
+
+    const { data, error } = await supabase.rpc("GetVisiblePlaceNotePhotos", {
+      p_place_note_id: Number(noteId),
+    });
+
+    if (error) {
+      console.error("Not fotoğrafları alınamadı:", error);
+      setNotePhotos([]);
+      setPhotosError("Fotoğraflar şu an yüklenemedi. Tekrar dene.");
+      setPhotosLoading(false);
+      return;
+    }
+
+    try {
+      setNotePhotos(await createSignedNotePhotoUrls(data ?? []));
+    } catch (signedUrlError) {
+      console.error("Not fotoğraf bağlantıları oluşturulamadı:", signedUrlError);
+      setNotePhotos([]);
+      setPhotosError("Fotoğraflar şu an görüntülenemedi. Tekrar dene.");
+    }
+
+    setPhotosLoading(false);
+  }, [noteId]);
+
   useEffect(() => {
-    loadNote();
-  }, [loadNote]);
+    void loadNote();
+    void loadNotePhotos();
+  }, [loadNote, loadNotePhotos]);
 
   useEffect(() => {
     if (!isActionMenuOpen) {
@@ -3639,7 +3896,7 @@ function NoteDetailPage({
         return;
       }
 
-      if (isEditModalOpen) {
+      if (isEditModalOpen || isPhotoManagerOpen) {
         return;
       }
 
@@ -3668,6 +3925,7 @@ function NoteDetailPage({
     isDeleteModalOpen,
     isDeleting,
     isEditModalOpen,
+    isPhotoManagerOpen,
     onBack,
   ]);
 
@@ -3696,6 +3954,24 @@ function NoteDetailPage({
 
     setIsEditModalOpen(false);
     setEditError("");
+  };
+
+  const openPhotoManager = () => {
+    if (!note || !isOwnNote || isDeleting) {
+      return;
+    }
+
+    setIsActionMenuOpen(false);
+    setIsPhotoManagerOpen(true);
+  };
+
+  const closePhotoManager = () => {
+    setIsPhotoManagerOpen(false);
+  };
+
+  const handlePhotoManagerChanged = async () => {
+    await loadNotePhotos();
+    await Promise.resolve(onNoteUpdated?.());
   };
 
   const handleEditSave = async (nextValues) => {
@@ -3754,7 +4030,7 @@ function NoteDetailPage({
     setIsDeleting(true);
     setDeleteError("");
 
-    const { error } = await supabase.rpc("DeleteMyPlaceNote", {
+    const { error } = await supabase.rpc("DeleteMyPlaceNoteWithPhotosV2", {
       p_place_note_id: Number(note.PlaceNoteId),
     });
 
@@ -3822,6 +4098,9 @@ function NoteDetailPage({
                   <div className="note-detail-more-popover" role="menu">
                     <button type="button" role="menuitem" onClick={openEditModal}>
                       Notu düzenle
+                    </button>
+                    <button type="button" role="menuitem" onClick={openPhotoManager}>
+                      Fotoğrafları yönet
                     </button>
                     <button
                       className="note-detail-more-action-danger"
@@ -3917,10 +4196,12 @@ function NoteDetailPage({
               variant="detail"
             />
 
-            <div className="note-detail-coming-soon">
-              <strong>Puanlamalar ve fotoğraflar</strong>
-              <span>Yakında bu notta burada yer alacak.</span>
-            </div>
+            <NotePhotoGallery
+              photos={notePhotos}
+              loading={photosLoading}
+              errorMessage={photosError}
+              onRetry={loadNotePhotos}
+            />
           </article>
         )}
       </div>
@@ -3937,6 +4218,17 @@ function NoteDetailPage({
           document.body
         )}
 
+      {isPhotoManagerOpen && note &&
+        createPortal(
+          <NotePhotoManagerModal
+            noteId={Number(note.PlaceNoteId)}
+            existingPhotos={notePhotos}
+            onClose={closePhotoManager}
+            onChanged={handlePhotoManagerChanged}
+          />,
+          document.body
+        )}
+
       {isDeleteModalOpen &&
         createPortal(
           <NoteDeleteConfirmModal
@@ -3947,6 +4239,312 @@ function NoteDetailPage({
           />,
           document.body
         )}
+    </div>
+  );
+}
+
+function NotePhotoGallery({ photos, loading, errorMessage, onRetry }) {
+  const [activePhotoIndex, setActivePhotoIndex] = useState(null);
+  const activePhoto =
+    Number.isInteger(activePhotoIndex) && activePhotoIndex >= 0
+      ? photos[activePhotoIndex]
+      : null;
+
+  if (loading) {
+    return (
+      <section className="note-detail-photo-section" aria-busy="true">
+        <div className="note-detail-photo-heading">
+          <h2>Fotoğraflar</h2>
+        </div>
+        <p className="note-detail-photo-state">Fotoğraflar yükleniyor...</p>
+      </section>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <section className="note-detail-photo-section">
+        <div className="note-detail-photo-heading">
+          <h2>Fotoğraflar</h2>
+        </div>
+        <div className="note-detail-photo-error">
+          <p>{errorMessage}</p>
+          <button type="button" onClick={onRetry}>
+            Tekrar dene
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (photos.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="note-detail-photo-section">
+      <div className="note-detail-photo-heading">
+        <h2>Fotoğraflar</h2>
+        <span>{photos.length}</span>
+      </div>
+
+      <div className={`note-detail-photo-grid note-detail-photo-grid-${Math.min(photos.length, 5)}`}>
+        {photos.map((photo, index) => (
+          <button
+            className="note-detail-photo-tile"
+            type="button"
+            key={photo.PlaceNotePhotoId}
+            onClick={() => setActivePhotoIndex(index)}
+            title="Fotoğrafı büyüt"
+          >
+            <img src={photo.SignedUrl} alt="Mekan notu fotoğrafı" />
+          </button>
+        ))}
+      </div>
+
+      {activePhoto &&
+        createPortal(
+          <div
+            className="note-photo-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Fotoğraf görüntüleyici"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setActivePhotoIndex(null);
+              }
+            }}
+          >
+            <button
+              className="note-photo-lightbox-close"
+              type="button"
+              onClick={() => setActivePhotoIndex(null)}
+              aria-label="Fotoğrafı kapat"
+            >
+              ×
+            </button>
+            <img src={activePhoto.SignedUrl} alt="Mekan notu fotoğrafı" />
+          </div>,
+          document.body
+        )}
+    </section>
+  );
+}
+
+function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChanged }) {
+  const [photoDrafts, setPhotoDrafts] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const photoDraftsRef = useRef([]);
+
+  useEffect(() => {
+    return () => {
+      revokeNotePhotoDrafts(photoDraftsRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape" && !isSaving && !deletingPhotoId) {
+        onClose();
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [deletingPhotoId, isSaving, onClose]);
+
+  const setDrafts = (nextDrafts) => {
+    photoDraftsRef.current = nextDrafts;
+    setPhotoDrafts(nextDrafts);
+  };
+
+  const handleFilesSelected = (files) => {
+    const selectedFiles = Array.from(files ?? []);
+    const selectionError = getPhotoSelectionError(
+      selectedFiles,
+      existingPhotos.length + photoDraftsRef.current.length
+    );
+
+    if (selectionError) {
+      setErrorMessage(selectionError);
+      return;
+    }
+
+    setDrafts([
+      ...photoDraftsRef.current,
+      ...createNotePhotoDrafts(selectedFiles),
+    ]);
+    setErrorMessage("");
+  };
+
+  const removeDraft = (draftId) => {
+    const currentDrafts = photoDraftsRef.current;
+    const removedDraft = currentDrafts.find((draft) => draft.id === draftId);
+
+    if (removedDraft) {
+      revokeNotePhotoDrafts([removedDraft]);
+    }
+
+    setDrafts(currentDrafts.filter((draft) => draft.id !== draftId));
+    setErrorMessage("");
+  };
+
+  const uploadDrafts = async () => {
+    if (photoDraftsRef.current.length === 0 || isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      await uploadMyNotePhotoDrafts(noteId, photoDraftsRef.current);
+      revokeNotePhotoDrafts(photoDraftsRef.current);
+      setDrafts([]);
+      await Promise.resolve(onChanged?.());
+    } catch (error) {
+      console.error("Not fotoğrafları yüklenemedi:", error);
+      setErrorMessage(error?.message || "Fotoğraflar yüklenemedi. Tekrar dene.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deletePhoto = async (photoId) => {
+    if (!photoId || deletingPhotoId || isSaving) {
+      return;
+    }
+
+    setDeletingPhotoId(photoId);
+    setErrorMessage("");
+
+    const { error } = await supabase.rpc("DeleteMyPlaceNotePhoto", {
+      p_place_note_photo_id: Number(photoId),
+    });
+
+    if (error) {
+      console.error("Not fotoğrafı silinemedi:", error);
+      setErrorMessage(error.message || "Fotoğraf silinemedi. Tekrar dene.");
+      setDeletingPhotoId(null);
+      return;
+    }
+
+    await Promise.resolve(onChanged?.());
+    setDeletingPhotoId(null);
+  };
+
+  const totalCount = existingPhotos.length + photoDrafts.length;
+
+  return (
+    <div
+      className="note-photo-manager-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (!isSaving && !deletingPhotoId && event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        className="note-photo-manager"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="note-photo-manager-title"
+      >
+        <div className="note-photo-manager-header">
+          <div>
+            <p className="eyebrow">FOTOĞRAFLAR</p>
+            <h2 id="note-photo-manager-title">Not fotoğraflarını yönet</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving || Boolean(deletingPhotoId)}
+            aria-label="Kapat"
+          >
+            ×
+          </button>
+        </div>
+
+        <p className="note-photo-manager-hint">
+          En fazla {MAX_NOTE_PHOTOS} fotoğraf ekleyebilirsin. JPG, PNG ve WEBP desteklenir.
+        </p>
+
+        {totalCount < MAX_NOTE_PHOTOS && (
+          <label className={`note-photo-picker${isSaving ? " note-photo-picker-disabled" : ""}`}>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              disabled={isSaving || Boolean(deletingPhotoId)}
+              onChange={(event) => {
+                handleFilesSelected(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <span aria-hidden="true">＋</span>
+            <strong>Fotoğraf ekle</strong>
+            <small>{totalCount} / {MAX_NOTE_PHOTOS} · Fotoğraf başına en fazla 8 MB</small>
+          </label>
+        )}
+
+        {(existingPhotos.length > 0 || photoDrafts.length > 0) && (
+          <div className="note-photo-manager-grid">
+            {existingPhotos.map((photo) => (
+              <div className="note-photo-draft note-photo-existing" key={photo.PlaceNotePhotoId}>
+                <img src={photo.SignedUrl} alt="Not fotoğrafı" />
+                <button
+                  type="button"
+                  disabled={isSaving || Boolean(deletingPhotoId)}
+                  onClick={() => deletePhoto(photo.PlaceNotePhotoId)}
+                  aria-label="Fotoğrafı sil"
+                  title="Fotoğrafı sil"
+                >
+                  {Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId) ? "…" : "×"}
+                </button>
+              </div>
+            ))}
+            {photoDrafts.map((draft) => (
+              <div className="note-photo-draft" key={draft.id}>
+                <img src={draft.previewUrl} alt="Yeni fotoğraf ön izlemesi" />
+                <button
+                  type="button"
+                  disabled={isSaving || Boolean(deletingPhotoId)}
+                  onClick={() => removeDraft(draft.id)}
+                  aria-label={`${draft.name} fotoğrafını kaldır`}
+                  title="Fotoğrafı kaldır"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {errorMessage && <p className="note-photo-manager-error" role="alert">{errorMessage}</p>}
+
+        <div className="note-photo-manager-actions">
+          <button type="button" disabled={isSaving || Boolean(deletingPhotoId)} onClick={onClose}>
+            Bitti
+          </button>
+          <button
+            className="note-photo-manager-save"
+            type="button"
+            disabled={isSaving || Boolean(deletingPhotoId) || photoDrafts.length === 0}
+            onClick={uploadDrafts}
+          >
+            {isSaving ? "Yükleniyor..." : "Fotoğrafları yükle"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

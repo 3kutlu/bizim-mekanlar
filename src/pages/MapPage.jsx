@@ -28,6 +28,13 @@ import {
   getVenueCategoryLabel,
   isSupportedVenueCategory,
 } from "../utils/venueCategory.js";
+import {
+  MAX_NOTE_PHOTOS,
+  createNotePhotoDrafts,
+  getPhotoSelectionError,
+  revokeNotePhotoDrafts,
+  uploadMyNotePhotoDrafts,
+} from "../utils/notePhotos.js";
 import "../css/map-page.css";
 
 const ankaraCenter = {
@@ -51,6 +58,31 @@ function getLocalDateInputValue(date = new Date()) {
   );
 
   return localDate.toISOString().slice(0, 10);
+}
+
+function isMessageKey(value) {
+  return /^[A-Z0-9_]+$/.test(cleanText(value));
+}
+
+function getPartialPhotoUploadErrorMessage(error) {
+  const rawMessage = cleanText(error?.message).toLowerCase();
+
+  if (
+    rawMessage.includes("row-level security") ||
+    rawMessage.includes("permission denied") ||
+    rawMessage.includes("not authorized")
+  ) {
+    return "Notun kaydedildi ancak fotoğraf yükleme izni doğrulanamadı. Sayfayı yenileyip tekrar dene.";
+  }
+
+  if (
+    rawMessage.includes("ambiguous") ||
+    rawMessage.includes("column reference")
+  ) {
+    return "Notun kaydedildi ancak fotoğraflar veritabanına eklenemedi. Sayfayı yenileyip not detayındaki Fotoğrafları yönet menüsünden tekrar dene.";
+  }
+
+  return "Notun kaydedildi ancak fotoğraflar yüklenemedi. Sayfayı yenileyip not detayındaki Fotoğrafları yönet menüsünden tekrar deneyebilirsin.";
 }
 
 function getAddressComponentText(addressComponents, ...types) {
@@ -342,6 +374,8 @@ function MapPage({
   const [noteDraft, setNoteDraft] = useState("");
   const [noteRating, setNoteRating] = useState(0);
   const [noteVisitedDate, setNoteVisitedDate] = useState("");
+  const [notePhotoDrafts, setNotePhotoDrafts] = useState([]);
+  const [createdNoteId, setCreatedNoteId] = useState(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [noteSaveError, setNoteSaveError] = useState("");
 
@@ -357,6 +391,7 @@ function MapPage({
   const hasShownLocationIssueRef = useRef(false);
   const selectedPlaceCardRef = useRef(null);
   const [selectedPlaceCardHeight, setSelectedPlaceCardHeight] = useState(0);
+  const notePhotoDraftsRef = useRef([]);
   const mapRef = useRef(null);
   const initialFocusLockRef = useRef(false);
   const selectedPlaceRequestRef = useRef(0);
@@ -427,6 +462,12 @@ function MapPage({
       clearLocationMessage();
     };
   }, [clearLocationMessage, showInitialLocationIssue]);
+
+  useEffect(() => {
+    return () => {
+      revokeNotePhotoDrafts(notePhotoDraftsRef.current);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!selectedPlace || !selectedPlaceCardRef.current) {
@@ -535,10 +576,14 @@ function MapPage({
   ]);
 
   const resetNoteForm = useCallback(() => {
+    revokeNotePhotoDrafts(notePhotoDraftsRef.current);
+    notePhotoDraftsRef.current = [];
     setNoteTitle("");
     setNoteDraft("");
     setNoteRating(0);
     setNoteVisitedDate(getLocalDateInputValue());
+    setNotePhotoDrafts([]);
+    setCreatedNoteId(null);
     setNoteSaveError("");
   }, []);
 
@@ -569,6 +614,42 @@ function MapPage({
 
   const handleNoteVisitedDateChange = useCallback((value) => {
     setNoteVisitedDate(value);
+    setNoteSaveError("");
+  }, []);
+
+  const handleNotePhotosSelected = useCallback((files) => {
+    const selectedFiles = Array.from(files ?? []);
+    const selectionError = getPhotoSelectionError(
+      selectedFiles,
+      notePhotoDraftsRef.current.length
+    );
+
+    if (selectionError) {
+      setNoteSaveError(selectionError);
+      return;
+    }
+
+    const nextDrafts = [
+      ...notePhotoDraftsRef.current,
+      ...createNotePhotoDrafts(selectedFiles),
+    ];
+
+    notePhotoDraftsRef.current = nextDrafts;
+    setNotePhotoDrafts(nextDrafts);
+    setNoteSaveError("");
+  }, []);
+
+  const handleRemoveNotePhotoDraft = useCallback((draftId) => {
+    const currentDrafts = notePhotoDraftsRef.current;
+    const removedDraft = currentDrafts.find((draft) => draft.id === draftId);
+
+    if (removedDraft) {
+      revokeNotePhotoDrafts([removedDraft]);
+    }
+
+    const nextDrafts = currentDrafts.filter((draft) => draft.id !== draftId);
+    notePhotoDraftsRef.current = nextDrafts;
+    setNotePhotoDrafts(nextDrafts);
     setNoteSaveError("");
   }, []);
 
@@ -812,44 +893,76 @@ function MapPage({
     const content = cleanText(noteDraft);
     const rating = Number(noteRating);
     const visitedDate = cleanText(noteVisitedDate) || null;
+    const hasSavedNote = Number.isInteger(Number(createdNoteId)) && Number(createdNoteId) > 0;
 
     if (!selectedPlace || isSavingNote) {
       return;
     }
 
-    if (!title) {
-      setNoteSaveError(MESSAGE_KEY.NOTE_TITLE_REQUIRED);
-      return;
+    if (!hasSavedNote) {
+      if (!title) {
+        setNoteSaveError(MESSAGE_KEY.NOTE_TITLE_REQUIRED);
+        return;
+      }
+
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        setNoteSaveError(MESSAGE_KEY.NOTE_RATING_REQUIRED);
+        return;
+      }
+
+      if (!content) {
+        setNoteSaveError(MESSAGE_KEY.NOTE_DETAIL_REQUIRED);
+        return;
+      }
     }
 
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      setNoteSaveError(MESSAGE_KEY.NOTE_RATING_REQUIRED);
-      return;
-    }
-
-    if (!content) {
-      setNoteSaveError(MESSAGE_KEY.NOTE_DETAIL_REQUIRED);
+    if (hasSavedNote && notePhotoDraftsRef.current.length === 0) {
       return;
     }
 
     setIsSavingNote(true);
     setNoteSaveError("");
 
+    let didCreateNote = false;
+
     try {
-      await createPlaceNote(selectedPlace, {
-        title,
-        content,
-        rating,
-        visitedDate,
-      });
+      let placeNoteId = Number(createdNoteId);
+
+      if (!hasSavedNote) {
+        const createdId = await createPlaceNote(selectedPlace, {
+          title,
+          content,
+          rating,
+          visitedDate,
+        });
+
+        placeNoteId = Number(createdId);
+
+        if (!Number.isInteger(placeNoteId) || placeNoteId <= 0) {
+          throw new Error("Not kaydedildi fakat oluşturulan not bulunamadı.");
+        }
+
+        setCreatedNoteId(placeNoteId);
+        didCreateNote = true;
+        await Promise.resolve(onNoteCreated?.());
+      }
+
+      if (notePhotoDraftsRef.current.length > 0) {
+        await uploadMyNotePhotoDrafts(placeNoteId, notePhotoDraftsRef.current);
+      }
 
       setIsNoteModalOpen(false);
       resetNoteForm();
-
-      await Promise.resolve(onNoteCreated?.());
     } catch (error) {
-      console.error("Not kaydedilirken hata oluştu:", error);
-      setNoteSaveError(getErrorMessageKey(error, MESSAGE_KEY.NOTE_SAVE_FAILED));
+      console.error("Not veya fotoğraflar kaydedilirken hata oluştu:", error);
+
+      if (hasSavedNote || didCreateNote) {
+        setNoteSaveError(getPartialPhotoUploadErrorMessage(error));
+      } else {
+        setNoteSaveError(
+          getErrorMessageKey(error, MESSAGE_KEY.NOTE_SAVE_FAILED)
+        );
+      }
     } finally {
       setIsSavingNote(false);
     }
@@ -926,12 +1039,16 @@ function MapPage({
               noteDraft={noteDraft}
               noteRating={noteRating}
               noteVisitedDate={noteVisitedDate}
+              notePhotoDrafts={notePhotoDrafts}
+              noteHasBeenSaved={Boolean(createdNoteId)}
               isSaving={isSavingNote}
               saveError={noteSaveError}
               onTitleChange={handleNoteTitleChange}
               onNoteChange={handleNoteDraftChange}
               onRatingChange={handleNoteRatingChange}
               onVisitedDateChange={handleNoteVisitedDateChange}
+              onPhotosSelected={handleNotePhotosSelected}
+              onRemovePhoto={handleRemoveNotePhotoDraft}
               onCancel={closeNoteModal}
               onSave={saveNoteDraft}
             />,
@@ -1950,12 +2067,16 @@ function AddNoteModal({
   noteDraft,
   noteRating,
   noteVisitedDate,
+  notePhotoDrafts,
+  noteHasBeenSaved,
   isSaving,
   saveError,
   onTitleChange,
   onNoteChange,
   onRatingChange,
   onVisitedDateChange,
+  onPhotosSelected,
+  onRemovePhoto,
   onCancel,
   onSave,
 }) {
@@ -1965,7 +2086,9 @@ function AddNoteModal({
   const today = getLocalDateInputValue();
 
   useEffect(() => {
-    titleInputRef.current?.focus();
+    if (!noteHasBeenSaved) {
+      titleInputRef.current?.focus();
+    }
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1997,15 +2120,18 @@ function AddNoteModal({
     detail: !cleanText(noteDraft),
   };
 
-  const canSave =
+  const canSaveNote =
     !validation.title &&
     !validation.rating &&
     !validation.visitedDate &&
     !validation.detail;
-  const showTitleError = hasAttemptedSave && validation.title;
-  const showRatingError = hasAttemptedSave && validation.rating;
-  const showVisitedDateError = hasAttemptedSave && validation.visitedDate;
-  const showDetailError = hasAttemptedSave && validation.detail;
+  const canSave = noteHasBeenSaved
+    ? notePhotoDrafts.length > 0
+    : canSaveNote;
+  const showTitleError = !noteHasBeenSaved && hasAttemptedSave && validation.title;
+  const showRatingError = !noteHasBeenSaved && hasAttemptedSave && validation.rating;
+  const showVisitedDateError = !noteHasBeenSaved && hasAttemptedSave && validation.visitedDate;
+  const showDetailError = !noteHasBeenSaved && hasAttemptedSave && validation.detail;
 
   const handleSaveAttempt = () => {
     if (isSaving) {
@@ -2038,6 +2164,12 @@ function AddNoteModal({
           <h2 id="note-modal-title">{placeName}</h2>
         </div>
 
+        {noteHasBeenSaved && (
+          <p className="note-photo-upload-notice" role="status">
+            Notun kaydedildi. Seçtiğin fotoğrafları yüklemek için devam et.
+          </p>
+        )}
+
         <label className="note-modal-field">
           <span>Başlık</span>
           <input
@@ -2045,7 +2177,7 @@ function AddNoteModal({
             className="note-modal-input"
             type="text"
             value={noteTitle}
-            disabled={isSaving}
+            disabled={isSaving || noteHasBeenSaved}
             aria-invalid={showTitleError}
             aria-describedby={showTitleError ? "note-title-error" : undefined}
             onChange={(event) => onTitleChange(event.target.value)}
@@ -2081,7 +2213,7 @@ function AddNoteModal({
                 role="radio"
                 aria-checked={Number(noteRating) === rating}
                 aria-label={`${rating} yıldız`}
-                disabled={isSaving}
+                disabled={isSaving || noteHasBeenSaved}
                 onClick={() => onRatingChange(rating)}
               >
                 ★
@@ -2105,7 +2237,7 @@ function AddNoteModal({
             type="date"
             value={noteVisitedDate}
             max={today}
-            disabled={isSaving}
+            disabled={isSaving || noteHasBeenSaved}
             aria-invalid={showVisitedDateError}
             aria-describedby={
               showVisitedDateError ? "note-visited-date-error" : undefined
@@ -2128,7 +2260,7 @@ function AddNoteModal({
           <textarea
             className="note-modal-textarea"
             value={noteDraft}
-            disabled={isSaving}
+            disabled={isSaving || noteHasBeenSaved}
             aria-invalid={showDetailError}
             aria-describedby={showDetailError ? "note-detail-error" : undefined}
             onChange={(event) => onNoteChange(event.target.value)}
@@ -2143,9 +2275,53 @@ function AddNoteModal({
           )}
         </label>
 
+        <div className="note-photo-upload-field">
+          <div className="note-photo-upload-heading">
+            <span>Fotoğraflar <small>(opsiyonel)</small></span>
+            <small>{notePhotoDrafts.length} / {MAX_NOTE_PHOTOS}</small>
+          </div>
+
+          {notePhotoDrafts.length < MAX_NOTE_PHOTOS && (
+            <label className={`note-photo-picker${isSaving ? " note-photo-picker-disabled" : ""}`}>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                disabled={isSaving}
+                onChange={(event) => {
+                  onPhotosSelected(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+              <span aria-hidden="true">＋</span>
+              <strong>Fotoğraf ekle</strong>
+              <small>JPG, PNG veya WEBP · fotoğraf başına en fazla 8 MB</small>
+            </label>
+          )}
+
+          {notePhotoDrafts.length > 0 && (
+            <div className="note-photo-draft-grid" aria-label="Seçilen fotoğraflar">
+              {notePhotoDrafts.map((draft) => (
+                <div className="note-photo-draft" key={draft.id}>
+                  <img src={draft.previewUrl} alt="Seçilen fotoğraf ön izlemesi" />
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => onRemovePhoto(draft.id)}
+                    aria-label={`${draft.name} fotoğrafını kaldır`}
+                    title="Fotoğrafı kaldır"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {saveError && (
           <p className="note-modal-error" role="alert">
-            {t(saveError)}
+            {isMessageKey(saveError) ? t(saveError) : saveError}
           </p>
         )}
 
@@ -2168,7 +2344,11 @@ function AddNoteModal({
             aria-disabled={!canSave || isSaving}
             onClick={handleSaveAttempt}
           >
-            {isSaving ? "Kaydediliyor..." : "Kaydet"}
+            {isSaving
+              ? "Kaydediliyor..."
+              : noteHasBeenSaved
+                ? "Fotoğrafları yükle"
+                : "Kaydet"}
           </button>
         </div>
       </section>

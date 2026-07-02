@@ -510,3 +510,23 @@ button:disabled {
     transition-duration: 1ms;
   }
 }
+
+/* v2.0.1.2 — persistent navigation layer (current-file safe patch)
+   Detail/discovery screens live inside .page-content, so containing that stack
+   at z-index:0 keeps global chrome above it. Note-photo lightbox remains above
+   this layer at its existing z-index:1500. */
+.topbar {
+  z-index: 1400;
+  isolation: isolate;
+}
+
+.page-content {
+  z-index: 0;
+  isolation: isolate;
+}
+
+@media (max-width: 700px) {
+  .bottom-nav {
+    z-index: 1400;
+  }
+}

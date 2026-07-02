@@ -1369,3 +1369,20 @@ button.foreign-profile-saved-card-button:focus-visible {
     border-radius: 20px 20px 16px 16px;
   }
 }
+
+/* v2.0.0 — dış profil fotoğraf galerisi */
+.foreign-profile-photo-grid {
+  margin-top: 2px;
+}
+
+/* v2.0.1.2 — keep mobile navigation available over routed detail screens.
+   This intentionally overrides the old discovery-only hide rule above. */
+@media (max-width: 700px) {
+  .app-shell.app-shell-with-discovery .bottom-nav {
+    display: grid !important;
+  }
+
+  .discovery-page-content {
+    padding-bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+}
