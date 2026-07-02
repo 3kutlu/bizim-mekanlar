@@ -957,3 +957,157 @@ button.foreign-profile-follow-link:focus-visible {
     font-size: 10px;
   }
 }
+
+/* v1.8.0 — COLLECTION DETAIL */
+button.foreign-profile-saved-card-button {
+  width: 100%;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  border: 1px solid #2c3441;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+button.foreign-profile-saved-card-button:hover,
+button.foreign-profile-saved-card-button:focus-visible {
+  border-color: #667db5;
+  background: #1a1f29;
+}
+
+button.foreign-profile-saved-card-button:focus-visible {
+  outline: 2px solid #9cbaff;
+  outline-offset: 3px;
+}
+
+.foreign-profile-saved-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.foreign-profile-saved-copy strong,
+.foreign-profile-saved-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foreign-profile-saved-copy strong {
+  color: #f6f7fb;
+  font-size: 14px;
+}
+
+.foreign-profile-saved-copy span {
+  color: #9ea7b9;
+  font-size: 12px;
+}
+
+.foreign-profile-saved-arrow,
+.place-list-item-arrow {
+  color: #aebad0;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.place-list-detail-header h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.place-list-detail-title-icon {
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.8em;
+  line-height: 1;
+}
+
+.place-list-detail-body {
+  max-width: 760px;
+}
+
+.place-list-items {
+  display: grid;
+  gap: 10px;
+}
+
+.place-list-item-card {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #2c3441;
+  border-radius: 16px;
+  padding: 12px;
+  background: #15181f;
+  color: inherit;
+  text-align: left;
+}
+
+.place-list-item-card:hover:not(:disabled),
+.place-list-item-card:focus-visible {
+  border-color: #667db5;
+  background: #1a1f29;
+}
+
+.place-list-item-card:focus-visible {
+  outline: 2px solid #9cbaff;
+  outline-offset: 3px;
+}
+
+.place-list-item-card:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.place-list-item-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #3a465b;
+  border-radius: 13px;
+  background: #1a2130;
+  color: #dbe4ff;
+  font-size: 18px;
+}
+
+.place-list-item-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.place-list-item-copy strong,
+.place-list-item-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-list-item-copy strong {
+  color: #f6f7fb;
+  font-size: 14px;
+}
+
+.place-list-item-copy span {
+  color: #9ea7b9;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 520px) {
+  button.foreign-profile-saved-card-button,
+  .place-list-item-card {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+  }
+
+  .place-list-item-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 17px;
+  }
+}

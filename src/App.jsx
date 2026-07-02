@@ -19,6 +19,7 @@ import "./css/app-shell.css";
 import "./css/list-page.css";
 import "./css/profile-page.css";
 import "./css/user-discovery.css";
+import "./css/place-detail.css";
 
 const EMPTY_SUMMARY = {
   CityName: "",
@@ -595,6 +596,7 @@ function App() {
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [profileNotice, setProfileNotice] = useState("");
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
+  const [placeListsRefreshKey, setPlaceListsRefreshKey] = useState(0);
   const [mapTarget, setMapTarget] = useState(null);
   const [placeReviewFilter, setPlaceReviewFilter] = useState(null);
   const [discoveryStack, setDiscoveryStack] = useState([]);
@@ -1011,6 +1013,10 @@ function App() {
     setNotesRefreshKey((currentKey) => currentKey + 1);
   };
 
+  const handlePlaceSaved = useCallback(() => {
+    setPlaceListsRefreshKey((currentKey) => currentKey + 1);
+  }, []);
+
   const handleFollowChanged = async () => {
     await Promise.all([
       refreshProfileSummary(),
@@ -1023,7 +1029,7 @@ function App() {
     setMapTarget(null);
   }, []);
 
-  const handleOpenPlaceOnMap = useCallback(async (placeId) => {
+  const handleOpenPlaceOnMap = useCallback(async (placeId, openAction = null) => {
     const normalizedPlaceId = Number(placeId);
 
     if (!Number.isInteger(normalizedPlaceId) || normalizedPlaceId <= 0) {
@@ -1052,6 +1058,12 @@ function App() {
       return;
     }
 
+    const normalizedOpenAction = ["save", "note"].includes(
+      String(openAction ?? "").trim().toLowerCase()
+    )
+      ? String(openAction).trim().toLowerCase()
+      : null;
+
     setMapTarget({
       requestId: `${place.PlaceId}-${Date.now()}`,
       placeId: place.PlaceId,
@@ -1061,6 +1073,7 @@ function App() {
       cityName: place.CityName,
       postalCode: place.PostalCode,
       venueCategoryCode: place.VenueCategoryCode ?? null,
+      openAction: normalizedOpenAction,
       location: {
         lat: latitude,
         lng: longitude,
@@ -1071,24 +1084,33 @@ function App() {
     setActivePage("map");
   }, [closeDiscovery]);
 
-  const handleOpenPlaceReviews = useCallback(
+  const handleOpenPlaceDetail = useCallback(
     (place) => {
-      const placeId = Number(place?.placeId);
+      const context =
+        place && typeof place === "object" ? place : { placeId: place };
+      const placeId = Number(
+        context?.placeId ?? context?.PlaceId ?? context?.id ?? place
+      );
 
       if (!Number.isInteger(placeId) || placeId <= 0) {
+        setAppMessage(MESSAGE_KEY.PLACE_TARGET_INVALID);
         return;
       }
 
-      setPlaceReviewFilter({
-        requestId: `${placeId}-${Date.now()}`,
+      const placeName =
+        String(
+          context?.placeName ?? context?.PlaceName ?? context?.name ?? ""
+        ).trim() || "Mekan";
+
+      pushDiscoveryScreen({
+        type: "place",
         placeId,
-        placeName: String(place?.placeName ?? "Mekan").trim() || "Mekan",
-        venueCategoryCode: place?.venueCategoryCode ?? null,
+        placeName,
+        venueCategoryCode:
+          context?.venueCategoryCode ?? context?.VenueCategoryCode ?? null,
       });
-      closeDiscovery();
-      setActivePage("list");
     },
-    [closeDiscovery]
+    [pushDiscoveryScreen]
   );
 
   const ownUserId = profile?.UserId ?? null;
@@ -1257,6 +1279,39 @@ function App() {
     [pushDiscoveryScreen]
   );
 
+  const handleOpenPlaceList = useCallback(
+    (context) => {
+      const list = context?.list ?? context;
+      const listId = Number(
+        list?.UserPlaceListId ?? context?.userPlaceListId ?? context?.listId
+      );
+      const userId = Number(context?.userId);
+      const username = String(context?.username ?? "").trim();
+      const listName =
+        String(list?.Name ?? context?.listName ?? "").trim() ||
+        "Mekan listesi";
+
+      if (
+        !Number.isInteger(listId) ||
+        listId <= 0 ||
+        !Number.isInteger(userId) ||
+        userId <= 0
+      ) {
+        return;
+      }
+
+      pushDiscoveryScreen({
+        type: "place-list",
+        listId,
+        listName,
+        listIcon: String(list?.Icon ?? context?.listIcon ?? "✦").trim() || "✦",
+        userId,
+        username,
+      });
+    },
+    [pushDiscoveryScreen]
+  );
+
   const handleProfileCollectionClick = (type) => {
     const config = PROFILE_COLLECTIONS[type];
 
@@ -1345,13 +1400,16 @@ function App() {
   const isOwnProfileTopbar =
     activePage === "profile" && !activeDiscoveryScreen;
   const isDiscoveryTopbar = Boolean(activeDiscoveryScreen);
-  const discoveryProfileTitle = ["profile", "collection"].includes(
-    activeDiscoveryScreen?.type
-  )
-    ? String(activeDiscoveryScreen?.username ?? "").trim()
-    : "";
-  const topbarTitle = discoveryProfileTitle
-    ? discoveryProfileTitle
+  const discoveryTopbarTitle =
+    activeDiscoveryScreen?.type === "place-list"
+      ? String(activeDiscoveryScreen?.listName ?? "").trim()
+      : activeDiscoveryScreen?.type === "place"
+        ? String(activeDiscoveryScreen?.placeName ?? "").trim()
+        : ["profile", "collection"].includes(activeDiscoveryScreen?.type)
+          ? String(activeDiscoveryScreen?.username ?? "").trim()
+          : "";
+  const topbarTitle = discoveryTopbarTitle
+    ? discoveryTopbarTitle
     : isOwnProfileTopbar
       ? profile.Username || "Profil"
       : activePage === "list"
@@ -1467,7 +1525,8 @@ function App() {
             onFocusHandled={clearMapTarget}
             notesRefreshKey={notesRefreshKey}
             isActive={activePage === "map"}
-            onOpenPlaceReviews={handleOpenPlaceReviews}
+            onOpenPlaceDetail={handleOpenPlaceDetail}
+            onPlaceSaved={handlePlaceSaved}
           />
         </section>
 
@@ -1482,7 +1541,7 @@ function App() {
             placeReviewFilter={placeReviewFilter}
             onClearPlaceReviewFilter={() => setPlaceReviewFilter(null)}
             currentUserId={ownUserId}
-            onOpenPlace={handleOpenPlaceOnMap}
+            onOpenPlace={handleOpenPlaceDetail}
             onOpenUser={handleOpenUserProfile}
             onOpenNote={handleOpenNote}
           />
@@ -1499,9 +1558,11 @@ function App() {
             summary={summary}
             profileNotice={profileNotice}
             notesRefreshKey={notesRefreshKey}
+            placeListsRefreshKey={placeListsRefreshKey}
             currentUserId={ownUserId}
             onCollectionClick={handleProfileCollectionClick}
-            onOpenPlace={handleOpenPlaceOnMap}
+            onOpenPlaceList={handleOpenPlaceList}
+            onOpenPlace={handleOpenPlaceDetail}
             onOpenNote={handleOpenNote}
           />
         </section>
@@ -1534,9 +1595,10 @@ function App() {
                       onBack={popDiscoveryScreen}
                       onTitleChange={handleExternalProfileTitleChange}
                       onOpenCollection={handleOpenCollectionForUser}
+                      onOpenPlaceList={handleOpenPlaceList}
                       onFollowChanged={handleFollowChanged}
                       onOpenNote={handleOpenNote}
-                      onOpenPlace={handleOpenPlaceOnMap}
+                      onOpenPlace={handleOpenPlaceDetail}
                     />
                   )}
 
@@ -1546,9 +1608,23 @@ function App() {
                       isActive={isActive}
                       currentUserId={ownUserId}
                       onBack={popDiscoveryScreen}
-                      onOpenPlace={handleOpenPlaceOnMap}
+                      onOpenPlace={handleOpenPlaceDetail}
                       onOpenUser={handleOpenUserProfile}
                       onNoteDeleted={handleNoteDeleted}
+                    />
+                  )}
+
+                  {screen.type === "place" && (
+                    <PlaceDetailPage
+                      placeId={screen.placeId}
+                      placeName={screen.placeName}
+                      venueCategoryCode={screen.venueCategoryCode}
+                      isActive={isActive}
+                      currentUserId={ownUserId}
+                      onBack={popDiscoveryScreen}
+                      onOpenPlaceOnMap={handleOpenPlaceOnMap}
+                      onOpenUser={handleOpenUserProfile}
+                      onOpenNote={handleOpenNote}
                     />
                   )}
 
@@ -1561,9 +1637,21 @@ function App() {
                       refreshKey={notesRefreshKey}
                       currentUserId={ownUserId}
                       onBack={popDiscoveryScreen}
-                      onOpenPlace={handleOpenPlaceOnMap}
+                      onOpenPlace={handleOpenPlaceDetail}
                       onOpenUser={handleOpenUserProfile}
                       onOpenNote={handleOpenNote}
+                    />
+                  )}
+
+                  {screen.type === "place-list" && (
+                    <PlaceListDetailPage
+                      userPlaceListId={screen.listId}
+                      listName={screen.listName}
+                      listIcon={screen.listIcon}
+                      profileUsername={screen.username}
+                      isActive={isActive}
+                      onBack={popDiscoveryScreen}
+                      onOpenPlace={handleOpenPlaceDetail}
                     />
                   )}
                 </section>
@@ -1727,8 +1815,10 @@ function ProfilePage({
   summary,
   profileNotice,
   notesRefreshKey,
+  placeListsRefreshKey,
   currentUserId,
   onCollectionClick,
+  onOpenPlaceList,
   onOpenPlace,
   onOpenNote,
 }) {
@@ -1739,7 +1829,7 @@ function ProfilePage({
   const [placeLists, setPlaceLists] = useState([]);
   const [listsLoading, setListsLoading] = useState(false);
   const [listsError, setListsError] = useState("");
-  const [visibilitySavingListId, setVisibilitySavingListId] = useState(null);
+  const [editingList, setEditingList] = useState(null);
 
   const fullName = getFullName(profile);
   const avatarLetter = (profile.Username || profile.FirstName || "K")
@@ -1803,47 +1893,23 @@ function ProfilePage({
     }
 
     void loadPlaceLists();
-  }, [activeTab, loadPlaceLists]);
+  }, [activeTab, loadPlaceLists, placeListsRefreshKey]);
 
-  const handleVisibilityToggle = async (list) => {
-    const listId = Number(list?.UserPlaceListId);
+  const handlePlaceListSaved = (updatedList) => {
+    const updatedListId = Number(updatedList?.UserPlaceListId);
 
-    if (
-      visibilitySavingListId ||
-      !Number.isInteger(listId) ||
-      listId <= 0
-    ) {
+    if (!Number.isInteger(updatedListId) || updatedListId <= 0) {
       return;
     }
 
-    const currentVisibility = String(list?.VisibilityCode ?? "PRIVATE")
-      .trim()
-      .toUpperCase();
-    const nextVisibility =
-      currentVisibility === "PUBLIC" ? "PRIVATE" : "PUBLIC";
-
-    setVisibilitySavingListId(listId);
-    setListsError("");
-
-    const { error } = await supabase.rpc("UpdateMyPlaceListVisibility", {
-      p_user_place_list_id: listId,
-      p_visibility_code: nextVisibility,
-    });
-
-    if (error) {
-      console.error("Liste görünürlüğü güncellenemedi:", error);
-      setListsError("Liste görünürlüğü güncellenemedi. Tekrar dene.");
-    } else {
-      setPlaceLists((currentLists) =>
-        currentLists.map((currentList) =>
-          Number(currentList?.UserPlaceListId) === listId
-            ? { ...currentList, VisibilityCode: nextVisibility }
-            : currentList
-        )
-      );
-    }
-
-    setVisibilitySavingListId(null);
+    setPlaceLists((currentLists) =>
+      currentLists.map((currentList) =>
+        Number(currentList?.UserPlaceListId) === updatedListId
+          ? { ...currentList, ...updatedList }
+          : currentList
+      )
+    );
+    setEditingList(null);
   };
 
   const isPrivateAccount = profile.AccountVisibilityStatusId === 2;
@@ -1962,14 +2028,30 @@ function ProfilePage({
               lists={placeLists}
               loading={listsLoading}
               errorMessage={listsError}
-              visibilitySavingListId={visibilitySavingListId}
               accountIsPrivate={isPrivateAccount}
               onRetry={loadPlaceLists}
-              onToggleVisibility={handleVisibilityToggle}
+              onOpenList={(list) =>
+                onOpenPlaceList?.({
+                  list,
+                  userId: profile.UserId,
+                  username: profile.Username,
+                })
+              }
+              onEditList={setEditingList}
             />
           )}
         </div>
       </div>
+
+      {editingList &&
+        createPortal(
+          <PlaceListEditModal
+            list={editingList}
+            onClose={() => setEditingList(null)}
+            onSaved={handlePlaceListSaved}
+          />,
+          document.body
+        )}
     </section>
   );
 }
@@ -2040,10 +2122,10 @@ function ProfileSavedTab({
   lists,
   loading,
   errorMessage,
-  visibilitySavingListId,
   accountIsPrivate,
   onRetry,
-  onToggleVisibility,
+  onOpenList,
+  onEditList,
 }) {
   if (loading) {
     return <LoadingState compact />;
@@ -2075,42 +2157,45 @@ function ProfileSavedTab({
   return (
     <div className="profile-saved-list" aria-label="Mekan listelerin">
       {lists.map((list) => {
-        const listId = Number(list?.UserPlaceListId);
         const isPublic = String(list?.VisibilityCode ?? "PRIVATE")
           .trim()
           .toUpperCase() === "PUBLIC";
-        const isSaving = visibilitySavingListId === listId;
         const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
 
         return (
           <article className="profile-saved-list-card" key={list.UserPlaceListId}>
-            <span className="profile-saved-list-icon" aria-hidden="true">
-              {list.Icon || "✦"}
+            <button
+              className="profile-saved-list-main"
+              type="button"
+              onClick={() => onOpenList?.(list)}
+              title={`${list.Name || "Mekan listesi"} listesini aç`}
+            >
+              <span className="profile-saved-list-icon" aria-hidden="true">
+                {list.Icon || "✦"}
+              </span>
+
+              <span className="profile-saved-list-copy">
+                <strong>{list.Name}</strong>
+                <span>{placeCount} mekan</span>
+              </span>
+            </button>
+
+            <span
+              className={`profile-list-visibility-badge${
+                isPublic ? " profile-list-visibility-badge-public" : ""
+              }`}
+            >
+              {isPublic ? "Herkese açık" : "Gizli"}
             </span>
 
-            <div className="profile-saved-list-copy">
-              <strong>{list.Name}</strong>
-              <span>{placeCount} mekan</span>
-            </div>
-
             <button
-              className={`profile-list-visibility-button${
-                isPublic ? " profile-list-visibility-public" : ""
-              }`}
+              className="profile-list-more-button"
               type="button"
-              disabled={isSaving}
-              onClick={() => onToggleVisibility(list)}
-              title={
-                isPublic
-                  ? "Bu listeyi gizli yap"
-                  : "Bu listeyi profilinde görünür yap"
-              }
+              onClick={() => onEditList?.(list)}
+              aria-label={`${list.Name || "Mekan listesi"} listesini düzenle`}
+              title="Listeyi düzenle"
             >
-              {isSaving
-                ? "Kaydediliyor..."
-                : isPublic
-                  ? "Herkese açık"
-                  : "Gizli"}
+              <span aria-hidden="true">⋯</span>
             </button>
           </article>
         );
@@ -2122,6 +2207,308 @@ function ProfileSavedTab({
           ettiğin takipçilere görünür.
         </p>
       )}
+    </div>
+  );
+}
+
+function PlaceListEditModal({ list, onClose, onSaved }) {
+  const [name, setName] = useState(String(list?.Name ?? "").trim());
+  const [visibilityCode, setVisibilityCode] = useState(
+    String(list?.VisibilityCode ?? "PRIVATE").trim().toUpperCase() === "PUBLIC"
+      ? "PUBLIC"
+      : "PRIVATE"
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !isSaving) {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSaving, onClose]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    const nextName = name.trim();
+    const listId = Number(list?.UserPlaceListId);
+
+    if (!nextName) {
+      setErrorMessage("Liste adı boş olamaz.");
+      return;
+    }
+
+    if (!Number.isInteger(listId) || listId <= 0) {
+      setErrorMessage("Liste bilgisi geçersiz.");
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    const { error } = await supabase.rpc("UpdateMyPlaceList", {
+      p_user_place_list_id: listId,
+      p_name: nextName,
+      p_visibility_code: visibilityCode,
+    });
+
+    if (error) {
+      console.error("Mekan listesi güncellenemedi:", error);
+      setErrorMessage(error.message || "Liste güncellenemedi. Tekrar dene.");
+      setIsSaving(false);
+      return;
+    }
+
+    onSaved({
+      ...list,
+      Name: nextName,
+      VisibilityCode: visibilityCode,
+    });
+  };
+
+  const handleBackdropMouseDown = (event) => {
+    if (!isSaving && event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="place-list-edit-backdrop"
+      role="presentation"
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <section
+        className="place-list-edit-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="place-list-edit-title"
+      >
+        <div className="place-list-edit-header">
+          <div>
+            <p className="eyebrow">KOLEKSİYON</p>
+            <h2 id="place-list-edit-title">Listeyi düzenle</h2>
+          </div>
+          <button
+            className="place-list-edit-close"
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            aria-label="Kapat"
+          >
+            ×
+          </button>
+        </div>
+
+        <form className="place-list-edit-form" onSubmit={handleSubmit}>
+          <label>
+            Liste adı
+            <input
+              type="text"
+              value={name}
+              minLength="1"
+              maxLength="80"
+              autoFocus
+              disabled={isSaving}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+
+          <label>
+            Görünürlük
+            <select
+              value={visibilityCode}
+              disabled={isSaving}
+              onChange={(event) => setVisibilityCode(event.target.value)}
+            >
+              <option value="PRIVATE">Gizli</option>
+              <option value="PUBLIC">Herkese açık</option>
+            </select>
+            <small>
+              Herkese açık listeler, profilini görebilen kişilere görünür.
+            </small>
+          </label>
+
+          {errorMessage && (
+            <p className="place-list-edit-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
+
+          <div className="place-list-edit-actions">
+            <button
+              className="place-list-edit-cancel"
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+            >
+              Vazgeç
+            </button>
+            <button
+              className="place-list-edit-save"
+              type="submit"
+              disabled={isSaving}
+            >
+              {isSaving ? "Kaydediliyor..." : "Kaydet"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function PlaceListDetailPage({
+  userPlaceListId,
+  listName,
+  listIcon,
+  profileUsername,
+  isActive,
+  onBack,
+  onOpenPlace,
+}) {
+  const [items, setItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const loadItems = useCallback(async () => {
+    const normalizedListId = Number(userPlaceListId);
+
+    if (!Number.isInteger(normalizedListId) || normalizedListId <= 0) {
+      setItems([]);
+      setErrorMessage("Liste bilgisi geçersiz.");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage("");
+
+    const { data, error } = await supabase.rpc("GetUserPlaceListItemsV2", {
+      p_user_place_list_id: normalizedListId,
+    });
+
+    if (error) {
+      console.error("Liste mekanları alınamadı:", error);
+      setItems([]);
+      setErrorMessage(error.message || "Bu listenin mekanları şu an yüklenemedi.");
+    } else {
+      setItems(data ?? []);
+    }
+
+    setIsLoading(false);
+  }, [userPlaceListId]);
+
+  useEffect(() => {
+    void loadItems();
+  }, [loadItems]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onBack();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isActive, onBack]);
+
+  const normalizedListName = String(listName ?? "").trim() || "Mekan listesi";
+
+  return (
+    <div className="discovery-page-content place-list-detail-page">
+      <header className="discovery-page-header place-list-detail-header">
+        <div>
+          {profileUsername && <p className="eyebrow">@{profileUsername}</p>}
+          <h1>
+            <span className="place-list-detail-title-icon" aria-hidden="true">
+              {listIcon || "✦"}
+            </span>
+            {normalizedListName}
+          </h1>
+        </div>
+
+        <button
+          className="discovery-back-button"
+          type="button"
+          onClick={onBack}
+          aria-label="Geri dön"
+        >
+          ‹
+          <span>Geri</span>
+        </button>
+      </header>
+
+      <div className="discovery-page-body place-list-detail-body">
+        {isLoading && <LoadingState compact />}
+
+        {!isLoading && errorMessage && (
+          <ErrorState message={errorMessage} onRetry={loadItems} compact />
+        )}
+
+        {!isLoading && !errorMessage && items.length === 0 && (
+          <EmptyCollectionState
+            compact
+            icon={listIcon || "✦"}
+            title="Bu listede henüz mekan yok"
+            message="Mekan eklediğinde burada görünür." 
+          />
+        )}
+
+        {!isLoading && !errorMessage && items.length > 0 && (
+          <div className="place-list-items" aria-label={`${normalizedListName} mekanları`}>
+            {items.map((item) => {
+              const placeId = Number(item?.PlaceId);
+              const canOpenPlace = Number.isInteger(placeId) && placeId > 0;
+              const venueCategoryCode = item?.VenueCategoryCode;
+
+              return (
+                <button
+                  className="place-list-item-card"
+                  type="button"
+                  key={item?.UserPlaceListItemId ?? placeId}
+                  disabled={!canOpenPlace}
+                  onClick={() =>
+                    canOpenPlace &&
+                    onOpenPlace?.({
+                      placeId,
+                      placeName: item?.Name,
+                      venueCategoryCode,
+                    })
+                  }
+                  title={canOpenPlace ? "Mekan sayfasını aç" : undefined}
+                >
+                  <span className="place-list-item-icon" aria-hidden="true">
+                    {getVenueCategoryIcon(venueCategoryCode)}
+                  </span>
+                  <span className="place-list-item-copy">
+                    <strong>{item?.Name || "İsimsiz mekan"}</strong>
+                    <span>{item?.FormattedAddress || "Adres bilgisi yok"}</span>
+                  </span>
+                  <span className="place-list-item-arrow" aria-hidden="true">›</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2244,6 +2631,291 @@ function ProfileCollectionPage({
   );
 }
 
+
+function PlaceDetailPage({
+  placeId,
+  placeName,
+  venueCategoryCode,
+  isActive,
+  currentUserId,
+  onBack,
+  onOpenPlaceOnMap,
+  onOpenUser,
+  onOpenNote,
+}) {
+  const [place, setPlace] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [notesError, setNotesError] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+
+  const normalizedPlaceId = Number(placeId);
+
+  const loadPlace = useCallback(async () => {
+    if (!Number.isInteger(normalizedPlaceId) || normalizedPlaceId <= 0) {
+      setPlace(null);
+      setNotes([]);
+      setLoading(false);
+      setNotesLoading(false);
+      setErrorMessage("Mekan bilgisi bulunamadı.");
+      return;
+    }
+
+    setLoading(true);
+    setNotesLoading(true);
+    setErrorMessage("");
+    setNotesError("");
+
+    const [placeResult, notesResult] = await Promise.all([
+      supabase.rpc("GetPlaceMapTargetV2", {
+        p_place_id: normalizedPlaceId,
+      }),
+      supabase.rpc("GetPlaceVisibleNoteCards", {
+        p_place_id: normalizedPlaceId,
+      }),
+    ]);
+
+    if (placeResult.error) {
+      console.error("Mekan detayı alınamadı:", placeResult.error);
+      setPlace(null);
+      setNotes([]);
+      setErrorMessage(
+        getErrorMessageKey(placeResult.error, MESSAGE_KEY.PLACE_TARGET_LOAD_FAILED)
+      );
+      setLoading(false);
+      setNotesLoading(false);
+      return;
+    }
+
+    const placeData = Array.isArray(placeResult.data)
+      ? placeResult.data[0]
+      : placeResult.data;
+
+    if (!placeData) {
+      setPlace(null);
+      setNotes([]);
+      setErrorMessage("Mekan bulunamadı veya artık aktif değil.");
+      setLoading(false);
+      setNotesLoading(false);
+      return;
+    }
+
+    setPlace(placeData);
+    setLoading(false);
+
+    if (notesResult.error) {
+      console.error("Mekan yorumları alınamadı:", notesResult.error);
+      setNotes([]);
+      setNotesError(
+        getErrorMessageKey(notesResult.error, MESSAGE_KEY.PLACE_REVIEWS_LOAD_FAILED)
+      );
+    } else {
+      setNotes(notesResult.data ?? []);
+    }
+
+    setNotesLoading(false);
+  }, [normalizedPlaceId]);
+
+  useEffect(() => {
+    void loadPlace();
+  }, [loadPlace]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return undefined;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        onBack();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isActive, onBack]);
+
+  const sortedNotes = useMemo(() => {
+    const copy = [...notes];
+
+    return copy.sort((left, right) => {
+      if (sortBy === "highest") {
+        return Number(right?.Rating ?? 0) - Number(left?.Rating ?? 0);
+      }
+
+      if (sortBy === "lowest") {
+        return Number(left?.Rating ?? 6) - Number(right?.Rating ?? 6);
+      }
+
+      return (
+        new Date(right?.CreatedDate ?? 0).getTime() -
+        new Date(left?.CreatedDate ?? 0).getTime()
+      );
+    });
+  }, [notes, sortBy]);
+
+  const ratings = notes
+    .map((note) => Number(note?.Rating))
+    .filter((rating) => Number.isInteger(rating) && rating >= 1 && rating <= 5);
+  const averageRating =
+    ratings.length > 0
+      ? ratings.reduce((total, rating) => total + rating, 0) / ratings.length
+      : null;
+  const resolvedName =
+    String(place?.Name ?? placeName ?? "").trim() || "Mekan";
+  const resolvedCategoryCode =
+    place?.VenueCategoryCode ?? venueCategoryCode ?? null;
+  const resolvedCategoryLabel = getVenueCategoryLabel(resolvedCategoryCode);
+  const resolvedCategoryIcon = getVenueCategoryIcon(resolvedCategoryCode);
+  const hasMapCoordinates =
+    Number.isFinite(Number(place?.Latitude)) &&
+    Number.isFinite(Number(place?.Longitude));
+
+  return (
+    <div className="discovery-page-content place-detail-page">
+      <header className="discovery-page-header place-detail-page-header">
+        <button
+          className="discovery-back-button"
+          type="button"
+          onClick={onBack}
+          aria-label="Geri dön"
+        >
+          ‹
+          <span>Geri</span>
+        </button>
+
+        <span className="place-detail-header-label">MEKAN</span>
+      </header>
+
+      <div className="discovery-page-body place-detail-page-body">
+        {loading && <LoadingState compact />}
+
+        {!loading && errorMessage && (
+          <ErrorState message={errorMessage} onRetry={loadPlace} compact />
+        )}
+
+        {!loading && !errorMessage && place && (
+          <>
+            <section className="place-detail-hero">
+              <div className="place-detail-category" title={resolvedCategoryLabel}>
+                <span aria-hidden="true">{resolvedCategoryIcon}</span>
+                {resolvedCategoryLabel}
+              </div>
+
+              <h1>{resolvedName}</h1>
+
+              {place.FormattedAddress && (
+                <p className="place-detail-address">{place.FormattedAddress}</p>
+              )}
+
+              <div className="place-detail-stat-row" aria-label="Mekan puanı ve yorum sayısı">
+                <div>
+                  <strong>
+                    {averageRating ? `${averageRating.toFixed(1)} / 5` : "Puan yok"}
+                  </strong>
+                  <span>{ratings.length > 0 ? `${ratings.length} puan` : "Henüz puanlanmadı"}</span>
+                </div>
+                <div>
+                  <strong>{notes.length}</strong>
+                  <span>{notes.length === 1 ? "yorum" : "yorum"}</span>
+                </div>
+              </div>
+
+              <div className="place-detail-actions">
+                <button
+                  className="place-detail-map-button"
+                  type="button"
+                  onClick={() => onOpenPlaceOnMap?.(normalizedPlaceId)}
+                  disabled={!hasMapCoordinates || !onOpenPlaceOnMap}
+                >
+                  Haritada aç
+                </button>
+                <button
+                  className="place-detail-save-button"
+                  type="button"
+                  onClick={() => onOpenPlaceOnMap?.(normalizedPlaceId, "save")}
+                  disabled={!onOpenPlaceOnMap}
+                >
+                  Kaydet
+                </button>
+              </div>
+
+              <button
+                className="place-detail-add-note-button"
+                type="button"
+                onClick={() => onOpenPlaceOnMap?.(normalizedPlaceId, "note")}
+                disabled={!onOpenPlaceOnMap}
+              >
+                Bu mekana not ekle
+              </button>
+            </section>
+
+            <section className="place-detail-reviews" aria-label="Mekan yorumları">
+              <div className="place-detail-reviews-heading">
+                <div>
+                  <p className="eyebrow">YORUMLAR</p>
+                  <h2>Bu mekan hakkında</h2>
+                </div>
+
+                <div className="place-detail-sort" role="group" aria-label="Yorumları sırala">
+                  <button
+                    type="button"
+                    className={sortBy === "newest" ? "place-detail-sort-active" : ""}
+                    onClick={() => setSortBy("newest")}
+                  >
+                    Yeni
+                  </button>
+                  <button
+                    type="button"
+                    className={sortBy === "highest" ? "place-detail-sort-active" : ""}
+                    onClick={() => setSortBy("highest")}
+                  >
+                    Yüksek
+                  </button>
+                  <button
+                    type="button"
+                    className={sortBy === "lowest" ? "place-detail-sort-active" : ""}
+                    onClick={() => setSortBy("lowest")}
+                  >
+                    Düşük
+                  </button>
+                </div>
+              </div>
+
+              {notesLoading && <LoadingState compact />}
+
+              {!notesLoading && notesError && (
+                <ErrorState message={notesError} onRetry={loadPlace} compact />
+              )}
+
+              {!notesLoading && !notesError && sortedNotes.length === 0 && (
+                <div className="place-detail-empty-reviews">
+                  <span aria-hidden="true">✦</span>
+                  <h3>Henüz yorum yok</h3>
+                  <p>Bu mekanla ilgili ilk notu sen ekleyebilirsin.</p>
+                </div>
+              )}
+
+              {!notesLoading && !notesError && sortedNotes.length > 0 && (
+                <NoteFeed
+                  notes={sortedNotes}
+                  currentUserId={currentUserId}
+                  onOpenPlace={onOpenPlaceOnMap}
+                  onOpenUser={onOpenUser}
+                  onOpenNote={onOpenNote}
+                  placeLinkTitle="Mekanı haritada aç"
+                />
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NoteFeed({
   notes,
   compact = false,
@@ -2252,6 +2924,7 @@ function NoteFeed({
   onOpenPlace,
   onOpenUser,
   onOpenNote,
+  placeLinkTitle = "Mekan sayfasını aç",
 }) {
   const [reactionSummaries, setReactionSummaries] = useState({});
   const [reactionSummariesLoading, setReactionSummariesLoading] = useState(false);
@@ -2409,10 +3082,14 @@ function NoteFeed({
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onOpenPlace?.(note.PlaceId);
+                        onOpenPlace?.({
+                          placeId: note.PlaceId,
+                          placeName: note.PlaceName,
+                          venueCategoryCode: note.VenueCategoryCode,
+                        });
                       }}
                       disabled={!note.PlaceId}
-                      title="Mekanı haritada aç"
+                      title={placeLinkTitle}
                     >
                       <span
                         className="venue-category-icon venue-category-icon-feed"
@@ -2453,10 +3130,14 @@ function NoteFeed({
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          onOpenPlace?.(note.PlaceId);
+                          onOpenPlace?.({
+                          placeId: note.PlaceId,
+                          placeName: note.PlaceName,
+                          venueCategoryCode: note.VenueCategoryCode,
+                        });
                         }}
                         disabled={!note.PlaceId}
-                        title="Mekanı haritada aç"
+                        title={placeLinkTitle}
                       >
                         <span
                           className="venue-category-icon venue-category-icon-feed"
@@ -2713,9 +3394,15 @@ function NoteDetailPage({
             <button
               className="note-detail-place"
               type="button"
-              onClick={() => onOpenPlace?.(note.PlaceId)}
+              onClick={() =>
+                onOpenPlace?.({
+                  placeId: note.PlaceId,
+                  placeName: note.PlaceName,
+                  venueCategoryCode: note.VenueCategoryCode,
+                })
+              }
               disabled={!note.PlaceId || !onOpenPlace}
-              title="Mekanı haritada aç"
+              title="Mekan sayfasını aç"
             >
               <strong className="note-detail-place-title">
                 <span

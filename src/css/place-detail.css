@@ -1,0 +1,275 @@
+/* v1.8.3 — MEKAN SAYFASI */
+
+.place-detail-page-header {
+  align-items: center;
+}
+
+.place-detail-header-label {
+  margin-left: auto;
+  color: #9ea7b9;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.place-detail-page-body {
+  max-width: 760px;
+}
+
+.place-detail-hero {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #2a303b;
+  border-radius: 20px;
+  padding: 20px;
+  background: #15181f;
+}
+
+.place-detail-category {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #374154;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #10141b;
+  color: #bfc9db;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.place-detail-category > span {
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.place-detail-hero h1 {
+  margin: 0;
+  color: #f7f8fc;
+  font-size: clamp(25px, 6vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+
+.place-detail-address {
+  max-width: 680px;
+  margin: -4px 0 0;
+  color: #a9b1c0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.place-detail-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 3px;
+}
+
+.place-detail-stat-row > div {
+  min-width: 116px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid #303744;
+  border-radius: 13px;
+  padding: 10px 12px;
+  background: #101319;
+}
+
+.place-detail-stat-row strong {
+  color: #f4f6fb;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.place-detail-stat-row span {
+  color: #8f98aa;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.place-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 5px;
+}
+
+.place-detail-map-button,
+.place-detail-save-button,
+.place-detail-add-note-button {
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.place-detail-map-button {
+  border: 1px solid #3a4456;
+  background: transparent;
+  color: #e0e6f0;
+}
+
+.place-detail-map-button:hover:not(:disabled),
+.place-detail-map-button:focus-visible {
+  border-color: #71819e;
+  background: #1a202b;
+  color: #fff;
+}
+
+.place-detail-save-button {
+  border: 1px solid #cfd5df;
+  background: #f1f3f8;
+  color: #1a1d25;
+}
+
+.place-detail-save-button:hover:not(:disabled),
+.place-detail-save-button:focus-visible {
+  border-color: #fff;
+  background: #fff;
+}
+
+.place-detail-add-note-button {
+  width: 100%;
+  border: 0;
+  background: #1d1d1f;
+  color: #fff;
+}
+
+.place-detail-add-note-button:hover:not(:disabled),
+.place-detail-add-note-button:focus-visible {
+  background: #292b30;
+}
+
+.place-detail-hero button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.place-detail-reviews {
+  margin-top: 26px;
+}
+
+.place-detail-reviews-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.place-detail-reviews-heading .eyebrow {
+  margin-bottom: 6px;
+}
+
+.place-detail-reviews-heading h2 {
+  margin: 0;
+  color: #f6f7fb;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.place-detail-sort {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 3px;
+  border: 1px solid #303744;
+  border-radius: 11px;
+  padding: 3px;
+  background: #12161d;
+}
+
+.place-detail-sort button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  color: #99a3b5;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.place-detail-sort button:hover,
+.place-detail-sort button:focus-visible {
+  color: #edf1f8;
+}
+
+.place-detail-sort .place-detail-sort-active {
+  background: #283242;
+  color: #fff;
+}
+
+.place-detail-empty-reviews {
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid #2a303b;
+  border-radius: 18px;
+  padding: 28px 20px;
+  background: #15181f;
+  color: #aeb6c5;
+  text-align: center;
+}
+
+.place-detail-empty-reviews > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #272e3c;
+  color: #dbe4ff;
+  font-size: 18px;
+}
+
+.place-detail-empty-reviews h3,
+.place-detail-empty-reviews p {
+  margin: 0;
+}
+
+.place-detail-empty-reviews h3 {
+  color: #f4f6fb;
+  font-size: 17px;
+}
+
+.place-detail-empty-reviews p {
+  max-width: 320px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .place-detail-hero {
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    margin-right: -16px;
+    margin-left: -16px;
+    padding: 18px 16px;
+  }
+
+  .place-detail-reviews-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .place-detail-sort {
+    width: 100%;
+  }
+
+  .place-detail-sort button {
+    flex: 1 1 0;
+  }
+}

@@ -782,3 +782,266 @@
   line-height: 1.4;
   text-align: center;
 }
+
+/* v1.8.0 — COLLECTIONS: card opens detail; privacy is display-only; menu edits list. */
+.profile-saved-list-card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+
+.profile-saved-list-main {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 0;
+  padding: 12px 56px 12px 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.profile-saved-list-main:hover,
+.profile-saved-list-main:focus-visible {
+  background: #1a1f29;
+}
+
+.profile-saved-list-main:focus-visible {
+  outline: 2px solid #9cbaff;
+  outline-offset: -3px;
+}
+
+.profile-saved-list-main .profile-saved-list-copy {
+  min-width: 0;
+}
+
+.profile-list-visibility-badge {
+  grid-column: 2;
+  justify-self: start;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #404958;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: transparent;
+  color: #aeb7c7;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.profile-list-visibility-badge-public {
+  border-color: #516574;
+  background: #18212a;
+  color: #d6e4ec;
+}
+
+.profile-list-more-button {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #3d4658;
+  border-radius: 10px;
+  padding: 0;
+  background: #15181f;
+  color: #dfe6f4;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.profile-list-more-button:hover,
+.profile-list-more-button:focus-visible {
+  border-color: #7487b3;
+  background: #212836;
+  color: #fff;
+}
+
+.profile-list-more-button:focus-visible {
+  outline: 2px solid #9cbaff;
+  outline-offset: 2px;
+}
+
+.place-list-edit-backdrop {
+  position: fixed;
+  z-index: 1220;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.64);
+  backdrop-filter: blur(5px);
+}
+
+.place-list-edit-modal {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 20px;
+  border: 1px solid #343c4c;
+  border-radius: 20px;
+  padding: 20px;
+  background: #15181f;
+  color: #f5f7fb;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.46);
+}
+
+.place-list-edit-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.place-list-edit-header .eyebrow {
+  margin-bottom: 6px;
+}
+
+.place-list-edit-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 21px;
+}
+
+.place-list-edit-close {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #353d4c;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: #dce1eb;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.place-list-edit-form {
+  display: grid;
+  gap: 16px;
+}
+
+.place-list-edit-form label {
+  display: grid;
+  gap: 8px;
+  color: #d7dbe4;
+  font-size: 14px;
+}
+
+.place-list-edit-form input,
+.place-list-edit-form select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #343946;
+  border-radius: 11px;
+  padding: 12px 13px;
+  outline: none;
+  background: #0e1116;
+  color: #fff;
+}
+
+.place-list-edit-form input:focus,
+.place-list-edit-form select:focus {
+  border-color: #859cff;
+  box-shadow: 0 0 0 3px rgba(133, 156, 255, 0.14);
+}
+
+.place-list-edit-form small {
+  color: #929bab;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.place-list-edit-error {
+  margin: -4px 0 0;
+  color: #ffb4b4;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.place-list-edit-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.place-list-edit-actions button {
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-weight: 750;
+}
+
+.place-list-edit-cancel {
+  border: 1px solid #3c4350;
+  background: transparent;
+  color: #d9deea;
+}
+
+.place-list-edit-save {
+  border: 0;
+  background: #f2f4f9;
+  color: #11131a;
+}
+
+.place-list-edit-actions button:disabled,
+.place-list-edit-close:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+@media (max-width: 520px) {
+  .profile-saved-list-main {
+    grid-template-columns: 38px minmax(0, 1fr);
+    padding-right: 54px;
+  }
+
+  .profile-list-more-button {
+    top: 9px;
+    right: 9px;
+  }
+
+  .place-list-edit-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .place-list-edit-modal {
+    width: 100%;
+    border-radius: 20px 20px 16px 16px;
+  }
+}
+
+/* Privacy is intentionally not inside the list-open button. */
+.profile-saved-list-main {
+  padding-right: 142px;
+}
+
+.profile-list-visibility-badge {
+  position: absolute;
+  top: 14px;
+  right: 52px;
+  z-index: 1;
+}
+
+@media (max-width: 520px) {
+  .profile-saved-list-main {
+    padding-right: 130px;
+  }
+
+  .profile-list-visibility-badge {
+    right: 49px;
+  }
+}

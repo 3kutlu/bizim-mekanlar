@@ -267,13 +267,48 @@ async function createPlaceNote(selectedPlace, { title, content, rating }) {
   return data;
 }
 
+function getPlaceSavePayload(selectedPlace) {
+  const placeId = Number(selectedPlace?.placeId);
+  const googlePlaceId = cleanText(selectedPlace?.id);
+  const name = cleanText(selectedPlace?.name);
+  const formattedAddress = cleanText(selectedPlace?.address);
+  const cityName = cleanText(selectedPlace?.cityName);
+  const latitude = Number(selectedPlace?.location?.lat);
+  const longitude = Number(selectedPlace?.location?.lng);
+
+  const hasExistingPlaceId = Number.isInteger(placeId) && placeId > 0;
+
+  if (!hasExistingPlaceId) {
+    if (!googlePlaceId || !name || !formattedAddress || !cityName) {
+      throw createAppError(MESSAGE_KEY.PLACE_DATA_INCOMPLETE);
+    }
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      throw createAppError(MESSAGE_KEY.PLACE_LOCATION_INVALID);
+    }
+  }
+
+  return {
+    p_place_id: hasExistingPlaceId ? placeId : null,
+    p_google_place_id: googlePlaceId || null,
+    p_name: name || null,
+    p_formatted_address: formattedAddress || null,
+    p_postal_code: cleanText(selectedPlace?.postalCode) || null,
+    p_city_name: cityName || null,
+    p_latitude: Number.isFinite(latitude) ? latitude : null,
+    p_longitude: Number.isFinite(longitude) ? longitude : null,
+    p_venue_category_code: cleanText(selectedPlace?.venueCategoryCode) || null,
+  };
+}
+
 function MapPage({
   onNoteCreated,
   focusPlace,
   onFocusHandled,
   notesRefreshKey,
   isActive,
-  onOpenPlaceReviews,
+  onOpenPlaceDetail,
+  onPlaceSaved,
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
@@ -297,6 +332,14 @@ function MapPage({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [noteSaveError, setNoteSaveError] = useState("");
 
+  const [isPlaceSaveSheetOpen, setIsPlaceSaveSheetOpen] = useState(false);
+  const [placeLists, setPlaceLists] = useState([]);
+  const [placeListsLoading, setPlaceListsLoading] = useState(false);
+  const [placeSaveError, setPlaceSaveError] = useState("");
+  const [placeSaveNotice, setPlaceSaveNotice] = useState("");
+  const [savingPlaceListId, setSavingPlaceListId] = useState(null);
+  const [pendingExternalPlaceAction, setPendingExternalPlaceAction] = useState(null);
+
   const locationMessageTimerRef = useRef(null);
   const hasShownLocationIssueRef = useRef(false);
   const selectedPlaceCardRef = useRef(null);
@@ -304,6 +347,7 @@ function MapPage({
   const mapRef = useRef(null);
   const initialFocusLockRef = useRef(false);
   const selectedPlaceRequestRef = useRef(0);
+  const placeSaveSheetRequestRef = useRef(0);
 
   const clearLocationMessage = useCallback(() => {
     if (locationMessageTimerRef.current) {
@@ -484,6 +528,16 @@ function MapPage({
     setNoteSaveError("");
   }, []);
 
+  const resetPlaceSaveSheet = useCallback(() => {
+    placeSaveSheetRequestRef.current += 1;
+    setIsPlaceSaveSheetOpen(false);
+    setPlaceLists([]);
+    setPlaceListsLoading(false);
+    setPlaceSaveError("");
+    setPlaceSaveNotice("");
+    setSavingPlaceListId(null);
+  }, []);
+
   const handleNoteTitleChange = useCallback((value) => {
     setNoteTitle(value);
     setNoteSaveError("");
@@ -501,31 +555,43 @@ function MapPage({
 
   const handlePlaceSelected = useCallback(
     (place) => {
+      setPendingExternalPlaceAction(null);
       setSelectedPlace(place);
       setIsNoteModalOpen(false);
       resetNoteForm();
+      resetPlaceSaveSheet();
     },
-    [resetNoteForm]
+    [resetNoteForm, resetPlaceSaveSheet]
   );
 
   const handleExternalPlaceFocus = useCallback(
     (place) => {
+      const openAction = ["save", "note"].includes(
+        String(place?.openAction ?? "").trim().toLowerCase()
+      )
+        ? String(place.openAction).trim().toLowerCase()
+        : null;
+
       setSelectedPlace(place);
       setIsNoteModalOpen(false);
       resetNoteForm();
+      resetPlaceSaveSheet();
+      setPendingExternalPlaceAction(openAction);
       onFocusHandled?.();
     },
-    [onFocusHandled, resetNoteForm]
+    [onFocusHandled, resetNoteForm, resetPlaceSaveSheet]
   );
 
   const clearSelectedPlace = useCallback(() => {
-    if (isSavingNote) {
+    if (isSavingNote || savingPlaceListId) {
       return;
     }
 
     selectedPlaceRequestRef.current += 1;
     setIsNoteModalOpen(false);
     resetNoteForm();
+    resetPlaceSaveSheet();
+    setPendingExternalPlaceAction(null);
     setSelectedPlace(null);
     setSelectedPlaceReviewSummary({
       count: 0,
@@ -535,7 +601,7 @@ function MapPage({
       ratingCount: 0,
       isRatingLoading: false,
     });
-  }, [isSavingNote, resetNoteForm]);
+  }, [isSavingNote, resetNoteForm, resetPlaceSaveSheet, savingPlaceListId]);
 
   const goToSelectedPlace = useCallback(() => {
     if (!mapRef.current || !selectedPlace?.location) {
@@ -564,17 +630,163 @@ function MapPage({
     resetNoteForm();
   };
 
-  const handleOpenPlaceReviews = useCallback(() => {
-    if (!selectedPlaceReviewSummary.placeId || !selectedPlace) {
+  const openPlaceSaveSheet = useCallback(async () => {
+    if (!selectedPlace?.id) {
       return;
     }
 
-    onOpenPlaceReviews?.({
-      placeId: selectedPlaceReviewSummary.placeId,
+    const requestId = ++placeSaveSheetRequestRef.current;
+
+    setIsPlaceSaveSheetOpen(true);
+    setPlaceListsLoading(true);
+    setPlaceSaveError("");
+    setPlaceSaveNotice("");
+
+    const { data, error } = await supabase.rpc("GetMyPlaceListsForPlaceV2", {
+      p_google_place_id: selectedPlace.id,
+    });
+
+    if (requestId !== placeSaveSheetRequestRef.current) {
+      return;
+    }
+
+    if (error) {
+      console.error("Mekan listeleri alınamadı:", error);
+      setPlaceLists([]);
+      setPlaceSaveError(
+        error.message || "Mekan listelerin şu an yüklenemedi. Tekrar dene."
+      );
+    } else {
+      setPlaceLists(data ?? []);
+    }
+
+    setPlaceListsLoading(false);
+  }, [selectedPlace?.id]);
+
+  const closePlaceSaveSheet = useCallback(() => {
+    if (savingPlaceListId) {
+      return;
+    }
+
+    resetPlaceSaveSheet();
+  }, [resetPlaceSaveSheet, savingPlaceListId]);
+
+  useEffect(() => {
+    if (!pendingExternalPlaceAction || !selectedPlace) {
+      return;
+    }
+
+    const action = pendingExternalPlaceAction;
+    setPendingExternalPlaceAction(null);
+
+    if (action === "note") {
+      if (getPlaceEligibility(selectedPlace)) {
+        resetNoteForm();
+        setIsNoteModalOpen(true);
+      }
+      return;
+    }
+
+    if (action === "save") {
+      void openPlaceSaveSheet();
+    }
+  }, [
+    openPlaceSaveSheet,
+    pendingExternalPlaceAction,
+    resetNoteForm,
+    selectedPlace,
+  ]);
+
+  const togglePlaceInList = useCallback(
+    async (list) => {
+      const listId = Number(list?.UserPlaceListId);
+
+      if (
+        !selectedPlace ||
+        savingPlaceListId ||
+        !Number.isInteger(listId) ||
+        listId <= 0
+      ) {
+        return;
+      }
+
+      let placePayload;
+
+      try {
+        placePayload = getPlaceSavePayload(selectedPlace);
+      } catch (error) {
+        setPlaceSaveError(
+          t(getErrorMessageKey(error, MESSAGE_KEY.PLACE_DATA_INCOMPLETE))
+        );
+        return;
+      }
+
+      const shouldSave = !Boolean(list?.IsSaved);
+
+      setSavingPlaceListId(listId);
+      setPlaceSaveError("");
+      setPlaceSaveNotice("");
+
+      const { data, error } = await supabase.rpc("SetMyPlaceListItemV2", {
+        p_user_place_list_id: listId,
+        p_should_save: shouldSave,
+        ...placePayload,
+      });
+
+      if (error) {
+        console.error("Mekan listeye kaydedilemedi:", error);
+        setPlaceSaveError(
+          error.message || "Mekan listene kaydedilemedi. Tekrar dene."
+        );
+        setSavingPlaceListId(null);
+        return;
+      }
+
+      const result = Array.isArray(data) ? data[0] : data;
+      const saved =
+        typeof result?.IsSaved === "boolean" ? result.IsSaved : shouldSave;
+      const nextPlaceCount = Number(result?.PlaceCount);
+
+      setPlaceLists((currentLists) =>
+        currentLists.map((currentList) =>
+          Number(currentList?.UserPlaceListId) === listId
+            ? {
+                ...currentList,
+                IsSaved: saved,
+                PlaceCount: Number.isFinite(nextPlaceCount)
+                  ? nextPlaceCount
+                  : Math.max(0, Number(currentList?.PlaceCount) || 0) +
+                    (saved ? 1 : -1),
+              }
+            : currentList
+        )
+      );
+
+      setPlaceSaveNotice(
+        saved ? "Mekan listene kaydedildi." : "Mekan listeden kaldırıldı."
+      );
+      setSavingPlaceListId(null);
+      onPlaceSaved?.();
+    },
+    [onPlaceSaved, savingPlaceListId, selectedPlace]
+  );
+
+  const handleOpenPlaceDetail = useCallback(() => {
+    const placeId =
+      Number(selectedPlaceReviewSummary.placeId) ||
+      Number(selectedPlace?.placeId) ||
+      null;
+
+    if (!placeId || !selectedPlace) {
+      return;
+    }
+
+    onOpenPlaceDetail?.({
+      placeId,
       placeName: selectedPlace.name,
       venueCategoryCode: selectedPlace.venueCategoryCode,
     });
-  }, [onOpenPlaceReviews, selectedPlace, selectedPlaceReviewSummary.placeId]);
+  }, [onOpenPlaceDetail, selectedPlace, selectedPlaceReviewSummary.placeId]);
 
   const saveNoteDraft = async () => {
     const title = cleanText(noteTitle);
@@ -677,7 +889,8 @@ function MapPage({
               cardRef={selectedPlaceCardRef}
               onTitleClick={goToSelectedPlace}
               onAddNote={openNoteModal}
-              onOpenReviews={handleOpenPlaceReviews}
+              onOpenSave={openPlaceSaveSheet}
+              onOpenDetail={handleOpenPlaceDetail}
               onClose={clearSelectedPlace}
             />
           )}
@@ -698,6 +911,23 @@ function MapPage({
               onRatingChange={handleNoteRatingChange}
               onCancel={closeNoteModal}
               onSave={saveNoteDraft}
+            />,
+            document.body
+          )}
+
+        {isPlaceSaveSheetOpen &&
+          selectedPlace &&
+          createPortal(
+            <PlaceSaveSheet
+              placeName={selectedPlace.name}
+              lists={placeLists}
+              isLoading={placeListsLoading}
+              savingListId={savingPlaceListId}
+              errorMessage={placeSaveError}
+              notice={placeSaveNotice}
+              onClose={closePlaceSaveSheet}
+              onToggleList={togglePlaceInList}
+              onRetry={openPlaceSaveSheet}
             />,
             document.body
           )}
@@ -824,6 +1054,7 @@ function ExternalPlaceFocus({ place, focusLockRef, onFocus }) {
         postalCode: cleanText(place.postalCode),
         venueCategoryCode: venueCategoryCode || null,
         isEligible: isSupportedVenueCategory(venueCategoryCode),
+        openAction: cleanText(place.openAction) || null,
         selectionSource: "external-place-target",
         location: {
           lat: latitude,
@@ -1408,18 +1639,26 @@ function SelectedPlaceCard({
   cardRef,
   onTitleClick,
   onAddNote,
-  onOpenReviews,
+  onOpenSave,
+  onOpenDetail,
   onClose,
 }) {
   const canAddNote = getPlaceEligibility(selectedPlace);
   const reviewCount = Math.max(0, Number(reviewSummary?.count) || 0);
   const venueIcon = getVenueCategoryIcon(selectedPlace?.venueCategoryCode);
   const venueLabel = getVenueCategoryLabel(selectedPlace?.venueCategoryCode);
+  const detailPlaceId =
+    Number(reviewSummary?.placeId) || Number(selectedPlace?.placeId) || null;
+  const canOpenDetail = Boolean(detailPlaceId && onOpenDetail);
+  const handleTitleClick = canOpenDetail ? onOpenDetail : onTitleClick;
+  const titleHint = canOpenDetail
+    ? "Mekan sayfasını aç"
+    : "Mekanı haritada göster";
 
   const handleTitleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      onTitleClick();
+      handleTitleClick();
     }
   };
 
@@ -1437,11 +1676,13 @@ function SelectedPlaceCard({
 
       <div className="selected-place-copy">
         <strong
-          className="selected-place-title"
+          className={`selected-place-title${
+            canOpenDetail ? " selected-place-title-detail" : ""
+          }`}
           role="button"
           tabIndex={0}
-          title="Mekanı haritada göster"
-          onClick={onTitleClick}
+          title={titleHint}
+          onClick={handleTitleClick}
           onKeyDown={handleTitleKeyDown}
         >
           <span className="venue-category-icon venue-category-icon-map" title={venueLabel}>
@@ -1461,32 +1702,198 @@ function SelectedPlaceCard({
         </p>
       </div>
 
-      {canAddNote ? (
-        <>
-          {reviewSummary?.isLoading ? (
-            <p className="selected-place-review-status">Yorumlar kontrol ediliyor...</p>
-          ) : reviewCount > 0 ? (
-            <button
-              type="button"
-              className="selected-place-review-button"
-              onClick={onOpenReviews}
-              disabled={!reviewSummary?.placeId}
-            >
-              {formatReviewLinkLabel(reviewCount)}
-            </button>
-          ) : (
-            <p className="selected-place-review-empty">İlk yorumu sen yap.</p>
-          )}
+      {canAddNote && reviewSummary?.isLoading && (
+        <p className="selected-place-review-status">Yorumlar kontrol ediliyor...</p>
+      )}
 
-          <button type="button" className="selected-place-add-note" onClick={onAddNote}>
-            Bu mekana not ekle
-          </button>
-        </>
-      ) : (
+      {canAddNote && !reviewSummary?.isLoading && reviewCount === 0 && (
+        <p className="selected-place-review-empty">İlk yorumu sen yap.</p>
+      )}
+
+      {!canAddNote && (
         <p className="selected-place-unsupported">
           Bu uygulamada yalnızca yeme-içme, spor ve kültür/aktivite mekanlarına not ekleyebilirsin.
         </p>
       )}
+
+      <div
+        className={`selected-place-actions${
+          canAddNote && !reviewSummary?.isLoading && reviewCount > 0
+            ? " selected-place-actions-with-reviews"
+            : ""
+        }`}
+      >
+        <button type="button" className="selected-place-save" onClick={onOpenSave}>
+          Kaydet
+        </button>
+
+        {canAddNote && !reviewSummary?.isLoading && reviewCount > 0 && (
+          <button
+            type="button"
+            className="selected-place-review-button"
+            onClick={onOpenDetail}
+            disabled={!canOpenDetail}
+          >
+            {formatReviewLinkLabel(reviewCount)}
+          </button>
+        )}
+
+        {canAddNote && (
+          <button type="button" className="selected-place-add-note" onClick={onAddNote}>
+            Bu mekana not ekle
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlaceSaveSheet({
+  placeName,
+  lists,
+  isLoading,
+  savingListId,
+  errorMessage,
+  notice,
+  onClose,
+  onToggleList,
+  onRetry,
+}) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    dialogRef.current?.focus();
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !savingListId) {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, savingListId]);
+
+  const handleBackdropMouseDown = (event) => {
+    if (!savingListId && event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="place-save-backdrop"
+      role="presentation"
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <section
+        ref={dialogRef}
+        className="place-save-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="place-save-title"
+        tabIndex={-1}
+      >
+        <div className="place-save-sheet-header">
+          <div>
+            <p className="eyebrow">KAYDET</p>
+            <h2 id="place-save-title">Listelerine ekle</h2>
+            <p>{placeName || "Bu mekan"}</p>
+          </div>
+
+          <button
+            className="place-save-sheet-close"
+            type="button"
+            onClick={onClose}
+            disabled={Boolean(savingListId)}
+            aria-label="Kapat"
+          >
+            ×
+          </button>
+        </div>
+
+        {isLoading && (
+          <div className="place-save-state">
+            <span className="place-save-loading-dot" aria-hidden="true" />
+            Listelerin yükleniyor...
+          </div>
+        )}
+
+        {!isLoading && errorMessage && (
+          <div className="place-save-state place-save-state-error">
+            <p>{errorMessage}</p>
+            <button type="button" onClick={onRetry}>
+              Tekrar dene
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !errorMessage && lists.length === 0 && (
+          <div className="place-save-state">
+            <p>Kaydedebileceğin aktif bir listen yok.</p>
+          </div>
+        )}
+
+        {!isLoading && !errorMessage && lists.length > 0 && (
+          <>
+            <div className="place-save-list" aria-label="Mekan listeleri">
+              {lists.map((list) => {
+                const listId = Number(list?.UserPlaceListId);
+                const isSaved = Boolean(list?.IsSaved);
+                const isSaving = savingListId === listId;
+                const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
+
+                return (
+                  <button
+                    className={`place-save-list-row${
+                      isSaved ? " place-save-list-row-saved" : ""
+                    }`}
+                    type="button"
+                    key={listId}
+                    disabled={Boolean(savingListId)}
+                    aria-pressed={isSaved}
+                    onClick={() => onToggleList(list)}
+                  >
+                    <span className="place-save-list-icon" aria-hidden="true">
+                      {isSaving ? "…" : isSaved ? "✓" : "+"}
+                    </span>
+
+                    <span className="place-save-list-copy">
+                      <strong>{list?.Name || "İsimsiz liste"}</strong>
+                      <small>{placeCount} mekan</small>
+                    </span>
+
+                    <span className="place-save-list-status">
+                      {isSaving
+                        ? "İşleniyor..."
+                        : isSaved
+                          ? "Kaydedildi"
+                          : "Kaydet"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {notice && (
+              <p className="place-save-notice" role="status">
+                {notice}
+              </p>
+            )}
+
+            <p className="place-save-sheet-hint">
+              Bir mekanı birden fazla listeye ekleyebilirsin.
+            </p>
+          </>
+        )}
+      </section>
     </div>
   );
 }

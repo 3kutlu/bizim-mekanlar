@@ -726,3 +726,298 @@
   font-weight: 850;
   line-height: 1;
 }
+
+/* v1.8.2.1 — yorum ve kaydet aksiyonları */
+.selected-place-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.selected-place-actions-with-reviews {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selected-place-card .selected-place-actions button {
+  min-width: 0;
+}
+
+.selected-place-card .selected-place-actions-with-reviews .selected-place-add-note {
+  grid-column: 1 / -1;
+}
+
+.selected-place-card .selected-place-save {
+  border: 1px solid #cfd5df;
+  background: #f7f8fb;
+  color: #283042;
+}
+
+.selected-place-card .selected-place-save:hover,
+.selected-place-card .selected-place-save:focus-visible {
+  border-color: #8996ad;
+  background: #eef1f7;
+}
+
+.place-save-backdrop {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(5px);
+}
+
+.place-save-sheet {
+  width: min(100%, 440px);
+  display: grid;
+  gap: 16px;
+  max-height: min(690px, calc(100dvh - 40px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #343c4c;
+  border-radius: 21px;
+  padding: 20px;
+  outline: 0;
+  background: #15181f;
+  color: #f4f6fb;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.46);
+}
+
+.place-save-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.place-save-sheet-header .eyebrow {
+  margin-bottom: 6px;
+}
+
+.place-save-sheet-header h2,
+.place-save-sheet-header p {
+  margin: 0;
+}
+
+.place-save-sheet-header h2 {
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.place-save-sheet-header > div > p:not(.eyebrow) {
+  margin-top: 5px;
+  overflow: hidden;
+  color: #9ea7b9;
+  font-size: 13px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-save-sheet-close {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #353d4c;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: #dce1eb;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.place-save-sheet-close:hover:not(:disabled),
+.place-save-sheet-close:focus-visible {
+  border-color: #697fba;
+  background: #202735;
+  color: #fff;
+}
+
+.place-save-sheet-close:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.place-save-list {
+  display: grid;
+  border-top: 1px solid #2a303b;
+}
+
+.place-save-list-row {
+  width: 100%;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid #2a303b;
+  padding: 11px 2px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.place-save-list-row:hover:not(:disabled),
+.place-save-list-row:focus-visible {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.place-save-list-row:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.place-save-list-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #3b465a;
+  border-radius: 10px;
+  background: #1b2230;
+  color: #d9e5ff;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.place-save-list-row-saved .place-save-list-icon {
+  border-color: #526077;
+  background: #273143;
+  color: #fff;
+}
+
+.place-save-list-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.place-save-list-copy strong,
+.place-save-list-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-save-list-copy strong {
+  color: #f4f6fb;
+  font-size: 14px;
+}
+
+.place-save-list-copy small {
+  color: #8f98aa;
+  font-size: 12px;
+}
+
+.place-save-list-status {
+  color: #aeb8ca;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.place-save-list-row-saved .place-save-list-status {
+  color: #e4e9f3;
+}
+
+.place-save-state {
+  min-height: 148px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 11px;
+  border: 1px solid #2b323e;
+  border-radius: 15px;
+  padding: 22px;
+  color: #aeb6c5;
+  font-size: 14px;
+  text-align: center;
+}
+
+.place-save-state p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.place-save-state-error {
+  border-color: #653d44;
+  background: #2a1c20;
+  color: #ffb4b4;
+}
+
+.place-save-state-error button {
+  border: 1px solid #69444c;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #ffd3d3;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.place-save-loading-dot {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #46516a;
+  border-top-color: #f3f5fa;
+  border-radius: 50%;
+  animation: place-save-spin 0.8s linear infinite;
+}
+
+.place-save-notice {
+  margin: -4px 0 0;
+  color: #c5d2e8;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.place-save-sheet-hint {
+  margin: -4px 0 0;
+  color: #8f98aa;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@keyframes place-save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 520px) {
+  .selected-place-actions:not(.selected-place-actions-with-reviews) {
+    grid-template-columns: 1fr;
+  }
+
+  .place-save-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .place-save-sheet {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    border-radius: 21px 21px 17px 17px;
+    padding: 19px;
+  }
+}
+
+/* v1.8.3 — seçili karttan mekan sayfasına geçiş */
+.selected-place-title-detail:hover,
+.selected-place-title-detail:focus-visible {
+  color: #111827;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}

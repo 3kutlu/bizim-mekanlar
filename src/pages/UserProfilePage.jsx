@@ -239,6 +239,7 @@ export default function UserProfilePage({
   onBack,
   onTitleChange,
   onOpenCollection,
+  onOpenPlaceList,
   onFollowChanged,
   onOpenNote,
   onOpenPlace,
@@ -581,20 +582,30 @@ export default function UserProfilePage({
     return (
       <div className="foreign-profile-saved-list">
         {savedLists.map((list) => (
-          <article
-            className="foreign-profile-saved-card"
+          <button
+            className="foreign-profile-saved-card foreign-profile-saved-card-button"
+            type="button"
             key={list.UserPlaceListId}
+            onClick={() =>
+              onOpenPlaceList?.({
+                list,
+                userId: profile.UserId,
+                username: profile.Username,
+              })
+            }
+            title={`${list.Name || "Mekan listesi"} listesini aç`}
           >
             <span className="foreign-profile-saved-icon" aria-hidden="true">
               {list.Icon || "✦"}
             </span>
-            <div>
+            <span className="foreign-profile-saved-copy">
               <strong>{list.Name}</strong>
-              <span>
-                {Number(list.PlaceCount ?? 0)} mekan · Herkese açık
-              </span>
-            </div>
-          </article>
+              <span>{Number(list.PlaceCount ?? 0)} mekan · Herkese açık</span>
+            </span>
+            <span className="foreign-profile-saved-arrow" aria-hidden="true">
+              ›
+            </span>
+          </button>
         ))}
       </div>
     );
