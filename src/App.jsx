@@ -44,6 +44,13 @@ const PROFILE_COLLECTIONS = {
   },
 };
 
+
+const PROFILE_TAB_IDS = Object.freeze({
+  NOTES: "notes",
+  PHOTOS: "photos",
+  SAVED: "saved",
+});
+
 function formatDate(value, options = { day: "numeric", month: "long", year: "numeric" }) {
   if (!value) {
     return "";
@@ -347,6 +354,15 @@ function SearchIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="10.8" cy="10.8" r="5.8" />
       <path d="m15.2 15.2 4 4" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Z" />
+      <path d="m19.4 13.3 1.2.9-1.8 3.1-1.5-.6a7.7 7.7 0 0 1-1.7 1l-.2 1.6h-3.6l-.2-1.6a7.7 7.7 0 0 1-1.7-1l-1.5.6-1.8-3.1 1.2-.9a7.2 7.2 0 0 1 0-2.6L7.6 9.8l1.8-3.1 1.5.6a7.7 7.7 0 0 1 1.7-1l.2-1.6h3.6l.2 1.6a7.7 7.7 0 0 1 1.7 1l1.5-.6 1.8 3.1-1.2.9a7.2 7.2 0 0 1 0 2.6Z" />
     </svg>
   );
 }
@@ -1095,8 +1111,15 @@ function App() {
   }, []);
 
   const handleOpenUserProfile = useCallback(
-    (userId) => {
-      const normalizedUserId = Number(userId);
+    (userOrId) => {
+      const user =
+        userOrId && typeof userOrId === "object" ? userOrId : null;
+      const normalizedUserId = Number(
+        user?.UserId ?? user?.ActorUserId ?? userOrId
+      );
+      const username = String(
+        user?.Username ?? user?.ActorUsername ?? ""
+      ).trim();
 
       if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
         return;
@@ -1111,10 +1134,42 @@ function App() {
       pushDiscoveryScreen({
         type: "profile",
         userId: normalizedUserId,
+        username,
       });
     },
     [closeDiscovery, ownUserId, pushDiscoveryScreen]
   );
+
+  const handleExternalProfileTitleChange = useCallback((userId, username) => {
+    const normalizedUserId = Number(userId);
+    const normalizedUsername = String(username ?? "").trim();
+
+    if (!Number.isInteger(normalizedUserId) || !normalizedUsername) {
+      return;
+    }
+
+    setDiscoveryStack((currentStack) => {
+      let hasChange = false;
+
+      const nextStack = currentStack.map((screen) => {
+        if (
+          screen.type !== "profile" ||
+          Number(screen.userId) !== normalizedUserId ||
+          screen.username === normalizedUsername
+        ) {
+          return screen;
+        }
+
+        hasChange = true;
+        return {
+          ...screen,
+          username: normalizedUsername,
+        };
+      });
+
+      return hasChange ? nextStack : currentStack;
+    });
+  }, []);
 
   const handleOpenNote = useCallback(
     (noteId) => {
@@ -1154,7 +1209,10 @@ function App() {
       }
 
       if (notification?.ActorUserId) {
-        handleOpenUserProfile(notification.ActorUserId);
+        handleOpenUserProfile({
+          UserId: notification.ActorUserId,
+          Username: notification.ActorUsername,
+        });
       }
     },
     [handleOpenNote, handleOpenUserProfile]
@@ -1235,7 +1293,7 @@ function App() {
       setAppMessage(
         getErrorMessageKey(error, MESSAGE_KEY.SIGN_OUT_FAILED)
       );
-      return;
+      return false;
     }
 
     closeDiscovery();
@@ -1247,6 +1305,7 @@ function App() {
     setFollowActivity([]);
     setFollowActivityError("");
     setIsNotificationsOpen(false);
+    return true;
   };
 
   if (loading || (session?.user && profileLoading)) {
@@ -1278,10 +1337,27 @@ function App() {
     );
   }
 
-  const activeDiscoveryScreenId =
+  const activeDiscoveryScreen =
     discoveryStack.length > 0
-      ? discoveryStack[discoveryStack.length - 1].id
+      ? discoveryStack[discoveryStack.length - 1]
       : null;
+  const activeDiscoveryScreenId = activeDiscoveryScreen?.id ?? null;
+  const isOwnProfileTopbar =
+    activePage === "profile" && !activeDiscoveryScreen;
+  const isDiscoveryTopbar = Boolean(activeDiscoveryScreen);
+  const discoveryProfileTitle = ["profile", "collection"].includes(
+    activeDiscoveryScreen?.type
+  )
+    ? String(activeDiscoveryScreen?.username ?? "").trim()
+    : "";
+  const topbarTitle = discoveryProfileTitle
+    ? discoveryProfileTitle
+    : isOwnProfileTopbar
+      ? profile.Username || "Profil"
+      : activePage === "list"
+        ? "Akış"
+        : "Bizim Mekanlar";
+  const showDesktopNavigation = !isOwnProfileTopbar && !isDiscoveryTopbar;
 
   return (
     <div
@@ -1295,37 +1371,53 @@ function App() {
         }`}
       >
         <button
-          className="logo-button"
+          className="logo-button topbar-title"
           type="button"
           onClick={() => handleTabNavigation("map")}
+          title={topbarTitle}
+          aria-label={`${topbarTitle}. Haritaya dön`}
         >
-          Bizim Mekanlar
+          {topbarTitle}
         </button>
 
         <div className="topbar-actions">
-          <nav className="desktop-nav" aria-label="Ana menü">
+          {showDesktopNavigation && (
+            <nav className="desktop-nav" aria-label="Ana menü">
+              <button
+                type="button"
+                className={activePage === "map" ? "nav-active" : ""}
+                onClick={() => handleTabNavigation("map")}
+              >
+                Harita
+              </button>
+              <button
+                type="button"
+                className={activePage === "list" ? "nav-active" : ""}
+                onClick={() => handleTabNavigation("list")}
+              >
+                Liste
+              </button>
+              <button
+                type="button"
+                className={activePage === "profile" ? "nav-active" : ""}
+                onClick={() => handleTabNavigation("profile")}
+              >
+                Profil
+              </button>
+            </nav>
+          )}
+
+          {isOwnProfileTopbar && (
             <button
+              className="settings-trigger"
               type="button"
-              className={activePage === "map" ? "nav-active" : ""}
-              onClick={() => handleTabNavigation("map")}
+              onClick={openProfileEditor}
+              aria-label="Profil ayarları"
+              title="Profil ayarları"
             >
-              Harita
+              <SettingsIcon />
             </button>
-            <button
-              type="button"
-              className={activePage === "list" ? "nav-active" : ""}
-              onClick={() => handleTabNavigation("list")}
-            >
-              Liste
-            </button>
-            <button
-              type="button"
-              className={activePage === "profile" ? "nav-active" : ""}
-              onClick={() => handleTabNavigation("profile")}
-            >
-              Profil
-            </button>
-          </nav>
+          )}
 
           <NotificationsPopover
             isOpen={isNotificationsOpen}
@@ -1406,9 +1498,11 @@ function App() {
             profile={profile}
             summary={summary}
             profileNotice={profileNotice}
+            notesRefreshKey={notesRefreshKey}
+            currentUserId={ownUserId}
             onCollectionClick={handleProfileCollectionClick}
-            onEdit={openProfileEditor}
-            onLogout={handleLogout}
+            onOpenPlace={handleOpenPlaceOnMap}
+            onOpenNote={handleOpenNote}
           />
         </section>
 
@@ -1438,8 +1532,11 @@ function App() {
                       userId={screen.userId}
                       isActive={isActive}
                       onBack={popDiscoveryScreen}
+                      onTitleChange={handleExternalProfileTitleChange}
                       onOpenCollection={handleOpenCollectionForUser}
                       onFollowChanged={handleFollowChanged}
+                      onOpenNote={handleOpenNote}
+                      onOpenPlace={handleOpenPlaceOnMap}
                     />
                   )}
 
@@ -1493,6 +1590,7 @@ function App() {
             await loadProfile();
             setIsProfileEditOpen(false);
           }}
+          onLogout={handleLogout}
         />
       )}
     </div>
@@ -1563,7 +1661,7 @@ function ListPage({
   return (
     <section className="list-page page-section">
       <div className="page-heading list-page-heading">
-        <p className="eyebrow">{isPlaceReviewMode ? "MEKAN YORUMLARI" : "AKIŞ"}</p>
+        {isPlaceReviewMode && <p className="eyebrow">MEKAN YORUMLARI</p>}
         <h1 className={isPlaceReviewMode ? "place-review-list-title" : undefined}>
           {isPlaceReviewMode && (
             <span
@@ -1628,14 +1726,127 @@ function ProfilePage({
   profile,
   summary,
   profileNotice,
+  notesRefreshKey,
+  currentUserId,
   onCollectionClick,
-  onEdit,
-  onLogout,
+  onOpenPlace,
+  onOpenNote,
 }) {
+  const [activeTab, setActiveTab] = useState(PROFILE_TAB_IDS.NOTES);
+  const [profileNotes, setProfileNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState("");
+  const [placeLists, setPlaceLists] = useState([]);
+  const [listsLoading, setListsLoading] = useState(false);
+  const [listsError, setListsError] = useState("");
+  const [visibilitySavingListId, setVisibilitySavingListId] = useState(null);
+
   const fullName = getFullName(profile);
   const avatarLetter = (profile.Username || profile.FirstName || "K")
     .charAt(0)
     .toUpperCase();
+
+  const loadProfileNotes = useCallback(async () => {
+    if (!profile?.UserId) {
+      setProfileNotes([]);
+      setNotesError("");
+      setNotesLoading(false);
+      return;
+    }
+
+    setNotesLoading(true);
+    setNotesError("");
+
+    const { data, error } = await supabase.rpc("GetProfileNoteCardsV2", {
+      p_profile_user_id: profile.UserId,
+    });
+
+    if (error) {
+      console.error("Profil notları alınamadı:", error);
+      setProfileNotes([]);
+      setNotesError("Notlar şu an yüklenemedi. Tekrar dene.");
+    } else {
+      setProfileNotes(data ?? []);
+    }
+
+    setNotesLoading(false);
+  }, [profile?.UserId]);
+
+  const loadPlaceLists = useCallback(async () => {
+    setListsLoading(true);
+    setListsError("");
+
+    const { data, error } = await supabase.rpc("GetMyPlaceListsV2");
+
+    if (error) {
+      console.error("Kişisel mekan listeleri alınamadı:", error);
+      setPlaceLists([]);
+      setListsError("Mekan listelerin şu an yüklenemedi. Tekrar dene.");
+    } else {
+      setPlaceLists(data ?? []);
+    }
+
+    setListsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== PROFILE_TAB_IDS.NOTES) {
+      return;
+    }
+
+    void loadProfileNotes();
+  }, [activeTab, loadProfileNotes, notesRefreshKey]);
+
+  useEffect(() => {
+    if (activeTab !== PROFILE_TAB_IDS.SAVED) {
+      return;
+    }
+
+    void loadPlaceLists();
+  }, [activeTab, loadPlaceLists]);
+
+  const handleVisibilityToggle = async (list) => {
+    const listId = Number(list?.UserPlaceListId);
+
+    if (
+      visibilitySavingListId ||
+      !Number.isInteger(listId) ||
+      listId <= 0
+    ) {
+      return;
+    }
+
+    const currentVisibility = String(list?.VisibilityCode ?? "PRIVATE")
+      .trim()
+      .toUpperCase();
+    const nextVisibility =
+      currentVisibility === "PUBLIC" ? "PRIVATE" : "PUBLIC";
+
+    setVisibilitySavingListId(listId);
+    setListsError("");
+
+    const { error } = await supabase.rpc("UpdateMyPlaceListVisibility", {
+      p_user_place_list_id: listId,
+      p_visibility_code: nextVisibility,
+    });
+
+    if (error) {
+      console.error("Liste görünürlüğü güncellenemedi:", error);
+      setListsError("Liste görünürlüğü güncellenemedi. Tekrar dene.");
+    } else {
+      setPlaceLists((currentLists) =>
+        currentLists.map((currentList) =>
+          Number(currentList?.UserPlaceListId) === listId
+            ? { ...currentList, VisibilityCode: nextVisibility }
+            : currentList
+        )
+      );
+    }
+
+    setVisibilitySavingListId(null);
+  };
+
+  const isPrivateAccount = profile.AccountVisibilityStatusId === 2;
 
   return (
     <section className="profile-page page-section">
@@ -1646,36 +1857,27 @@ function ProfilePage({
           </div>
 
           <div className="profile-identity">
-            <p className="eyebrow">{profile.Username}</p>
             <h1>{fullName || profile.Username}</h1>
-          </div>
-        </div>
 
-        <div className="profile-stats" aria-label="Profil istatistikleri">
-          <button
-            className="profile-stat-button"
-            type="button"
-            onClick={() => onCollectionClick("notes")}
-          >
-            <strong>{summary.NoteCount}</strong>
-            <span>Not</span>
-          </button>
-          <button
-            className="profile-stat-button"
-            type="button"
-            onClick={() => onCollectionClick("followers")}
-          >
-            <strong>{summary.FollowerCount}</strong>
-            <span>Takipçi</span>
-          </button>
-          <button
-            className="profile-stat-button"
-            type="button"
-            onClick={() => onCollectionClick("following")}
-          >
-            <strong>{summary.FollowingCount}</strong>
-            <span>Takip</span>
-          </button>
+            <div className="profile-follow-links" aria-label="Profil istatistikleri">
+              <button
+                className="profile-follow-link"
+                type="button"
+                onClick={() => onCollectionClick("followers")}
+              >
+                <strong>{summary.FollowerCount}</strong>
+                <span>Takipçi</span>
+              </button>
+              <button
+                className="profile-follow-link"
+                type="button"
+                onClick={() => onCollectionClick("following")}
+              >
+                <strong>{summary.FollowingCount}</strong>
+                <span>Takip</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {profileNotice && (
@@ -1690,20 +1892,237 @@ function ProfilePage({
         >
           {summary.CityName && <span>⌖ {summary.CityName}</span>}
           {profile.ZodiacSign && <span>✦ {profile.ZodiacSign}</span>}
-          {profile.AccountVisibilityStatusId === 2 && (
-            <span>⌁ Gizli hesap</span>
-          )}
+          {isPrivateAccount && <span>⌁ Gizli hesap</span>}
         </div>
 
-        <button className="profile-edit-button" type="button" onClick={onEdit}>
-          Profili düzenle
-        </button>
+        <div className="profile-tabs" role="tablist" aria-label="Profil içerikleri">
+          <button
+            className={`profile-tab-button${
+              activeTab === PROFILE_TAB_IDS.NOTES ? " profile-tab-button-active" : ""
+            }`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === PROFILE_TAB_IDS.NOTES}
+            aria-controls="profile-tab-panel-notes"
+            id="profile-tab-notes"
+            onClick={() => setActiveTab(PROFILE_TAB_IDS.NOTES)}
+          >
+            Notlar
+          </button>
+          <button
+            className={`profile-tab-button${
+              activeTab === PROFILE_TAB_IDS.PHOTOS ? " profile-tab-button-active" : ""
+            }`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === PROFILE_TAB_IDS.PHOTOS}
+            aria-controls="profile-tab-panel-photos"
+            id="profile-tab-photos"
+            onClick={() => setActiveTab(PROFILE_TAB_IDS.PHOTOS)}
+          >
+            Fotoğraflar
+          </button>
+          <button
+            className={`profile-tab-button${
+              activeTab === PROFILE_TAB_IDS.SAVED ? " profile-tab-button-active" : ""
+            }`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === PROFILE_TAB_IDS.SAVED}
+            aria-controls="profile-tab-panel-saved"
+            id="profile-tab-saved"
+            onClick={() => setActiveTab(PROFILE_TAB_IDS.SAVED)}
+          >
+            Kaydedilenler
+          </button>
+        </div>
 
-        <button className="logout-button" type="button" onClick={onLogout}>
-          Çıkış yap
-        </button>
+        <div
+          className="profile-tab-panel"
+          id={`profile-tab-panel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`profile-tab-${activeTab}`}
+        >
+          {activeTab === PROFILE_TAB_IDS.NOTES && (
+            <ProfileNotesTab
+              notes={profileNotes}
+              loading={notesLoading}
+              errorMessage={notesError}
+              currentUserId={currentUserId}
+              onRetry={loadProfileNotes}
+              onOpenPlace={onOpenPlace}
+              onOpenNote={onOpenNote}
+            />
+          )}
+
+          {activeTab === PROFILE_TAB_IDS.PHOTOS && <ProfilePhotosTab />}
+
+          {activeTab === PROFILE_TAB_IDS.SAVED && (
+            <ProfileSavedTab
+              lists={placeLists}
+              loading={listsLoading}
+              errorMessage={listsError}
+              visibilitySavingListId={visibilitySavingListId}
+              accountIsPrivate={isPrivateAccount}
+              onRetry={loadPlaceLists}
+              onToggleVisibility={handleVisibilityToggle}
+            />
+          )}
+        </div>
       </div>
     </section>
+  );
+}
+
+function ProfileNotesTab({
+  notes,
+  loading,
+  errorMessage,
+  currentUserId,
+  onRetry,
+  onOpenPlace,
+  onOpenNote,
+}) {
+  if (loading) {
+    return <LoadingState compact />;
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="profile-tab-error">
+        <p>{errorMessage}</p>
+        <button type="button" onClick={onRetry}>
+          Tekrar dene
+        </button>
+      </div>
+    );
+  }
+
+  if (notes.length === 0) {
+    return (
+      <div className="profile-tab-empty-state">
+        <span className="profile-tab-empty-icon" aria-hidden="true">
+          ✦
+        </span>
+        <h2>Henüz not yok</h2>
+        <p>İlk mekan notunu eklediğinde burada görünecek.</p>
+      </div>
+    );
+  }
+
+  return (
+    <NoteFeed
+      notes={notes}
+      variant="profile"
+      currentUserId={currentUserId}
+      onOpenPlace={onOpenPlace}
+      onOpenNote={onOpenNote}
+    />
+  );
+}
+
+function ProfilePhotosTab() {
+  return (
+    <div className="profile-tab-empty-state profile-photo-empty-state">
+      <span className="profile-tab-empty-icon" aria-hidden="true">
+        ◌
+      </span>
+      <h2>Henüz fotoğraf yok</h2>
+      <p>
+        Mekan notlarına fotoğraf ekleme geldiğinde, paylaştığın yiyecek,
+        içecek ve mekan fotoğrafları burada görünecek.
+      </p>
+    </div>
+  );
+}
+
+function ProfileSavedTab({
+  lists,
+  loading,
+  errorMessage,
+  visibilitySavingListId,
+  accountIsPrivate,
+  onRetry,
+  onToggleVisibility,
+}) {
+  if (loading) {
+    return <LoadingState compact />;
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="profile-tab-error">
+        <p>{errorMessage}</p>
+        <button type="button" onClick={onRetry}>
+          Tekrar dene
+        </button>
+      </div>
+    );
+  }
+
+  if (lists.length === 0) {
+    return (
+      <div className="profile-tab-empty-state">
+        <span className="profile-tab-empty-icon" aria-hidden="true">
+          ▤
+        </span>
+        <h2>Henüz mekan listen yok</h2>
+        <p>Haritadan mekan kaydettiğinde listelerin burada görünür.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="profile-saved-list" aria-label="Mekan listelerin">
+      {lists.map((list) => {
+        const listId = Number(list?.UserPlaceListId);
+        const isPublic = String(list?.VisibilityCode ?? "PRIVATE")
+          .trim()
+          .toUpperCase() === "PUBLIC";
+        const isSaving = visibilitySavingListId === listId;
+        const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
+
+        return (
+          <article className="profile-saved-list-card" key={list.UserPlaceListId}>
+            <span className="profile-saved-list-icon" aria-hidden="true">
+              {list.Icon || "✦"}
+            </span>
+
+            <div className="profile-saved-list-copy">
+              <strong>{list.Name}</strong>
+              <span>{placeCount} mekan</span>
+            </div>
+
+            <button
+              className={`profile-list-visibility-button${
+                isPublic ? " profile-list-visibility-public" : ""
+              }`}
+              type="button"
+              disabled={isSaving}
+              onClick={() => onToggleVisibility(list)}
+              title={
+                isPublic
+                  ? "Bu listeyi gizli yap"
+                  : "Bu listeyi profilinde görünür yap"
+              }
+            >
+              {isSaving
+                ? "Kaydediliyor..."
+                : isPublic
+                  ? "Herkese açık"
+                  : "Gizli"}
+            </button>
+          </article>
+        );
+      })}
+
+      {accountIsPrivate && (
+        <p className="profile-list-privacy-note">
+          Hesabın gizli olduğu için, herkese açık listelerin yalnızca kabul
+          ettiğin takipçilere görünür.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1828,6 +2247,7 @@ function ProfileCollectionPage({
 function NoteFeed({
   notes,
   compact = false,
+  variant = "feed",
   currentUserId,
   onOpenPlace,
   onOpenUser,
@@ -1836,14 +2256,22 @@ function NoteFeed({
   const [reactionSummaries, setReactionSummaries] = useState({});
   const [reactionSummariesLoading, setReactionSummariesLoading] = useState(false);
 
+  const isProfileVariant = variant === "profile";
+  const shouldShowReactions = !isProfileVariant;
+
   const noteIds = useMemo(
-    () =>
-      [...new Set(
+    () => {
+      if (!shouldShowReactions) {
+        return [];
+      }
+
+      return [...new Set(
         notes
           .map(getReactionNoteId)
           .filter(Boolean)
-      )],
-    [notes]
+      )];
+    },
+    [notes, shouldShowReactions]
   );
   const noteIdsKey = noteIds.join(",");
 
@@ -1907,8 +2335,10 @@ function NoteFeed({
 
   return (
     <div
-      className={`note-feed${compact ? " note-feed-compact" : ""}`}
-      aria-busy={reactionSummariesLoading}
+      className={`note-feed${
+        compact ? " note-feed-compact" : ""
+      }${isProfileVariant ? " note-feed-profile" : ""}`}
+      aria-busy={shouldShowReactions && reactionSummariesLoading}
     >
       {notes.map((note, index) => {
         const username = note.Username || "Kullanıcı";
@@ -1939,7 +2369,7 @@ function NoteFeed({
           <article
             className={`note-feed-card${
               canOpenNote ? " note-feed-card-clickable" : ""
-            }`}
+            }${isProfileVariant ? " note-feed-card-profile" : ""}`}
             key={
               noteId ??
               `note-${note.UserId ?? "unknown"}-${note.CreatedDate ?? "undated"}-${index}`
@@ -1949,70 +2379,96 @@ function NoteFeed({
             tabIndex={canOpenNote ? 0 : undefined}
             aria-label={canOpenNote ? `${title} not detayını aç` : undefined}
           >
-            {note.UserId && onOpenUser ? (
-              <button
-                className="note-feed-avatar note-feed-avatar-button"
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenUser(note.UserId);
-                }}
-                title={`${username} profilini aç`}
-                aria-label={`${username} profilini aç`}
-              >
-                {username.charAt(0).toUpperCase()}
-              </button>
-            ) : (
-              <div className="note-feed-avatar" aria-hidden="true">
-                {username.charAt(0).toUpperCase()}
-              </div>
+            {!isProfileVariant && (
+              note.UserId && onOpenUser ? (
+                <button
+                  className="note-feed-avatar note-feed-avatar-button"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenUser(note.UserId);
+                  }}
+                  title={`${username} profilini aç`}
+                  aria-label={`${username} profilini aç`}
+                >
+                  {username.charAt(0).toUpperCase()}
+                </button>
+              ) : (
+                <div className="note-feed-avatar" aria-hidden="true">
+                  {username.charAt(0).toUpperCase()}
+                </div>
+              )
             )}
 
             <div className="note-feed-content">
               <div className="note-feed-header">
                 <div className="note-feed-meta">
-                  {note.UserId && onOpenUser ? (
+                  {isProfileVariant ? (
                     <button
-                      className="note-feed-user-link"
+                      className="note-feed-place-link"
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onOpenUser(note.UserId);
+                        onOpenPlace?.(note.PlaceId);
                       }}
-                      title="Kullanıcı profilini aç"
+                      disabled={!note.PlaceId}
+                      title="Mekanı haritada aç"
                     >
-                      {username}
+                      <span
+                        className="venue-category-icon venue-category-icon-feed"
+                        title={getVenueCategoryLabel(note.VenueCategoryCode)}
+                        aria-hidden="true"
+                      >
+                        {getVenueCategoryIcon(note.VenueCategoryCode)}
+                      </span>
+                      {note.PlaceName}
                     </button>
                   ) : (
-                    <strong>{username}</strong>
+                    <>
+                      {note.UserId && onOpenUser ? (
+                        <button
+                          className="note-feed-user-link"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenUser(note.UserId);
+                          }}
+                          title="Kullanıcı profilini aç"
+                        >
+                          {username}
+                        </button>
+                      ) : (
+                        <strong>{username}</strong>
+                      )}
+
+                      <span
+                        className="note-feed-place-separator"
+                        aria-hidden="true"
+                      >
+                        -
+                      </span>
+
+                      <button
+                        className="note-feed-place-link"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenPlace?.(note.PlaceId);
+                        }}
+                        disabled={!note.PlaceId}
+                        title="Mekanı haritada aç"
+                      >
+                        <span
+                          className="venue-category-icon venue-category-icon-feed"
+                          title={getVenueCategoryLabel(note.VenueCategoryCode)}
+                          aria-hidden="true"
+                        >
+                          {getVenueCategoryIcon(note.VenueCategoryCode)}
+                        </span>
+                        {note.PlaceName}
+                      </button>
+                    </>
                   )}
-
-                  <span
-                    className="note-feed-place-separator"
-                    aria-hidden="true"
-                  >
-                    -
-                  </span>
-
-                  <button
-                    className="note-feed-place-link"
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onOpenPlace?.(note.PlaceId);
-                    }}
-                    disabled={!note.PlaceId}
-                    title="Mekanı haritada aç"
-                  >
-                    <span
-                      className="venue-category-icon venue-category-icon-feed"
-                      title={getVenueCategoryLabel(note.VenueCategoryCode)}
-                      aria-hidden="true"
-                    >
-                      {getVenueCategoryIcon(note.VenueCategoryCode)}
-                    </span>
-                    {note.PlaceName}
-                  </button>
                 </div>
               </div>
 
@@ -2021,18 +2477,20 @@ function NoteFeed({
                 <span>{formatNoteRating(note.Rating)}</span>
               </div>
 
-              <NoteReactionControls
-                noteId={noteId}
-                noteOwnerUserId={note.UserId}
-                currentUserId={currentUserId}
-                summary={
-                  noteId
-                    ? reactionSummaries[noteId] ?? EMPTY_NOTE_REACTION_SUMMARY
-                    : EMPTY_NOTE_REACTION_SUMMARY
-                }
-                onSummaryChange={handleReactionSummaryChange}
-                variant="feed"
-              />
+              {shouldShowReactions && (
+                <NoteReactionControls
+                  noteId={noteId}
+                  noteOwnerUserId={note.UserId}
+                  currentUserId={currentUserId}
+                  summary={
+                    noteId
+                      ? reactionSummaries[noteId] ?? EMPTY_NOTE_REACTION_SUMMARY
+                      : EMPTY_NOTE_REACTION_SUMMARY
+                  }
+                  onSummaryChange={handleReactionSummaryChange}
+                  variant="feed"
+                />
+              )}
 
               <time
                 className="note-feed-created-time"
@@ -2491,6 +2949,7 @@ function ProfileEditModal({
   citiesError,
   onClose,
   onSaved,
+  onLogout,
 }) {
   const [form, setForm] = useState({
     username: profile.Username ?? "",
@@ -2504,10 +2963,12 @@ function ProfileEditModal({
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
 
   useEffect(() => {
     const handleEscape = (event) => {
-      if (event.key === "Escape" && !saving) {
+      if (event.key === "Escape" && !saving && !loggingOut) {
         onClose();
       }
     };
@@ -2520,7 +2981,7 @@ function ProfileEditModal({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose, saving]);
+  }, [loggingOut, onClose, saving]);
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -2617,8 +3078,30 @@ function ProfileEditModal({
     await onSaved();
   };
 
+  const handleLogout = async () => {
+    if (saving || loggingOut || !onLogout) {
+      return;
+    }
+
+    setLogoutError("");
+    setLoggingOut(true);
+
+    try {
+      const didSignOut = await onLogout();
+
+      if (!didSignOut) {
+        setLogoutError(MESSAGE_KEY.SIGN_OUT_FAILED);
+      }
+    } catch (error) {
+      console.error("Çıkış yapılamadı:", error);
+      setLogoutError(MESSAGE_KEY.SIGN_OUT_FAILED);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   const handleBackdropMouseDown = (event) => {
-    if (!saving && event.target === event.currentTarget) {
+    if (!saving && !loggingOut && event.target === event.currentTarget) {
       onClose();
     }
   };
@@ -2644,7 +3127,7 @@ function ProfileEditModal({
             className="profile-modal-close"
             type="button"
             onClick={onClose}
-            disabled={saving}
+            disabled={saving || loggingOut}
             aria-label="Kapat"
           >
             ×
@@ -2782,17 +3265,34 @@ function ProfileEditModal({
               className="profile-modal-cancel"
               type="button"
               onClick={onClose}
-              disabled={saving}
+              disabled={saving || loggingOut}
             >
               Vazgeç
             </button>
             <button
               className="profile-modal-save"
               type="submit"
-              disabled={saving || citiesLoading}
+              disabled={saving || loggingOut || citiesLoading}
             >
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </button>
+          </div>
+
+          <div className="profile-modal-logout-section">
+            <button
+              className="profile-modal-logout"
+              type="button"
+              onClick={handleLogout}
+              disabled={saving || loggingOut}
+            >
+              {loggingOut ? "Çıkış yapılıyor..." : "Çıkış yap"}
+            </button>
+
+            {logoutError && (
+              <p className="profile-modal-logout-error" role="alert">
+                {t(logoutError)}
+              </p>
+            )}
           </div>
         </form>
       </section>

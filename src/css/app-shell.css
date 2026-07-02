@@ -74,6 +74,15 @@ button:disabled {
   font-weight: 800;
 }
 
+.topbar-title {
+  min-width: 0;
+  max-width: min(42vw, 420px);
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .logo-button:focus-visible,
 .desktop-nav button:focus-visible,
 .bottom-nav button:focus-visible {
@@ -284,7 +293,12 @@ button:disabled {
   .topbar {
     flex-basis: 60px;
     height: 60px;
+    gap: 12px;
     padding: 0 18px;
+  }
+
+  .topbar-title {
+    max-width: calc(100vw - 172px);
   }
 
   .desktop-nav {

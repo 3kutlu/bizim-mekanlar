@@ -9,6 +9,7 @@
   z-index: 30;
 }
 
+.settings-trigger,
 .notification-trigger,
 .user-search-trigger {
   width: 40px;
@@ -21,6 +22,7 @@
   color: #dbe4ff;
 }
 
+.settings-trigger:hover,
 .notification-trigger:hover,
 .user-search-trigger:hover {
   border-color: #4b5870;
@@ -28,6 +30,7 @@
   color: #fff;
 }
 
+.settings-trigger:focus-visible,
 .notification-trigger:focus-visible,
 .user-search-trigger:focus-visible,
 .notification-item-main:focus-visible,
@@ -41,6 +44,7 @@
   position: relative;
 }
 
+.settings-trigger svg,
 .notification-trigger svg {
   width: 21px;
   height: 21px;
@@ -328,6 +332,7 @@
     gap: 6px;
   }
 
+  .settings-trigger,
   .notification-trigger,
   .user-search-trigger {
     width: 38px;

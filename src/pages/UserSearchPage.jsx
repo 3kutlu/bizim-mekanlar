@@ -143,7 +143,7 @@ export default function UserSearchPage({
                   className="user-search-result"
                   type="button"
                   key={user.UserId}
-                  onClick={() => onSelectUser(user.UserId)}
+                  onClick={() => onSelectUser(user)}
                 >
                   <span className="user-search-avatar" aria-hidden="true">
                     {avatarLetter}
