@@ -66,6 +66,32 @@ function formatDate(value, options = { day: "numeric", month: "long", year: "num
   return new Intl.DateTimeFormat("tr-TR", options).format(date);
 }
 
+function toDateInputValue(value) {
+  const normalizedValue = String(value ?? "").trim();
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  const isoDate = normalizedValue.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+
+  if (isoDate) {
+    return isoDate;
+  }
+
+  const date = new Date(normalizedValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 function formatRelativeNoteTime(value) {
   if (!value) {
     return "";
@@ -1013,6 +1039,10 @@ function App() {
     setNotesRefreshKey((currentKey) => currentKey + 1);
   };
 
+  const handleNoteUpdated = useCallback(() => {
+    setNotesRefreshKey((currentKey) => currentKey + 1);
+  }, []);
+
   const handlePlaceSaved = useCallback(() => {
     setPlaceListsRefreshKey((currentKey) => currentKey + 1);
   }, []);
@@ -1621,6 +1651,7 @@ function App() {
                       onOpenPlace={handleOpenPlaceDetail}
                       onOpenUser={handleOpenUserProfile}
                       onNoteDeleted={handleNoteDeleted}
+                      onNoteUpdated={handleNoteUpdated}
                     />
                   )}
 
@@ -3506,10 +3537,15 @@ function NoteDetailPage({
   onOpenPlace,
   onOpenUser,
   onNoteDeleted,
+  onNoteUpdated,
 }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -3517,6 +3553,7 @@ function NoteDetailPage({
     EMPTY_NOTE_REACTION_SUMMARY
   );
   const [reactionSummaryLoading, setReactionSummaryLoading] = useState(false);
+  const actionMenuRef = useRef(null);
 
   const loadNote = useCallback(async () => {
     setLoading(true);
@@ -3577,12 +3614,32 @@ function NoteDetailPage({
   }, [loadNote]);
 
   useEffect(() => {
+    if (!isActionMenuOpen) {
+      return undefined;
+    }
+
+    const closeOnOutsidePointer = (event) => {
+      if (!actionMenuRef.current?.contains(event.target)) {
+        setIsActionMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", closeOnOutsidePointer);
+
+    return () => window.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [isActionMenuOpen]);
+
+  useEffect(() => {
     if (!isActive) {
       return undefined;
     }
 
     const handleEscape = (event) => {
       if (event.key !== "Escape") {
+        return;
+      }
+
+      if (isEditModalOpen) {
         return;
       }
 
@@ -3594,13 +3651,25 @@ function NoteDetailPage({
         return;
       }
 
+      if (isActionMenuOpen) {
+        setIsActionMenuOpen(false);
+        return;
+      }
+
       onBack();
     };
 
     window.addEventListener("keydown", handleEscape);
 
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [isActive, isDeleteModalOpen, isDeleting, onBack]);
+  }, [
+    isActionMenuOpen,
+    isActive,
+    isDeleteModalOpen,
+    isDeleting,
+    isEditModalOpen,
+    onBack,
+  ]);
 
   const username = note?.Username || "Kullanıcı";
   const fullName = getFullName(note);
@@ -3610,6 +3679,54 @@ function NoteDetailPage({
     Number.isInteger(Number(currentUserId)) &&
     Number(note.UserId) === Number(currentUserId);
 
+  const openEditModal = () => {
+    if (!note || !isOwnNote || isSavingEdit) {
+      return;
+    }
+
+    setIsActionMenuOpen(false);
+    setEditError("");
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    if (isSavingEdit) {
+      return;
+    }
+
+    setIsEditModalOpen(false);
+    setEditError("");
+  };
+
+  const handleEditSave = async (nextValues) => {
+    if (!note?.PlaceNoteId || !isOwnNote || isSavingEdit) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setEditError("");
+
+    const { error } = await supabase.rpc("UpdateMyPlaceNote", {
+      p_place_note_id: Number(note.PlaceNoteId),
+      p_title: nextValues.title,
+      p_rating: Number(nextValues.rating),
+      p_content: nextValues.content,
+      p_visited_date: nextValues.visitedDate || null,
+    });
+
+    if (error) {
+      console.error("Not güncellenemedi:", error);
+      setEditError(error.message || "Not güncellenemedi. Lütfen tekrar dene.");
+      setIsSavingEdit(false);
+      return;
+    }
+
+    await loadNote();
+    await Promise.resolve(onNoteUpdated?.());
+    setIsSavingEdit(false);
+    setIsEditModalOpen(false);
+  };
+
   const closeDeleteModal = () => {
     if (isDeleting) {
       return;
@@ -3617,6 +3734,16 @@ function NoteDetailPage({
 
     setIsDeleteModalOpen(false);
     setDeleteError("");
+  };
+
+  const openDeleteModal = () => {
+    if (!isOwnNote || isDeleting) {
+      return;
+    }
+
+    setIsActionMenuOpen(false);
+    setDeleteError("");
+    setIsDeleteModalOpen(true);
   };
 
   const handleDelete = async () => {
@@ -3660,21 +3787,55 @@ function NoteDetailPage({
         </button>
 
         {note && (
-          <button
-            className="note-detail-page-author"
-            type="button"
-            onClick={() => onOpenUser?.(note.UserId)}
-            disabled={!note.UserId || !onOpenUser}
-            title="Kullanıcı profilini aç"
-          >
-            <span className="note-detail-avatar" aria-hidden="true">
-              {avatarLetter}
-            </span>
-            <span className="note-detail-page-author-copy">
-              <strong>{fullName || username}</strong>
-              <small>@{username}</small>
-            </span>
-          </button>
+          <div className="note-detail-header-actions">
+            <button
+              className="note-detail-page-author"
+              type="button"
+              onClick={() => onOpenUser?.(note.UserId)}
+              disabled={!note.UserId || !onOpenUser}
+              title="Kullanıcı profilini aç"
+            >
+              <span className="note-detail-avatar" aria-hidden="true">
+                {avatarLetter}
+              </span>
+              <span className="note-detail-page-author-copy">
+                <strong>{fullName || username}</strong>
+                <small>@{username}</small>
+              </span>
+            </button>
+
+            {isOwnNote && (
+              <div className="note-detail-more-menu" ref={actionMenuRef}>
+                <button
+                  className="note-detail-more-button"
+                  type="button"
+                  onClick={() => setIsActionMenuOpen((current) => !current)}
+                  aria-label="Not işlemleri"
+                  aria-expanded={isActionMenuOpen}
+                  aria-haspopup="menu"
+                  title="Not işlemleri"
+                >
+                  <span aria-hidden="true">•••</span>
+                </button>
+
+                {isActionMenuOpen && (
+                  <div className="note-detail-more-popover" role="menu">
+                    <button type="button" role="menuitem" onClick={openEditModal}>
+                      Notu düzenle
+                    </button>
+                    <button
+                      className="note-detail-more-action-danger"
+                      type="button"
+                      role="menuitem"
+                      onClick={openDeleteModal}
+                    >
+                      Notu sil
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </header>
 
@@ -3760,22 +3921,21 @@ function NoteDetailPage({
               <strong>Puanlamalar ve fotoğraflar</strong>
               <span>Yakında bu notta burada yer alacak.</span>
             </div>
-
-            {isOwnNote && (
-              <button
-                type="button"
-                className="note-detail-delete-button"
-                onClick={() => {
-                  setDeleteError("");
-                  setIsDeleteModalOpen(true);
-                }}
-              >
-                Notu sil
-              </button>
-            )}
           </article>
         )}
       </div>
+
+      {isEditModalOpen && note &&
+        createPortal(
+          <NoteEditModal
+            note={note}
+            isSaving={isSavingEdit}
+            errorMessage={editError}
+            onCancel={closeEditModal}
+            onSave={handleEditSave}
+          />,
+          document.body
+        )}
 
       {isDeleteModalOpen &&
         createPortal(
@@ -3787,6 +3947,233 @@ function NoteDetailPage({
           />,
           document.body
         )}
+    </div>
+  );
+}
+
+function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
+  const titleInputRef = useRef(null);
+  const [form, setForm] = useState(() => ({
+    title: String(note?.Title ?? "").trim(),
+    rating: Number(note?.Rating) || 0,
+    content: String(note?.Content ?? ""),
+    visitedDate: toDateInputValue(note?.VisitedDate),
+  }));
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const validation = {
+    title: !form.title.trim(),
+    rating:
+      !Number.isInteger(Number(form.rating)) ||
+      Number(form.rating) < 1 ||
+      Number(form.rating) > 5,
+    detail: !form.content.trim(),
+    visitedDate: Boolean(form.visitedDate && form.visitedDate > today),
+  };
+  const canSave = !Object.values(validation).some(Boolean);
+
+  useEffect(() => {
+    titleInputRef.current?.focus();
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape" && !isSaving) {
+        onCancel();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isSaving, onCancel]);
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleBackdropMouseDown = (event) => {
+    if (!isSaving && event.target === event.currentTarget) {
+      onCancel();
+    }
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+
+    if (isSaving) {
+      return;
+    }
+
+    if (!canSave) {
+      setHasAttemptedSave(true);
+      return;
+    }
+
+    onSave({
+      title: form.title.trim(),
+      rating: Number(form.rating),
+      content: form.content.trim(),
+      visitedDate: form.visitedDate || null,
+    });
+  };
+
+  const showTitleError = hasAttemptedSave && validation.title;
+  const showRatingError = hasAttemptedSave && validation.rating;
+  const showDetailError = hasAttemptedSave && validation.detail;
+  const showVisitedDateError = hasAttemptedSave && validation.visitedDate;
+
+  return (
+    <div
+      className="note-edit-modal-backdrop"
+      role="presentation"
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <section
+        className="note-edit-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="note-edit-title"
+      >
+        <div className="note-edit-modal-header">
+          <div>
+            <p className="eyebrow">NOTU DÜZENLE</p>
+            <h2 id="note-edit-title">{note.PlaceName || "Mekan notu"}</h2>
+          </div>
+          <button
+            className="note-edit-modal-close"
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+            aria-label="Kapat"
+          >
+            ×
+          </button>
+        </div>
+
+        <form className="note-edit-form" onSubmit={handleSubmit}>
+          <label>
+            <span>Başlık</span>
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={form.title}
+              disabled={isSaving}
+              maxLength={120}
+              aria-invalid={showTitleError}
+              onChange={(event) => updateField("title", event.target.value)}
+              placeholder="Kısa bir başlık yaz"
+            />
+            {showTitleError && (
+              <small className="note-edit-field-error" role="alert">
+                Başlık zorunlu.
+              </small>
+            )}
+          </label>
+
+          <div className="note-edit-rating-field">
+            <span>Puanın</span>
+            <div
+              className={`note-edit-rating-picker${
+                showRatingError ? " note-edit-rating-picker-error" : ""
+              }`}
+              role="radiogroup"
+              aria-label="Puanın"
+            >
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  className={
+                    rating <= Number(form.rating)
+                      ? "note-edit-rating-star note-edit-rating-star-active"
+                      : "note-edit-rating-star"
+                  }
+                  type="button"
+                  key={rating}
+                  role="radio"
+                  aria-checked={Number(form.rating) === rating}
+                  aria-label={`${rating} yıldız`}
+                  disabled={isSaving}
+                  onClick={() => updateField("rating", rating)}
+                >
+                  ★
+                </button>
+              ))}
+              <strong>{form.rating ? `${form.rating} / 5` : "Puan ver"}</strong>
+            </div>
+            {showRatingError && (
+              <small className="note-edit-field-error" role="alert">
+                1 ile 5 arasında puan vermelisin.
+              </small>
+            )}
+          </div>
+
+          <label>
+            <span>Ziyaret tarihi <small>(opsiyonel)</small></span>
+            <input
+              type="date"
+              value={form.visitedDate}
+              max={today}
+              disabled={isSaving}
+              aria-invalid={showVisitedDateError}
+              onChange={(event) => updateField("visitedDate", event.target.value)}
+            />
+            {showVisitedDateError && (
+              <small className="note-edit-field-error" role="alert">
+                Ziyaret tarihi gelecekte olamaz.
+              </small>
+            )}
+          </label>
+
+          <label>
+            <span>Detay</span>
+            <textarea
+              value={form.content}
+              disabled={isSaving}
+              maxLength={1000}
+              aria-invalid={showDetailError}
+              onChange={(event) => updateField("content", event.target.value)}
+              placeholder="Bu mekan hakkında ne düşünüyorsun?"
+            />
+            {showDetailError && (
+              <small className="note-edit-field-error" role="alert">
+                Not detayını yazmalısın.
+              </small>
+            )}
+          </label>
+
+          {errorMessage && (
+            <p className="note-edit-modal-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
+
+          <div className="note-edit-modal-actions">
+            <button
+              className="note-edit-modal-cancel"
+              type="button"
+              disabled={isSaving}
+              onClick={onCancel}
+            >
+              Vazgeç
+            </button>
+            <button
+              className={`note-edit-modal-save${
+                canSave ? "" : " note-edit-modal-save-incomplete"
+              }`}
+              type="submit"
+              disabled={isSaving}
+              aria-disabled={!canSave || isSaving}
+            >
+              {isSaving ? "Kaydediliyor..." : "Değişiklikleri kaydet"}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

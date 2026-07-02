@@ -1057,3 +1057,8 @@
 .place-save-list-section .place-save-list-row:last-child {
   border-bottom: 0;
 }
+
+/* v1.8.5.1.1 — yeni not formunda ziyaret tarihi */
+.note-modal-date-input {
+  color-scheme: dark;
+}

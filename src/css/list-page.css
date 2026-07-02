@@ -1017,3 +1017,349 @@
     padding: 6px 8px;
   }
 }
+
+/* v1.8.5 — own note editing */
+.note-detail-header-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.note-detail-header-actions .note-detail-page-author {
+  margin-left: 0;
+}
+
+.note-detail-more-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.note-detail-more-button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #353e4e;
+  border-radius: 11px;
+  padding: 0;
+  background: #171b23;
+  color: #e8edf8;
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
+.note-detail-more-button:hover,
+.note-detail-more-button:focus-visible {
+  border-color: #71809a;
+  background: #202735;
+}
+
+.note-detail-more-button:focus-visible,
+.note-detail-more-popover button:focus-visible {
+  outline: 2px solid #9cbaff;
+  outline-offset: 3px;
+}
+
+.note-detail-more-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 176px;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #374153;
+  border-radius: 13px;
+  padding: 5px;
+  background: #171b23;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
+}
+
+.note-detail-more-popover button {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #edf1fa;
+  font-size: 13px;
+  font-weight: 720;
+  text-align: left;
+}
+
+.note-detail-more-popover button:hover {
+  background: #242b38;
+}
+
+.note-detail-more-popover .note-detail-more-action-danger {
+  color: #ffbbc4;
+}
+
+.note-detail-more-popover .note-detail-more-action-danger:hover {
+  background: rgba(131, 48, 61, 0.24);
+}
+
+.note-edit-modal-backdrop {
+  position: fixed;
+  z-index: 1300;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.64);
+  backdrop-filter: blur(5px);
+}
+
+.note-edit-modal {
+  width: min(100%, 520px);
+  max-height: min(820px, calc(100dvh - 40px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #374052;
+  border-radius: 22px;
+  padding: 22px;
+  background: #15181f;
+  color: #f5f7fc;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.46);
+}
+
+.note-edit-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.note-edit-modal-header .eyebrow {
+  margin-bottom: 7px;
+}
+
+.note-edit-modal-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.note-edit-modal-close {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #384154;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: #dce3f0;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.note-edit-modal-close:hover:not(:disabled),
+.note-edit-modal-close:focus-visible {
+  border-color: #7484a0;
+  background: #202734;
+}
+
+.note-edit-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 23px;
+}
+
+.note-edit-form > label,
+.note-edit-rating-field {
+  display: grid;
+  gap: 8px;
+  color: #d8deea;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.note-edit-form > label > span small {
+  color: #9099aa;
+  font-size: 0.82em;
+  font-weight: 400;
+}
+
+.note-edit-form input,
+.note-edit-form textarea {
+  width: 100%;
+  border: 1px solid #393f4d;
+  border-radius: 12px;
+  padding: 12px 13px;
+  outline: none;
+  background: #0e1015;
+  color: #fff;
+  font: inherit;
+}
+
+.note-edit-form input {
+  min-height: 48px;
+}
+
+.note-edit-form textarea {
+  min-height: 148px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.note-edit-form input:focus,
+.note-edit-form textarea:focus {
+  border-color: #859cff;
+  box-shadow: 0 0 0 3px rgba(133, 156, 255, 0.12);
+}
+
+.note-edit-form input[aria-invalid="true"],
+.note-edit-form textarea[aria-invalid="true"] {
+  border-color: #ef8f9b;
+}
+
+.note-edit-rating-picker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+}
+
+.note-edit-rating-picker-error {
+  border: 1px solid #ef8f9b;
+  border-radius: 12px;
+  padding: 5px 7px;
+}
+
+.note-edit-rating-star {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  background: transparent;
+  color: #586176;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.note-edit-rating-star:hover:not(:disabled),
+.note-edit-rating-star:focus-visible {
+  background: #222a38;
+  color: #dbe4ff;
+}
+
+.note-edit-rating-star-active {
+  color: #e9edf7;
+}
+
+.note-edit-rating-picker strong {
+  margin-left: 6px;
+  color: #bdc9df;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.note-edit-field-error {
+  color: #ffabb4;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.note-edit-modal-error {
+  margin: -3px 0 0;
+  border: 1px solid rgba(230, 117, 133, 0.44);
+  border-radius: 12px;
+  padding: 10px 11px;
+  background: rgba(133, 43, 57, 0.2);
+  color: #ffbdc5;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.note-edit-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.note-edit-modal-actions button {
+  min-height: 48px;
+  border-radius: 12px;
+  padding: 11px 13px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.note-edit-modal-cancel {
+  border: 1px solid #3c4658;
+  background: transparent;
+  color: #dce4f3;
+}
+
+.note-edit-modal-save {
+  border: 0;
+  background: #f0f2f7;
+  color: #11131a;
+}
+
+.note-edit-modal-save:hover:not(:disabled) {
+  background: #fff;
+}
+
+.note-edit-modal-save-incomplete {
+  opacity: 0.58;
+}
+
+.note-edit-modal-save-incomplete:not(:disabled) {
+  cursor: pointer;
+}
+
+.note-edit-modal-actions button:disabled,
+.note-edit-modal-close:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+@media (max-width: 520px) {
+  .note-detail-header-actions {
+    gap: 6px;
+  }
+
+  .note-detail-header-actions .note-detail-page-author {
+    max-width: calc(100vw - 132px);
+  }
+
+  .note-edit-modal-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .note-edit-modal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    border-radius: 22px 22px 16px 16px;
+    padding: 20px;
+  }
+
+  .note-edit-rating-picker {
+    gap: 2px;
+  }
+
+  .note-edit-rating-star {
+    width: 32px;
+    height: 34px;
+    font-size: 23px;
+  }
+
+  .note-edit-rating-picker strong {
+    margin-left: auto;
+  }
+}

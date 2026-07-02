@@ -45,6 +45,14 @@ const CLUSTER_PIXEL_RADIUS_BY_ZOOM = [
 
 const cleanText = (value) => String(value ?? "").trim();
 
+function getLocalDateInputValue(date = new Date()) {
+  const localDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000
+  );
+
+  return localDate.toISOString().slice(0, 10);
+}
+
 function getAddressComponentText(addressComponents, ...types) {
   if (!Array.isArray(addressComponents)) {
     return "";
@@ -230,7 +238,10 @@ function getSelectedPlaceFromMapRow(place) {
   };
 }
 
-async function createPlaceNote(selectedPlace, { title, content, rating }) {
+async function createPlaceNote(
+  selectedPlace,
+  { title, content, rating, visitedDate }
+) {
   const googlePlaceId = cleanText(selectedPlace?.id);
   const name = cleanText(selectedPlace?.name);
   const formattedAddress = cleanText(selectedPlace?.address);
@@ -246,7 +257,7 @@ async function createPlaceNote(selectedPlace, { title, content, rating }) {
     throw createAppError(MESSAGE_KEY.PLACE_LOCATION_INVALID);
   }
 
-  const { data, error } = await supabase.rpc("CreatePlaceNoteWithReviewV2", {
+  const { data, error } = await supabase.rpc("CreatePlaceNoteWithReviewV3", {
     p_google_place_id: googlePlaceId,
     p_name: name,
     p_formatted_address: formattedAddress,
@@ -258,6 +269,7 @@ async function createPlaceNote(selectedPlace, { title, content, rating }) {
     p_content: content,
     p_rating: rating,
     p_venue_category_code: cleanText(selectedPlace?.venueCategoryCode) || null,
+    p_visited_date: cleanText(visitedDate) || null,
   });
 
   if (error) {
@@ -329,6 +341,7 @@ function MapPage({
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
   const [noteRating, setNoteRating] = useState(0);
+  const [noteVisitedDate, setNoteVisitedDate] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [noteSaveError, setNoteSaveError] = useState("");
 
@@ -525,6 +538,7 @@ function MapPage({
     setNoteTitle("");
     setNoteDraft("");
     setNoteRating(0);
+    setNoteVisitedDate(getLocalDateInputValue());
     setNoteSaveError("");
   }, []);
 
@@ -550,6 +564,11 @@ function MapPage({
 
   const handleNoteRatingChange = useCallback((value) => {
     setNoteRating(value);
+    setNoteSaveError("");
+  }, []);
+
+  const handleNoteVisitedDateChange = useCallback((value) => {
+    setNoteVisitedDate(value);
     setNoteSaveError("");
   }, []);
 
@@ -792,6 +811,7 @@ function MapPage({
     const title = cleanText(noteTitle);
     const content = cleanText(noteDraft);
     const rating = Number(noteRating);
+    const visitedDate = cleanText(noteVisitedDate) || null;
 
     if (!selectedPlace || isSavingNote) {
       return;
@@ -820,6 +840,7 @@ function MapPage({
         title,
         content,
         rating,
+        visitedDate,
       });
 
       setIsNoteModalOpen(false);
@@ -904,11 +925,13 @@ function MapPage({
               noteTitle={noteTitle}
               noteDraft={noteDraft}
               noteRating={noteRating}
+              noteVisitedDate={noteVisitedDate}
               isSaving={isSavingNote}
               saveError={noteSaveError}
               onTitleChange={handleNoteTitleChange}
               onNoteChange={handleNoteDraftChange}
               onRatingChange={handleNoteRatingChange}
+              onVisitedDateChange={handleNoteVisitedDateChange}
               onCancel={closeNoteModal}
               onSave={saveNoteDraft}
             />,
@@ -1926,16 +1949,20 @@ function AddNoteModal({
   noteTitle,
   noteDraft,
   noteRating,
+  noteVisitedDate,
   isSaving,
   saveError,
   onTitleChange,
   onNoteChange,
   onRatingChange,
+  onVisitedDateChange,
   onCancel,
   onSave,
 }) {
   const titleInputRef = useRef(null);
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
+
+  const today = getLocalDateInputValue();
 
   useEffect(() => {
     titleInputRef.current?.focus();
@@ -1966,12 +1993,18 @@ function AddNoteModal({
       !Number.isInteger(Number(noteRating)) ||
       Number(noteRating) < 1 ||
       Number(noteRating) > 5,
+    visitedDate: Boolean(noteVisitedDate) && noteVisitedDate > today,
     detail: !cleanText(noteDraft),
   };
 
-  const canSave = !validation.title && !validation.rating && !validation.detail;
+  const canSave =
+    !validation.title &&
+    !validation.rating &&
+    !validation.visitedDate &&
+    !validation.detail;
   const showTitleError = hasAttemptedSave && validation.title;
   const showRatingError = hasAttemptedSave && validation.rating;
+  const showVisitedDateError = hasAttemptedSave && validation.visitedDate;
   const showDetailError = hasAttemptedSave && validation.detail;
 
   const handleSaveAttempt = () => {
@@ -2062,6 +2095,33 @@ function AddNoteModal({
             </p>
           )}
         </div>
+
+        <label className="note-modal-field">
+          <span>
+            Ziyaret tarihi
+          </span>
+          <input
+            className="note-modal-input note-modal-date-input"
+            type="date"
+            value={noteVisitedDate}
+            max={today}
+            disabled={isSaving}
+            aria-invalid={showVisitedDateError}
+            aria-describedby={
+              showVisitedDateError ? "note-visited-date-error" : undefined
+            }
+            onChange={(event) => onVisitedDateChange(event.target.value)}
+          />
+          {showVisitedDateError && (
+            <p
+              id="note-visited-date-error"
+              className="note-modal-field-error"
+              role="alert"
+            >
+              Ziyaret tarihi gelecekte olamaz.
+            </p>
+          )}
+        </label>
 
         <label className="note-modal-field">
           <span>Detay</span>
