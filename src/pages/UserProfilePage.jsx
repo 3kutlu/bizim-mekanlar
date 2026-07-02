@@ -6,6 +6,7 @@ import {
   getVenueCategoryLabel,
 } from "../utils/venueCategory.js";
 import { createSignedNotePhotoUrls } from "../utils/notePhotos.js";
+import { useProfilePhotoUrls } from "../utils/profilePhotos.js";
 import "../css/user-discovery.css";
 
 const PROFILE_TABS = Object.freeze({
@@ -552,6 +553,8 @@ export default function UserProfilePage({
   const avatarLetter = (profile?.Username || fullName || "K")
     .charAt(0)
     .toUpperCase();
+  const profilePhotoUrls = useProfilePhotoUrls([profile?.UserId]);
+  const profilePhotoUrl = profilePhotoUrls[Number(profile?.UserId)] || "";
 
   const followButtonLabel =
     followStatus === "ACCEPTED"
@@ -749,7 +752,7 @@ export default function UserProfilePage({
             <section className="foreign-profile-summary">
               <div className="foreign-profile-top">
                 <div className="foreign-profile-avatar" aria-hidden="true">
-                  {avatarLetter}
+                  {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : avatarLetter}
                 </div>
 
                 <div className="foreign-profile-identity">

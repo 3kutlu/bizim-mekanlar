@@ -106,3 +106,36 @@
 .place-list-edit-backdrop {
   z-index: 1600;
 }
+
+/* v2.0.2.6 — Mekanı listelere ekleme aktif işlem ekranıdır.
+   PlaceSaveSheet document.body içine portal ile render edilir; bu nedenle
+   header ve mobil alt menünün (1400) üzerinde, fotoğraf lightbox'ının (1700)
+   altında kalmalıdır. */
+.place-save-backdrop {
+  z-index: 1600 !important;
+}
+
+/* v2.1.0.1 — mobil mekan sayfası sayaçları
+   Üç sayaç tek sırada kalsın. Üçüncü "fotoğraf" kutusunun alt satıra
+   düşmesini engellemek için mobilde grid kullanıyor, kutuları çok az sıkıştırıyoruz. */
+@media (max-width: 520px) {
+  .place-detail-stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .place-detail-stat-row > div {
+    min-width: 0;
+    padding: 9px 10px;
+    border-radius: 12px;
+  }
+
+  .place-detail-stat-row strong {
+    font-size: 14px;
+  }
+
+  .place-detail-stat-row span {
+    font-size: 11px;
+  }
+}

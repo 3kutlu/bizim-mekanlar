@@ -18,6 +18,15 @@ import {
   revokeNotePhotoDrafts,
   uploadMyNotePhotoDrafts,
 } from "./utils/notePhotos.js";
+import {
+  createProfilePhotoDraft,
+  deleteMyProfilePhotoObject,
+  removeMyProfilePhotoPath,
+  revokeProfilePhotoDraft,
+  setMyProfilePhotoPath,
+  uploadMyProfilePhotoDraft,
+  useProfilePhotoUrls,
+} from "./utils/profilePhotos.js";
 import AuthPage from "./pages/AuthPage.jsx";
 import MapPage from "./pages/MapPage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
@@ -29,6 +38,7 @@ import "./css/profile-page.css";
 import "./css/user-discovery.css";
 import "./css/place-detail.css";
 import "./css/modal-layer-overrides.css";
+import "./css/profile-photo.css";
 
 const EMPTY_SUMMARY = {
   CityName: "",
@@ -777,7 +787,7 @@ function App() {
     const { data: profileData, error: profileQueryError } = await supabase
       .from("Users")
       .select(
-        "UserId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, AccountVisibilityStatusId, IsActive"
+        "UserId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, AccountVisibilityStatusId, ProfilePhotoPath, IsActive"
       )
       .eq("AuthUserId", session.user.id)
       .eq("IsActive", true)
@@ -1922,6 +1932,11 @@ function ProfilePage({
   const avatarLetter = (profile.Username || profile.FirstName || "K")
     .charAt(0)
     .toUpperCase();
+  const profilePhotoUrls = useProfilePhotoUrls(
+    [profile?.UserId],
+    profile?.ProfilePhotoPath
+  );
+  const profilePhotoUrl = profilePhotoUrls[Number(profile?.UserId)] || "";
 
   const loadProfileNotes = useCallback(async () => {
     if (!profile?.UserId) {
@@ -2049,7 +2064,7 @@ function ProfilePage({
       <div className="profile-card">
         <div className="profile-top">
           <div className="profile-avatar" aria-hidden="true">
-            {avatarLetter}
+            {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : avatarLetter}
           </div>
 
           <div className="profile-identity">
@@ -3518,6 +3533,11 @@ function NoteFeed({
 }) {
   const [reactionSummaries, setReactionSummaries] = useState({});
   const [reactionSummariesLoading, setReactionSummariesLoading] = useState(false);
+  const noteUserIds = useMemo(
+    () => notes.map((note) => note?.UserId),
+    [notes]
+  );
+  const profilePhotoUrls = useProfilePhotoUrls(noteUserIds);
 
   const isProfileVariant = variant === "profile";
   const shouldShowReactions = !isProfileVariant;
@@ -3605,6 +3625,7 @@ function NoteFeed({
     >
       {notes.map((note, index) => {
         const username = note.Username || "Kullanıcı";
+        const profilePhotoUrl = profilePhotoUrls[Number(note?.UserId)] || "";
         const title = getNoteTitle(note);
         const noteId = getReactionNoteId(note);
         const canOpenNote = Boolean(noteId && onOpenNote);
@@ -3654,11 +3675,19 @@ function NoteFeed({
                   title={`${username} profilini aç`}
                   aria-label={`${username} profilini aç`}
                 >
-                  {username.charAt(0).toUpperCase()}
+                  {profilePhotoUrl ? (
+                    <img src={profilePhotoUrl} alt="" />
+                  ) : (
+                    username.charAt(0).toUpperCase()
+                  )}
                 </button>
               ) : (
                 <div className="note-feed-avatar" aria-hidden="true">
-                  {username.charAt(0).toUpperCase()}
+                  {profilePhotoUrl ? (
+                    <img src={profilePhotoUrl} alt="" />
+                  ) : (
+                    username.charAt(0).toUpperCase()
+                  )}
                 </div>
               )
             )}
@@ -3816,6 +3845,7 @@ function NoteDetailPage({
   const [photosLoading, setPhotosLoading] = useState(true);
   const [photosError, setPhotosError] = useState("");
   const actionMenuRef = useRef(null);
+  const noteProfilePhotoUrls = useProfilePhotoUrls([note?.UserId]);
 
   const loadNote = useCallback(async () => {
     setLoading(true);
@@ -3971,6 +4001,7 @@ function NoteDetailPage({
   const username = note?.Username || "Kullanıcı";
   const fullName = getFullName(note);
   const avatarLetter = (username || fullName || "K").charAt(0).toUpperCase();
+  const noteProfilePhotoUrl = noteProfilePhotoUrls[Number(note?.UserId)] || "";
   const isOwnNote =
     Number.isInteger(Number(note?.UserId)) &&
     Number.isInteger(Number(currentUserId)) &&
@@ -4109,7 +4140,11 @@ function NoteDetailPage({
               title="Kullanıcı profilini aç"
             >
               <span className="note-detail-avatar" aria-hidden="true">
-                {avatarLetter}
+                {noteProfilePhotoUrl ? (
+                  <img src={noteProfilePhotoUrl} alt="" />
+                ) : (
+                  avatarLetter
+                )}
               </span>
               <span className="note-detail-page-author-copy">
                 <strong>{fullName || username}</strong>
@@ -5071,6 +5106,10 @@ function NoteDeleteConfirmModal({
 }
 
 function ConnectionList({ users, onOpenUser }) {
+  const profilePhotoUrls = useProfilePhotoUrls(
+    useMemo(() => users.map((user) => user?.UserId), [users])
+  );
+
   return (
     <div className="connection-list">
       {users.map((user) => {
@@ -5078,6 +5117,7 @@ function ConnectionList({ users, onOpenUser }) {
         const avatarLetter = (user.Username || fullName || "K")
           .charAt(0)
           .toUpperCase();
+        const profilePhotoUrl = profilePhotoUrls[Number(user?.UserId)] || "";
 
         return (
           <button
@@ -5087,7 +5127,7 @@ function ConnectionList({ users, onOpenUser }) {
             onClick={() => onOpenUser?.(user.UserId)}
           >
             <span className="connection-avatar" aria-hidden="true">
-              {avatarLetter}
+              {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : avatarLetter}
             </span>
 
             <span className="connection-copy">
@@ -5162,8 +5202,24 @@ function ProfileEditModal({
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [photoDraft, setPhotoDraft] = useState(null);
+  const [removeCurrentPhoto, setRemoveCurrentPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const photoInputRef = useRef(null);
+  const profilePhotoUrls = useProfilePhotoUrls(
+    [profile?.UserId],
+    profile?.ProfilePhotoPath
+  );
+  const currentProfilePhotoUrl = profilePhotoUrls[Number(profile?.UserId)] || "";
+  const hasCurrentProfilePhoto = Boolean(profile?.ProfilePhotoPath);
+  const displayedProfilePhotoUrl = photoDraft?.previewUrl || (
+    removeCurrentPhoto ? "" : currentProfilePhotoUrl
+  );
+  const avatarLetter = (profile?.Username || profile?.FirstName || "K")
+    .charAt(0)
+    .toUpperCase();
 
   useEffect(() => {
     const handleEscape = (event) => {
@@ -5181,6 +5237,10 @@ function ProfileEditModal({
       window.removeEventListener("keydown", handleEscape);
     };
   }, [loggingOut, onClose, saving]);
+
+  useEffect(() => {
+    return () => revokeProfilePhotoDraft(photoDraft);
+  }, [photoDraft]);
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -5226,6 +5286,36 @@ function ProfileEditModal({
     return isAvailable;
   };
 
+  const handleProfilePhotoSelected = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || saving || loggingOut) {
+      return;
+    }
+
+    setPhotoError("");
+
+    try {
+      const nextDraft = createProfilePhotoDraft(file);
+      setPhotoDraft(nextDraft);
+      setRemoveCurrentPhoto(false);
+    } catch (error) {
+      console.error("Profil fotoğrafı hazırlanamadı:", error);
+      setPhotoError(error?.message || "Profil fotoğrafı seçilemedi.");
+    }
+  };
+
+  const markProfilePhotoForRemoval = () => {
+    if (saving || loggingOut) {
+      return;
+    }
+
+    setPhotoDraft(null);
+    setRemoveCurrentPhoto(true);
+    setPhotoError("");
+  };
+
   const saveProfile = async (event) => {
     event.preventDefault();
     setSaveError("");
@@ -5269,6 +5359,54 @@ function ProfileEditModal({
       console.error("Profil güncellenemedi:", error);
       setSaveError(
         getErrorMessageKey(error, MESSAGE_KEY.PROFILE_UPDATE_FAILED)
+      );
+      setSaving(false);
+      return;
+    }
+
+    try {
+      if (photoDraft) {
+        const uploadedPhoto = await uploadMyProfilePhotoDraft(photoDraft);
+        let previousStoragePath = "";
+
+        try {
+          previousStoragePath = await setMyProfilePhotoPath(
+            uploadedPhoto.storagePath
+          );
+        } catch (photoPathError) {
+          await deleteMyProfilePhotoObject(uploadedPhoto.storagePath).catch(
+            (cleanupError) => {
+              console.error("Yüklenemeyen profil fotoğrafı temizlenemedi:", cleanupError);
+            }
+          );
+          throw photoPathError;
+        }
+
+        if (
+          previousStoragePath &&
+          previousStoragePath !== uploadedPhoto.storagePath
+        ) {
+          await deleteMyProfilePhotoObject(previousStoragePath).catch(
+            (cleanupError) => {
+              console.error("Eski profil fotoğrafı temizlenemedi:", cleanupError);
+            }
+          );
+        }
+      } else if (removeCurrentPhoto && hasCurrentProfilePhoto) {
+        const previousStoragePath = await removeMyProfilePhotoPath();
+
+        if (previousStoragePath) {
+          await deleteMyProfilePhotoObject(previousStoragePath).catch(
+            (cleanupError) => {
+              console.error("Profil fotoğrafı temizlenemedi:", cleanupError);
+            }
+          );
+        }
+      }
+    } catch (photoUpdateError) {
+      console.error("Profil fotoğrafı güncellenemedi:", photoUpdateError);
+      setPhotoError(
+        "Profil bilgilerin kaydedildi, ancak fotoğrafın güncellenemedi. Tekrar deneyebilirsin."
       );
       setSaving(false);
       return;
@@ -5334,6 +5472,58 @@ function ProfileEditModal({
         </div>
 
         <form className="profile-edit-form" onSubmit={saveProfile}>
+          <div className="profile-photo-editor">
+            <div className="profile-photo-editor-preview" aria-hidden="true">
+              {displayedProfilePhotoUrl ? (
+                <img src={displayedProfilePhotoUrl} alt="" />
+              ) : (
+                avatarLetter
+              )}
+            </div>
+
+            <div className="profile-photo-editor-copy">
+              <strong>Profil fotoğrafı</strong>
+              <span>JPG, PNG veya WEBP · en fazla 5 MB</span>
+
+              <div className="profile-photo-editor-actions">
+                <button
+                  className="profile-photo-editor-select"
+                  type="button"
+                  disabled={saving || loggingOut}
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  {displayedProfilePhotoUrl ? "Fotoğrafı değiştir" : "Fotoğraf ekle"}
+                </button>
+
+                {(hasCurrentProfilePhoto || photoDraft) && !removeCurrentPhoto && (
+                  <button
+                    className="profile-photo-editor-remove"
+                    type="button"
+                    disabled={saving || loggingOut}
+                    onClick={markProfilePhotoForRemoval}
+                  >
+                    Fotoğrafı kaldır
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <input
+              ref={photoInputRef}
+              className="profile-photo-editor-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={saving || loggingOut}
+              onChange={handleProfilePhotoSelected}
+            />
+
+            {photoError && (
+              <p className="profile-photo-editor-error" role="alert">
+                {photoError}
+              </p>
+            )}
+          </div>
+
           <label>
             Kullanıcı adı
             <input

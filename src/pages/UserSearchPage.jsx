@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase.js";
+import { useProfilePhotoUrls } from "../utils/profilePhotos.js";
 import "../css/user-discovery.css";
 
 function getFullName(user) {
@@ -16,6 +17,9 @@ export default function UserSearchPage({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const inputRef = useRef(null);
+  const profilePhotoUrls = useProfilePhotoUrls(
+    users.map((user) => user?.UserId)
+  );
 
   useEffect(() => {
     if (!isActive) {
@@ -137,6 +141,7 @@ export default function UserSearchPage({
                 .charAt(0)
                 .toUpperCase();
               const isPrivate = user.AccountVisibilityCode === "PRIVATE";
+              const profilePhotoUrl = profilePhotoUrls[Number(user?.UserId)] || "";
 
               return (
                 <button
@@ -146,7 +151,7 @@ export default function UserSearchPage({
                   onClick={() => onSelectUser(user)}
                 >
                   <span className="user-search-avatar" aria-hidden="true">
-                    {avatarLetter}
+                    {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : avatarLetter}
                   </span>
 
                   <span className="user-search-copy">
