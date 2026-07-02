@@ -1111,3 +1111,261 @@ button.foreign-profile-saved-card-button:focus-visible {
     font-size: 17px;
   }
 }
+
+/* v1.8.4 — collection detail: sorting, saved date, and removal controls */
+.place-list-sort {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 14px;
+}
+
+.place-list-sort > span {
+  margin-right: 2px;
+  color: #8f98aa;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.place-list-sort button {
+  min-height: 30px;
+  border: 1px solid #354054;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: transparent;
+  color: #aeb7c7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.place-list-sort button:hover,
+.place-list-sort button:focus-visible {
+  border-color: #71809a;
+  background: #1a202b;
+  color: #f4f6fb;
+}
+
+.place-list-sort .place-list-sort-active {
+  border-color: #58657d;
+  background: #232a36;
+  color: #f5f7fc;
+}
+
+.place-list-item-card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+
+.place-list-item-main {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 0;
+  padding: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.place-list-item-card:has(.place-list-item-more-button) .place-list-item-main {
+  padding-right: 54px;
+}
+
+.place-list-item-main:hover:not(:disabled),
+.place-list-item-main:focus-visible {
+  background: #1a1f29;
+}
+
+.place-list-item-main:focus-visible {
+  outline: 2px solid #9cbaff;
+  outline-offset: -3px;
+}
+
+.place-list-item-main:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.place-list-item-copy {
+  gap: 3px;
+}
+
+.place-list-item-copy small {
+  overflow: hidden;
+  color: #8f98aa;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-list-item-meta i {
+  margin: 0 4px;
+  color: #667187;
+  font-style: normal;
+}
+
+.place-list-item-more-button {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #3d4658;
+  border-radius: 10px;
+  padding: 0;
+  background: #15181f;
+  color: #dfe6f4;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.place-list-item-more-button:hover,
+.place-list-item-more-button:focus-visible {
+  border-color: #7487b3;
+  background: #212836;
+  color: #fff;
+}
+
+.place-list-remove-backdrop {
+  position: fixed;
+  z-index: 1300;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.64);
+  backdrop-filter: blur(5px);
+}
+
+.place-list-remove-modal {
+  width: min(100%, 410px);
+  display: grid;
+  gap: 13px;
+  border: 1px solid #3d3540;
+  border-radius: 20px;
+  padding: 20px;
+  outline: none;
+  background: #17151a;
+  color: #f3f5fa;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.place-list-remove-modal .eyebrow,
+.place-list-remove-modal h2,
+.place-list-remove-modal p {
+  margin: 0;
+}
+
+.place-list-remove-modal h2 {
+  overflow: hidden;
+  color: #fff;
+  font-size: 19px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-list-remove-modal > p:not(.eyebrow):not(.place-list-remove-error) {
+  color: #b9c0cf;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.place-list-remove-modal > p strong {
+  color: #f1f4fb;
+}
+
+.place-list-remove-error {
+  border: 1px solid rgba(230, 117, 133, 0.44);
+  border-radius: 12px;
+  padding: 10px 11px;
+  background: rgba(133, 43, 57, 0.2);
+  color: #ffbdc5;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.place-list-remove-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 3px;
+}
+
+.place-list-remove-actions button,
+.place-list-remove-all {
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.place-list-remove-cancel {
+  border: 1px solid #3d4658;
+  background: transparent;
+  color: #dce4f3;
+}
+
+.place-list-remove-current {
+  border: 1px solid #8a4350;
+  background: rgba(112, 42, 52, 0.14);
+  color: #ffbdc5;
+}
+
+.place-list-remove-current:hover:not(:disabled),
+.place-list-remove-current:focus-visible,
+.place-list-remove-all:hover:not(:disabled),
+.place-list-remove-all:focus-visible {
+  border-color: #e47c8c;
+  background: rgba(151, 54, 69, 0.24);
+  color: #fff1f3;
+}
+
+.place-list-remove-all {
+  border: 1px solid #4d3a42;
+  background: transparent;
+  color: #d6c1c7;
+}
+
+.place-list-remove-actions button:disabled,
+.place-list-remove-all:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+@media (max-width: 520px) {
+  .place-list-item-main {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+  }
+
+  .place-list-item-card:has(.place-list-item-more-button) .place-list-item-main {
+    padding-right: 50px;
+  }
+
+  .place-list-item-more-button {
+    top: 9px;
+    right: 9px;
+  }
+
+  .place-list-remove-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .place-list-remove-modal {
+    width: 100%;
+    border-radius: 20px 20px 16px 16px;
+  }
+}

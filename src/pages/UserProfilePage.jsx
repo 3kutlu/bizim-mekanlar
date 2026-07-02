@@ -155,9 +155,13 @@ function ExternalNoteCard({ note, onOpenNote, onOpenPlace }) {
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onOpenPlace(placeId);
+                  onOpenPlace({
+                placeId,
+                placeName,
+                venueCategoryCode,
+              });
                 }}
-                title="Mekanı haritada aç"
+                title="Mekan sayfasını aç"
               >
                 {placeContent}
               </button>
@@ -236,6 +240,7 @@ function EmptyProfileTab({ type }) {
 export default function UserProfilePage({
   userId,
   isActive,
+  placeListsRefreshKey = 0,
   onBack,
   onTitleChange,
   onOpenCollection,
@@ -426,7 +431,14 @@ export default function UserProfilePage({
     if (activeTab === PROFILE_TABS.SAVED) {
       void loadSavedLists();
     }
-  }, [activeTab, canViewProfileContent, loadNotes, loadSavedLists, profile]);
+  }, [
+    activeTab,
+    canViewProfileContent,
+    loadNotes,
+    loadSavedLists,
+    placeListsRefreshKey,
+    profile,
+  ]);
 
   const handleFollowAction = async () => {
     if (!profile || isActionLoading) {

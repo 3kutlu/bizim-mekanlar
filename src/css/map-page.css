@@ -1021,3 +1021,39 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
+
+/* v1.8.4 — save sheet: saved lists are grouped and obvious */
+.place-save-selection-summary {
+  margin: -2px 0 0;
+  border: 1px solid #354054;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #121722;
+  color: #cfd9eb;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.place-save-list {
+  gap: 14px;
+  border-top: 0;
+}
+
+.place-save-list-section {
+  display: grid;
+  border-top: 1px solid #2a303b;
+}
+
+.place-save-list-section > p {
+  margin: 0;
+  padding: 11px 2px 8px;
+  color: #8f98aa;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.place-save-list-section .place-save-list-row:last-child {
+  border-bottom: 0;
+}

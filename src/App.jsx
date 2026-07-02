@@ -1017,6 +1017,10 @@ function App() {
     setPlaceListsRefreshKey((currentKey) => currentKey + 1);
   }, []);
 
+  const handlePlaceListChanged = useCallback(() => {
+    setPlaceListsRefreshKey((currentKey) => currentKey + 1);
+  }, []);
+
   const handleFollowChanged = async () => {
     await Promise.all([
       refreshProfileSummary(),
@@ -1290,6 +1294,10 @@ function App() {
       const listName =
         String(list?.Name ?? context?.listName ?? "").trim() ||
         "Mekan listesi";
+      const isOwner =
+        Number.isInteger(userId) &&
+        Number.isInteger(Number(ownUserId)) &&
+        userId === Number(ownUserId);
 
       if (
         !Number.isInteger(listId) ||
@@ -1307,9 +1315,10 @@ function App() {
         listIcon: String(list?.Icon ?? context?.listIcon ?? "✦").trim() || "✦",
         userId,
         username,
+        isOwner,
       });
     },
-    [pushDiscoveryScreen]
+    [ownUserId, pushDiscoveryScreen]
   );
 
   const handleProfileCollectionClick = (type) => {
@@ -1592,6 +1601,7 @@ function App() {
                     <UserProfilePage
                       userId={screen.userId}
                       isActive={isActive}
+                      placeListsRefreshKey={placeListsRefreshKey}
                       onBack={popDiscoveryScreen}
                       onTitleChange={handleExternalProfileTitleChange}
                       onOpenCollection={handleOpenCollectionForUser}
@@ -1649,9 +1659,11 @@ function App() {
                       listName={screen.listName}
                       listIcon={screen.listIcon}
                       profileUsername={screen.username}
+                      isOwner={Boolean(screen.isOwner)}
                       isActive={isActive}
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceDetail}
+                      onListChanged={handlePlaceListChanged}
                     />
                   )}
                 </section>
@@ -2375,13 +2387,18 @@ function PlaceListDetailPage({
   listName,
   listIcon,
   profileUsername,
+  isOwner = false,
   isActive,
   onBack,
   onOpenPlace,
+  onListChanged,
 }) {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [sortBy, setSortBy] = useState("saved");
+  const [savedDateDirection, setSavedDateDirection] = useState("desc");
+  const [removalTarget, setRemovalTarget] = useState(null);
 
   const loadItems = useCallback(async () => {
     const normalizedListId = Number(userPlaceListId);
@@ -2396,14 +2413,16 @@ function PlaceListDetailPage({
     setIsLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("GetUserPlaceListItemsV2", {
+    const { data, error } = await supabase.rpc("GetUserPlaceListItemsV3", {
       p_user_place_list_id: normalizedListId,
     });
 
     if (error) {
       console.error("Liste mekanları alınamadı:", error);
       setItems([]);
-      setErrorMessage(error.message || "Bu listenin mekanları şu an yüklenemedi.");
+      setErrorMessage(
+        error.message || "Bu listenin mekanları şu an yüklenemedi."
+      );
     } else {
       setItems(data ?? []);
     }
@@ -2422,15 +2441,75 @@ function PlaceListDetailPage({
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        onBack();
+        if (removalTarget) {
+          setRemovalTarget(null);
+        } else {
+          onBack();
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isActive, onBack]);
+  }, [isActive, onBack, removalTarget]);
+
+  const sortedItems = useMemo(() => {
+    const copy = [...items];
+
+    return copy.sort((left, right) => {
+      if (sortBy === "name") {
+        return String(left?.Name ?? "").localeCompare(
+          String(right?.Name ?? ""),
+          "tr"
+        );
+      }
+
+      if (sortBy === "rating") {
+        const leftRating = Number(left?.AverageRating);
+        const rightRating = Number(right?.AverageRating);
+        const leftValue = Number.isFinite(leftRating) ? leftRating : -1;
+        const rightValue = Number.isFinite(rightRating) ? rightRating : -1;
+
+        if (leftValue !== rightValue) {
+          return rightValue - leftValue;
+        }
+      }
+
+      const leftDate = new Date(
+        left?.SavedDate ?? left?.CreatedDate ?? 0
+      ).getTime();
+      const rightDate = new Date(
+        right?.SavedDate ?? right?.CreatedDate ?? 0
+      ).getTime();
+
+      return savedDateDirection === "asc"
+        ? leftDate - rightDate
+        : rightDate - leftDate;
+    });
+  }, [items, savedDateDirection, sortBy]);
 
   const normalizedListName = String(listName ?? "").trim() || "Mekan listesi";
+
+  const handleRemoved = useCallback(
+    ({ placeId, removeFromAll }) => {
+      const normalizedPlaceId = Number(placeId);
+
+      setItems((currentItems) =>
+        currentItems.filter((item) => {
+          const currentPlaceId = Number(item?.PlaceId);
+
+          if (removeFromAll) {
+            return currentPlaceId !== normalizedPlaceId;
+          }
+
+          return currentPlaceId !== normalizedPlaceId;
+        })
+      );
+      setRemovalTarget(null);
+      onListChanged?.();
+    },
+    [onListChanged]
+  );
 
   return (
     <div className="discovery-page-content place-list-detail-page">
@@ -2468,47 +2547,272 @@ function PlaceListDetailPage({
             compact
             icon={listIcon || "✦"}
             title="Bu listede henüz mekan yok"
-            message="Mekan eklediğinde burada görünür." 
+            message={
+              isOwner
+                ? "Haritadaki Kaydet alanından mekan eklediğinde burada görünür."
+                : "Bu koleksiyona henüz mekan eklenmemiş."
+            }
           />
         )}
 
         {!isLoading && !errorMessage && items.length > 0 && (
-          <div className="place-list-items" aria-label={`${normalizedListName} mekanları`}>
-            {items.map((item) => {
-              const placeId = Number(item?.PlaceId);
-              const canOpenPlace = Number.isInteger(placeId) && placeId > 0;
-              const venueCategoryCode = item?.VenueCategoryCode;
-
-              return (
-                <button
-                  className="place-list-item-card"
-                  type="button"
-                  key={item?.UserPlaceListItemId ?? placeId}
-                  disabled={!canOpenPlace}
-                  onClick={() =>
-                    canOpenPlace &&
-                    onOpenPlace?.({
-                      placeId,
-                      placeName: item?.Name,
-                      venueCategoryCode,
-                    })
+          <>
+            <div
+              className="place-list-sort"
+              role="group"
+              aria-label="Koleksiyonu sırala"
+            >
+              <span>Sırala</span>
+              <button
+                type="button"
+                className={sortBy === "saved" ? "place-list-sort-active" : ""}
+                onClick={() => {
+                  if (sortBy === "saved") {
+                    setSavedDateDirection((currentDirection) =>
+                      currentDirection === "desc" ? "asc" : "desc"
+                    );
+                    return;
                   }
-                  title={canOpenPlace ? "Mekan sayfasını aç" : undefined}
-                >
-                  <span className="place-list-item-icon" aria-hidden="true">
-                    {getVenueCategoryIcon(venueCategoryCode)}
-                  </span>
-                  <span className="place-list-item-copy">
-                    <strong>{item?.Name || "İsimsiz mekan"}</strong>
-                    <span>{item?.FormattedAddress || "Adres bilgisi yok"}</span>
-                  </span>
-                  <span className="place-list-item-arrow" aria-hidden="true">›</span>
-                </button>
-              );
-            })}
-          </div>
+
+                  setSortBy("saved");
+                  setSavedDateDirection("desc");
+                }}
+                aria-label={
+                  savedDateDirection === "desc"
+                    ? "Tarihe göre sırala: en yeni üstte. En eskiyi görmek için tekrar dokun."
+                    : "Tarihe göre sırala: en eski üstte. En yeniyi görmek için tekrar dokun."
+                }
+                title={
+                  savedDateDirection === "desc"
+                    ? "En yeni üstte · değiştirmek için dokun"
+                    : "En eski üstte · değiştirmek için dokun"
+                }
+              >
+                {savedDateDirection === "desc" ? "Tarih ↓" : "Tarih ↑"}
+              </button>
+              <button
+                type="button"
+                className={sortBy === "name" ? "place-list-sort-active" : ""}
+                onClick={() => setSortBy("name")}
+              >
+                İsim
+              </button>
+              <button
+                type="button"
+                className={sortBy === "rating" ? "place-list-sort-active" : ""}
+                onClick={() => setSortBy("rating")}
+              >
+                Puan
+              </button>
+            </div>
+
+            <div
+              className="place-list-items"
+              aria-label={`${normalizedListName} mekanları`}
+            >
+              {sortedItems.map((item) => {
+                const placeId = Number(item?.PlaceId);
+                const canOpenPlace = Number.isInteger(placeId) && placeId > 0;
+                const venueCategoryCode = item?.VenueCategoryCode;
+                const savedDate = item?.SavedDate ?? item?.CreatedDate;
+                const averageRating = Number(item?.AverageRating);
+                const hasRating = Number.isFinite(averageRating) && averageRating > 0;
+
+                return (
+                  <article
+                    className="place-list-item-card"
+                    key={item?.UserPlaceListItemId ?? placeId}
+                  >
+                    <button
+                      className="place-list-item-main"
+                      type="button"
+                      disabled={!canOpenPlace}
+                      onClick={() =>
+                        canOpenPlace &&
+                        onOpenPlace?.({
+                          placeId,
+                          placeName: item?.Name,
+                          venueCategoryCode,
+                        })
+                      }
+                      title={canOpenPlace ? "Mekan sayfasını aç" : undefined}
+                    >
+                      <span className="place-list-item-icon" aria-hidden="true">
+                        {getVenueCategoryIcon(venueCategoryCode)}
+                      </span>
+                      <span className="place-list-item-copy">
+                        <strong>{item?.Name || "İsimsiz mekan"}</strong>
+                        <span>
+                          {item?.FormattedAddress || "Adres bilgisi yok"}
+                        </span>
+                        <small className="place-list-item-meta">
+                          {savedDate && `Kaydedildi ${formatRelativeNoteTime(savedDate)}`}
+                          {hasRating && (
+                            <>
+                              {savedDate && <i aria-hidden="true">·</i>}
+                              {averageRating.toFixed(1)} / 5
+                            </>
+                          )}
+                        </small>
+                      </span>
+                      <span className="place-list-item-arrow" aria-hidden="true">
+                        ›
+                      </span>
+                    </button>
+
+                    {isOwner && (
+                      <button
+                        className="place-list-item-more-button"
+                        type="button"
+                        onClick={() => setRemovalTarget(item)}
+                        aria-label={`${item?.Name || "Mekan"} için koleksiyon seçenekleri`}
+                        title="Koleksiyon seçenekleri"
+                      >
+                        ⋯
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
+
+      {isOwner && removalTarget &&
+        createPortal(
+          <PlaceListItemRemoveModal
+            item={removalTarget}
+            listId={userPlaceListId}
+            listName={normalizedListName}
+            onClose={() => setRemovalTarget(null)}
+            onRemoved={handleRemoved}
+          />,
+          document.body
+        )}
+    </div>
+  );
+}
+
+function PlaceListItemRemoveModal({
+  item,
+  listId,
+  listName,
+  onClose,
+  onRemoved,
+}) {
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const dialogRef = useRef(null);
+  const placeId = Number(item?.PlaceId);
+  const placeName = String(item?.Name ?? "Mekan").trim() || "Mekan";
+
+  useEffect(() => {
+    dialogRef.current?.focus();
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !isRemoving) {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isRemoving, onClose]);
+
+  const removePlace = async (removeFromAll) => {
+    if (!Number.isInteger(placeId) || placeId <= 0 || isRemoving) {
+      return;
+    }
+
+    setIsRemoving(true);
+    setErrorMessage("");
+
+    const { error } = await supabase.rpc("RemoveMyPlaceFromListV2", {
+      p_user_place_list_id: Number(listId),
+      p_place_id: placeId,
+      p_remove_from_all: removeFromAll,
+    });
+
+    if (error) {
+      console.error("Mekan koleksiyondan kaldırılamadı:", error);
+      setErrorMessage(
+        error.message || "Mekan koleksiyondan kaldırılamadı. Tekrar dene."
+      );
+      setIsRemoving(false);
+      return;
+    }
+
+    onRemoved?.({ placeId, removeFromAll });
+  };
+
+  const handleBackdropMouseDown = (event) => {
+    if (!isRemoving && event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="place-list-remove-backdrop"
+      role="presentation"
+      onMouseDown={handleBackdropMouseDown}
+    >
+      <section
+        ref={dialogRef}
+        className="place-list-remove-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="place-list-remove-title"
+        tabIndex={-1}
+      >
+        <p className="eyebrow">KOLEKSİYON</p>
+        <h2 id="place-list-remove-title">{placeName}</h2>
+        <p>
+          Bu mekan <strong>{listName}</strong> listende kayıtlı.
+        </p>
+
+        {errorMessage && (
+          <p className="place-list-remove-error" role="alert">
+            {errorMessage}
+          </p>
+        )}
+
+        <div className="place-list-remove-actions">
+          <button
+            className="place-list-remove-cancel"
+            type="button"
+            disabled={isRemoving}
+            onClick={onClose}
+          >
+            Vazgeç
+          </button>
+          <button
+            className="place-list-remove-current"
+            type="button"
+            disabled={isRemoving}
+            onClick={() => removePlace(false)}
+          >
+            {isRemoving ? "Kaldırılıyor..." : "Bu listeden kaldır"}
+          </button>
+        </div>
+
+        <button
+          className="place-list-remove-all"
+          type="button"
+          disabled={isRemoving}
+          onClick={() => removePlace(true)}
+        >
+          Tüm listelerden çıkar
+        </button>
+      </section>
     </div>
   );
 }

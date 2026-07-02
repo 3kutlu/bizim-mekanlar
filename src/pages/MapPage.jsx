@@ -1787,6 +1787,46 @@ function PlaceSaveSheet({
     }
   };
 
+  const savedLists = lists.filter((list) => Boolean(list?.IsSaved));
+  const unsavedLists = lists.filter((list) => !Boolean(list?.IsSaved));
+
+  const renderListRow = (list) => {
+    const listId = Number(list?.UserPlaceListId);
+    const isSaved = Boolean(list?.IsSaved);
+    const isSaving = savingListId === listId;
+    const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
+
+    return (
+      <button
+        className={`place-save-list-row${
+          isSaved ? " place-save-list-row-saved" : ""
+        }`}
+        type="button"
+        key={listId}
+        disabled={Boolean(savingListId)}
+        aria-pressed={isSaved}
+        onClick={() => onToggleList(list)}
+      >
+        <span className="place-save-list-icon" aria-hidden="true">
+          {isSaving ? "…" : isSaved ? "✓" : "+"}
+        </span>
+
+        <span className="place-save-list-copy">
+          <strong>{list?.Name || "İsimsiz liste"}</strong>
+          <small>{placeCount} mekan</small>
+        </span>
+
+        <span className="place-save-list-status">
+          {isSaving
+            ? "İşleniyor..."
+            : isSaved
+              ? "Kaydedildi"
+              : "Kaydet"}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div
       className="place-save-backdrop"
@@ -1843,43 +1883,26 @@ function PlaceSaveSheet({
 
         {!isLoading && !errorMessage && lists.length > 0 && (
           <>
+            <p className="place-save-selection-summary" role="status">
+              {savedLists.length > 0
+                ? `Bu mekan ${savedLists.length} listende kayıtlı.`
+                : "Bu mekan henüz listelerine kayıtlı değil."}
+            </p>
+
             <div className="place-save-list" aria-label="Mekan listeleri">
-              {lists.map((list) => {
-                const listId = Number(list?.UserPlaceListId);
-                const isSaved = Boolean(list?.IsSaved);
-                const isSaving = savingListId === listId;
-                const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
+              {savedLists.length > 0 && (
+                <section className="place-save-list-section" aria-label="Kayıtlı listeler">
+                  <p>Kayıtlı listeler</p>
+                  {savedLists.map(renderListRow)}
+                </section>
+              )}
 
-                return (
-                  <button
-                    className={`place-save-list-row${
-                      isSaved ? " place-save-list-row-saved" : ""
-                    }`}
-                    type="button"
-                    key={listId}
-                    disabled={Boolean(savingListId)}
-                    aria-pressed={isSaved}
-                    onClick={() => onToggleList(list)}
-                  >
-                    <span className="place-save-list-icon" aria-hidden="true">
-                      {isSaving ? "…" : isSaved ? "✓" : "+"}
-                    </span>
-
-                    <span className="place-save-list-copy">
-                      <strong>{list?.Name || "İsimsiz liste"}</strong>
-                      <small>{placeCount} mekan</small>
-                    </span>
-
-                    <span className="place-save-list-status">
-                      {isSaving
-                        ? "İşleniyor..."
-                        : isSaved
-                          ? "Kaydedildi"
-                          : "Kaydet"}
-                    </span>
-                  </button>
-                );
-              })}
+              {unsavedLists.length > 0 && (
+                <section className="place-save-list-section" aria-label="Diğer listeler">
+                  <p>{savedLists.length > 0 ? "Diğer listeler" : "Listelerin"}</p>
+                  {unsavedLists.map(renderListRow)}
+                </section>
+              )}
             </div>
 
             {notice && (
