@@ -99,3 +99,10 @@
     padding-left: 16px;
   }
 }
+
+/* v2.0.2.5 — koleksiyon düzenleme aktif işlem modalıdır.
+   PlaceListEditModal zaten document.body içine portal ile render edilir.
+   Bu yüzden global header ve mobil navbarın üzerinde olmalıdır. */
+.place-list-edit-backdrop {
+  z-index: 1600;
+}
