@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase.js";
-import { MESSAGE_KEY, t } from "../i18n/messages.js";
 import "../css/user-discovery.css";
 
 function getFullName(user) {
@@ -62,7 +61,7 @@ export default function UserSearchPage({
       if (error) {
         console.error("Kullanıcı araması başarısız:", error);
         setUsers([]);
-        setErrorMessage(MESSAGE_KEY.USER_SEARCH_FAILED);
+        setErrorMessage("Kullanıcılar şu an aranamadı. Tekrar dene.");
       } else {
         setUsers(data ?? []);
       }
@@ -119,7 +118,7 @@ export default function UserSearchPage({
 
         {!isLoading && errorMessage && (
           <p className="user-search-error" role="alert">
-            {t(errorMessage)}
+            {errorMessage}
           </p>
         )}
 
@@ -137,6 +136,7 @@ export default function UserSearchPage({
               const avatarLetter = (user.Username || fullName || "K")
                 .charAt(0)
                 .toUpperCase();
+              const isPrivate = user.AccountVisibilityCode === "PRIVATE";
 
               return (
                 <button
@@ -150,7 +150,19 @@ export default function UserSearchPage({
                   </span>
 
                   <span className="user-search-copy">
-                    <strong>{user.Username}</strong>
+                    <strong>
+                      {user.Username}
+                      {isPrivate && (
+                        <span
+                          className="username-private-lock"
+                          role="img"
+                          aria-label="Gizli hesap"
+                          title="Gizli hesap"
+                        >
+                          🔒
+                        </span>
+                      )}
+                    </strong>
                     <span>{fullName || user.Username}</span>
                     <small>
                       {[user.CityName, user.ZodiacSign]
@@ -159,9 +171,6 @@ export default function UserSearchPage({
                     </small>
                   </span>
 
-                  {user.AccountVisibilityCode === "PRIVATE" && (
-                    <span className="user-search-private">Gizli</span>
-                  )}
                 </button>
               );
             })}

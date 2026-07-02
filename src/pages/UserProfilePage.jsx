@@ -323,9 +323,19 @@ export default function UserProfilePage({
     const username = String(profile?.Username ?? "").trim();
 
     if (username) {
-      onTitleChange?.(profile?.UserId ?? userId, username);
+      onTitleChange?.(
+        profile?.UserId ?? userId,
+        username,
+        profile?.AccountVisibilityCode
+      );
     }
-  }, [onTitleChange, profile?.UserId, profile?.Username, userId]);
+  }, [
+    onTitleChange,
+    profile?.AccountVisibilityCode,
+    profile?.UserId,
+    profile?.Username,
+    userId,
+  ]);
 
   useEffect(() => {
     if (!isActive || !userId) {
@@ -680,6 +690,7 @@ export default function UserProfilePage({
                 list,
                 userId: profile.UserId,
                 username: profile.Username,
+                isPrivate: visibilityIsPrivate,
               })
             }
             title={`${list.Name || "Mekan listesi"} listesini aç`}
@@ -755,6 +766,7 @@ export default function UserProfilePage({
                         onOpenCollection?.({
                           userId: profile.UserId,
                           username: profile.Username,
+                          isPrivate: visibilityIsPrivate,
                           type: "followers",
                         })
                       }
@@ -767,6 +779,7 @@ export default function UserProfilePage({
                         onOpenCollection?.({
                           userId: profile.UserId,
                           username: profile.Username,
+                          isPrivate: visibilityIsPrivate,
                           type: "following",
                         })
                       }

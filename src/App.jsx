@@ -28,6 +28,7 @@ import "./css/list-page.css";
 import "./css/profile-page.css";
 import "./css/user-discovery.css";
 import "./css/place-detail.css";
+import "./css/modal-layer-overrides.css";
 
 const EMPTY_SUMMARY = {
   CityName: "",
@@ -616,6 +617,18 @@ function createDiscoveryScreenId(type) {
   return `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function isPrivateAccount(value) {
+  return String(value ?? "").trim().toUpperCase() === "PRIVATE";
+}
+
+function renderUsernameWithLock(username, isPrivate) {
+  const normalizedUsername = String(username ?? "").trim();
+
+  return isPrivate && normalizedUsername
+    ? `${normalizedUsername} 🔒`
+    : normalizedUsername;
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [activePage, setActivePage] = useState("map");
@@ -1159,6 +1172,8 @@ function App() {
 
   const handleTabNavigation = useCallback(
     (page) => {
+      // Profil düzenleme ekranı nav'ın altında kalır; sekme değişimi onu da kapatır.
+      setIsProfileEditOpen(false);
       closeDiscovery();
       setActivePage(page);
     },
@@ -1199,41 +1214,52 @@ function App() {
         type: "profile",
         userId: normalizedUserId,
         username,
+        isPrivate: isPrivateAccount(
+          user?.AccountVisibilityCode ?? user?.accountVisibilityCode
+        ),
       });
     },
     [closeDiscovery, ownUserId, pushDiscoveryScreen]
   );
 
-  const handleExternalProfileTitleChange = useCallback((userId, username) => {
-    const normalizedUserId = Number(userId);
-    const normalizedUsername = String(username ?? "").trim();
+  const handleExternalProfileTitleChange = useCallback(
+    (userId, username, accountVisibilityCode) => {
+      const normalizedUserId = Number(userId);
+      const normalizedUsername = String(username ?? "").trim();
+      const nextIsPrivate = isPrivateAccount(accountVisibilityCode);
 
-    if (!Number.isInteger(normalizedUserId) || !normalizedUsername) {
-      return;
-    }
+      if (!Number.isInteger(normalizedUserId) || !normalizedUsername) {
+        return;
+      }
 
-    setDiscoveryStack((currentStack) => {
-      let hasChange = false;
+      setDiscoveryStack((currentStack) => {
+        let hasChange = false;
 
-      const nextStack = currentStack.map((screen) => {
-        if (
-          screen.type !== "profile" ||
-          Number(screen.userId) !== normalizedUserId ||
-          screen.username === normalizedUsername
-        ) {
-          return screen;
-        }
+        const nextStack = currentStack.map((screen) => {
+          if (screen.type !== "profile" || Number(screen.userId) !== normalizedUserId) {
+            return screen;
+          }
 
-        hasChange = true;
-        return {
-          ...screen,
-          username: normalizedUsername,
-        };
+          if (
+            screen.username === normalizedUsername &&
+            Boolean(screen.isPrivate) === nextIsPrivate
+          ) {
+            return screen;
+          }
+
+          hasChange = true;
+          return {
+            ...screen,
+            username: normalizedUsername,
+            isPrivate: nextIsPrivate,
+          };
+        });
+
+        return hasChange ? nextStack : currentStack;
       });
-
-      return hasChange ? nextStack : currentStack;
-    });
-  }, []);
+    },
+    []
+  );
 
   const handleOpenNote = useCallback(
     (noteId) => {
@@ -1315,6 +1341,7 @@ function App() {
         type: "collection",
         userId: Number(context.userId),
         username: context.username,
+        isPrivate: Boolean(context.isPrivate),
         collectionType: context.type,
       });
     },
@@ -1353,6 +1380,7 @@ function App() {
         listIcon: String(list?.Icon ?? context?.listIcon ?? "✦").trim() || "✦",
         userId,
         username,
+        isPrivate: Boolean(context?.isPrivate),
         isOwner,
       });
     },
@@ -1381,6 +1409,7 @@ function App() {
     handleOpenCollectionForUser({
       userId: profile.UserId,
       username: profile.Username,
+      isPrivate: false,
       type,
     });
   };
@@ -1453,7 +1482,10 @@ function App() {
       : activeDiscoveryScreen?.type === "place"
         ? String(activeDiscoveryScreen?.placeName ?? "").trim()
         : ["profile", "collection"].includes(activeDiscoveryScreen?.type)
-          ? String(activeDiscoveryScreen?.username ?? "").trim()
+          ? renderUsernameWithLock(
+              activeDiscoveryScreen?.username,
+              Boolean(activeDiscoveryScreen?.isPrivate)
+            )
           : "";
   const topbarTitle = discoveryTopbarTitle
     ? discoveryTopbarTitle
@@ -1681,6 +1713,7 @@ function App() {
                     <ProfileCollectionPage
                       profileUserId={screen.userId}
                       profileUsername={screen.username}
+                      profileIsPrivate={Boolean(screen.isPrivate)}
                       type={screen.collectionType}
                       isActive={isActive}
                       refreshKey={notesRefreshKey}
@@ -2945,6 +2978,7 @@ function PlaceListItemRemoveModal({
 function ProfileCollectionPage({
   profileUserId,
   profileUsername,
+  profileIsPrivate = false,
   type,
   isActive,
   refreshKey,
@@ -3010,7 +3044,10 @@ function ProfileCollectionPage({
     <div className="discovery-page-content collection-page">
       <header className="discovery-page-header">
         <div>
-          <p className="eyebrow">@{profileUsername}</p>
+          <p className="eyebrow">
+            @{profileUsername}
+            {profileIsPrivate ? " 🔒" : ""}
+          </p>
           <h1>{config?.title || "Liste"}</h1>
         </div>
 
@@ -3666,9 +3703,13 @@ function NoteFeed({
                           title="Kullanıcı profilini aç"
                         >
                           {username}
+                          {isPrivateAccount(note.AccountVisibilityCode) ? " 🔒" : ""}
                         </button>
                       ) : (
-                        <strong>{username}</strong>
+                        <strong>
+                          {username}
+                          {isPrivateAccount(note.AccountVisibilityCode) ? " 🔒" : ""}
+                        </strong>
                       )}
 
                       <span
@@ -3774,7 +3815,6 @@ function NoteDetailPage({
   const [notePhotos, setNotePhotos] = useState([]);
   const [photosLoading, setPhotosLoading] = useState(true);
   const [photosError, setPhotosError] = useState("");
-  const [isPhotoManagerOpen, setIsPhotoManagerOpen] = useState(false);
   const actionMenuRef = useRef(null);
 
   const loadNote = useCallback(async () => {
@@ -3896,7 +3936,7 @@ function NoteDetailPage({
         return;
       }
 
-      if (isEditModalOpen || isPhotoManagerOpen) {
+      if (isEditModalOpen) {
         return;
       }
 
@@ -3925,7 +3965,6 @@ function NoteDetailPage({
     isDeleteModalOpen,
     isDeleting,
     isEditModalOpen,
-    isPhotoManagerOpen,
     onBack,
   ]);
 
@@ -3956,51 +3995,49 @@ function NoteDetailPage({
     setEditError("");
   };
 
-  const openPhotoManager = () => {
-    if (!note || !isOwnNote || isDeleting) {
-      return;
-    }
-
-    setIsActionMenuOpen(false);
-    setIsPhotoManagerOpen(true);
-  };
-
-  const closePhotoManager = () => {
-    setIsPhotoManagerOpen(false);
-  };
-
-  const handlePhotoManagerChanged = async () => {
+  const handleEditedPhotosChanged = async () => {
     await loadNotePhotos();
     await Promise.resolve(onNoteUpdated?.());
   };
 
+  const completeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditError("");
+  };
+
   const handleEditSave = async (nextValues) => {
     if (!note?.PlaceNoteId || !isOwnNote || isSavingEdit) {
-      return;
+      return false;
     }
 
     setIsSavingEdit(true);
     setEditError("");
 
-    const { error } = await supabase.rpc("UpdateMyPlaceNote", {
-      p_place_note_id: Number(note.PlaceNoteId),
-      p_title: nextValues.title,
-      p_rating: Number(nextValues.rating),
-      p_content: nextValues.content,
-      p_visited_date: nextValues.visitedDate || null,
-    });
+    try {
+      const { error } = await supabase.rpc("UpdateMyPlaceNote", {
+        p_place_note_id: Number(note.PlaceNoteId),
+        p_title: nextValues.title,
+        p_rating: Number(nextValues.rating),
+        p_content: nextValues.content,
+        p_visited_date: nextValues.visitedDate || null,
+      });
 
-    if (error) {
-      console.error("Not güncellenemedi:", error);
-      setEditError(error.message || "Not güncellenemedi. Lütfen tekrar dene.");
+      if (error) {
+        console.error("Not güncellenemedi:", error);
+        setEditError(error.message || "Not güncellenemedi. Lütfen tekrar dene.");
+        return false;
+      }
+
+      await loadNote();
+      await Promise.resolve(onNoteUpdated?.());
+      return true;
+    } catch (error) {
+      console.error("Not güncellenirken beklenmeyen hata oluştu:", error);
+      setEditError(error?.message || "Not güncellenemedi. Lütfen tekrar dene.");
+      return false;
+    } finally {
       setIsSavingEdit(false);
-      return;
     }
-
-    await loadNote();
-    await Promise.resolve(onNoteUpdated?.());
-    setIsSavingEdit(false);
-    setIsEditModalOpen(false);
   };
 
   const closeDeleteModal = () => {
@@ -4076,7 +4113,10 @@ function NoteDetailPage({
               </span>
               <span className="note-detail-page-author-copy">
                 <strong>{fullName || username}</strong>
-                <small>@{username}</small>
+                <small>
+                  @{username}
+                  {isPrivateAccount(note?.AccountVisibilityCode) ? " 🔒" : ""}
+                </small>
               </span>
             </button>
 
@@ -4098,9 +4138,6 @@ function NoteDetailPage({
                   <div className="note-detail-more-popover" role="menu">
                     <button type="button" role="menuitem" onClick={openEditModal}>
                       Notu düzenle
-                    </button>
-                    <button type="button" role="menuitem" onClick={openPhotoManager}>
-                      Fotoğrafları yönet
                     </button>
                     <button
                       className="note-detail-more-action-danger"
@@ -4210,21 +4247,14 @@ function NoteDetailPage({
         createPortal(
           <NoteEditModal
             note={note}
+            noteId={Number(note.PlaceNoteId)}
+            existingPhotos={notePhotos}
             isSaving={isSavingEdit}
             errorMessage={editError}
             onCancel={closeEditModal}
+            onCompleted={completeEditModal}
+            onPhotosChanged={handleEditedPhotosChanged}
             onSave={handleEditSave}
-          />,
-          document.body
-        )}
-
-      {isPhotoManagerOpen && note &&
-        createPortal(
-          <NotePhotoManagerModal
-            noteId={Number(note.PlaceNoteId)}
-            existingPhotos={notePhotos}
-            onClose={closePhotoManager}
-            onChanged={handlePhotoManagerChanged}
           />,
           document.body
         )}
@@ -4549,8 +4579,19 @@ function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChanged }) {
   );
 }
 
-function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
+function NoteEditModal({
+  note,
+  noteId,
+  existingPhotos = [],
+  isSaving,
+  errorMessage,
+  onCancel,
+  onCompleted,
+  onPhotosChanged,
+  onSave,
+}) {
   const titleInputRef = useRef(null);
+  const photoDraftsRef = useRef([]);
   const [form, setForm] = useState(() => ({
     title: String(note?.Title ?? "").trim(),
     rating: Number(note?.Rating) || 0,
@@ -4558,6 +4599,10 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
     visitedDate: toDateInputValue(note?.VisitedDate),
   }));
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
+  const [photoDrafts, setPhotoDrafts] = useState([]);
+  const [photoError, setPhotoError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState(null);
 
   const today = new Date().toISOString().slice(0, 10);
   const validation = {
@@ -4570,6 +4615,8 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
     visitedDate: Boolean(form.visitedDate && form.visitedDate > today),
   };
   const canSave = !Object.values(validation).some(Boolean);
+  const isBusy = isSaving || isSubmitting || Boolean(deletingPhotoId);
+  const totalPhotoCount = existingPhotos.length + photoDrafts.length;
 
   useEffect(() => {
     titleInputRef.current?.focus();
@@ -4578,7 +4625,7 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
     document.body.style.overflow = "hidden";
 
     const handleEscape = (event) => {
-      if (event.key === "Escape" && !isSaving) {
+      if (event.key === "Escape" && !isBusy) {
         onCancel();
       }
     };
@@ -4589,22 +4636,90 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [isSaving, onCancel]);
+  }, [isBusy, onCancel]);
+
+  useEffect(() => {
+    return () => {
+      revokeNotePhotoDrafts(photoDraftsRef.current);
+    };
+  }, []);
+
+  const setDrafts = (nextDrafts) => {
+    photoDraftsRef.current = nextDrafts;
+    setPhotoDrafts(nextDrafts);
+  };
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
   const handleBackdropMouseDown = (event) => {
-    if (!isSaving && event.target === event.currentTarget) {
+    if (!isBusy && event.target === event.currentTarget) {
       onCancel();
     }
   };
 
-  const handleSubmit = (event) => {
+  const handleFilesSelected = (files) => {
+    const selectedFiles = Array.from(files ?? []);
+    const selectionError = getPhotoSelectionError(
+      selectedFiles,
+      existingPhotos.length + photoDraftsRef.current.length
+    );
+
+    if (selectionError) {
+      setPhotoError(selectionError);
+      return;
+    }
+
+    setDrafts([
+      ...photoDraftsRef.current,
+      ...createNotePhotoDrafts(selectedFiles),
+    ]);
+    setPhotoError("");
+  };
+
+  const removeDraft = (draftId) => {
+    const currentDrafts = photoDraftsRef.current;
+    const removedDraft = currentDrafts.find((draft) => draft.id === draftId);
+
+    if (removedDraft) {
+      revokeNotePhotoDrafts([removedDraft]);
+    }
+
+    setDrafts(currentDrafts.filter((draft) => draft.id !== draftId));
+    setPhotoError("");
+  };
+
+  const deleteExistingPhoto = async (photoId) => {
+    if (!photoId || isBusy) {
+      return;
+    }
+
+    setDeletingPhotoId(photoId);
+    setPhotoError("");
+
+    try {
+      const { error } = await supabase.rpc("DeleteMyPlaceNotePhoto", {
+        p_place_note_photo_id: Number(photoId),
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      await Promise.resolve(onPhotosChanged?.());
+    } catch (error) {
+      console.error("Not fotoğrafı silinemedi:", error);
+      setPhotoError(error?.message || "Fotoğraf silinemedi. Tekrar dene.");
+    } finally {
+      setDeletingPhotoId(null);
+    }
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (isSaving) {
+    if (isBusy) {
       return;
     }
 
@@ -4613,12 +4728,41 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
       return;
     }
 
-    onSave({
-      title: form.title.trim(),
-      rating: Number(form.rating),
-      content: form.content.trim(),
-      visitedDate: form.visitedDate || null,
-    });
+    setIsSubmitting(true);
+    setPhotoError("");
+
+    try {
+      const didSave = await onSave({
+        title: form.title.trim(),
+        rating: Number(form.rating),
+        content: form.content.trim(),
+        visitedDate: form.visitedDate || null,
+      });
+
+      if (!didSave) {
+        return;
+      }
+
+      if (photoDraftsRef.current.length > 0) {
+        try {
+          await uploadMyNotePhotoDrafts(noteId, photoDraftsRef.current);
+          revokeNotePhotoDrafts(photoDraftsRef.current);
+          setDrafts([]);
+          await Promise.resolve(onPhotosChanged?.());
+        } catch (error) {
+          console.error("Not fotoğrafları yüklenemedi:", error);
+          setPhotoError(
+            error?.message ||
+              "Not güncellendi, ancak fotoğraflar yüklenemedi. Tekrar deneyebilirsin."
+          );
+          return;
+        }
+      }
+
+      onCompleted();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const showTitleError = hasAttemptedSave && validation.title;
@@ -4647,7 +4791,7 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
             className="note-edit-modal-close"
             type="button"
             onClick={onCancel}
-            disabled={isSaving}
+            disabled={isBusy}
             aria-label="Kapat"
           >
             ×
@@ -4661,7 +4805,7 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
               ref={titleInputRef}
               type="text"
               value={form.title}
-              disabled={isSaving}
+              disabled={isBusy}
               maxLength={120}
               aria-invalid={showTitleError}
               onChange={(event) => updateField("title", event.target.value)}
@@ -4695,7 +4839,7 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
                   role="radio"
                   aria-checked={Number(form.rating) === rating}
                   aria-label={`${rating} yıldız`}
-                  disabled={isSaving}
+                  disabled={isBusy}
                   onClick={() => updateField("rating", rating)}
                 >
                   ★
@@ -4716,7 +4860,7 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
               type="date"
               value={form.visitedDate}
               max={today}
-              disabled={isSaving}
+              disabled={isBusy}
               aria-invalid={showVisitedDateError}
               onChange={(event) => updateField("visitedDate", event.target.value)}
             />
@@ -4731,7 +4875,7 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
             <span>Detay</span>
             <textarea
               value={form.content}
-              disabled={isSaving}
+              disabled={isBusy}
               maxLength={1000}
               aria-invalid={showDetailError}
               onChange={(event) => updateField("content", event.target.value)}
@@ -4744,6 +4888,82 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
             )}
           </label>
 
+          <div className="note-photo-upload-field" aria-label="Not fotoğrafları">
+            <div className="note-photo-upload-heading">
+              <span>
+                Fotoğraflar <small>(opsiyonel)</small>
+              </span>
+              <small>{totalPhotoCount} / {MAX_NOTE_PHOTOS}</small>
+            </div>
+
+            {totalPhotoCount < MAX_NOTE_PHOTOS && (
+              <label
+                className={`note-photo-picker${
+                  isBusy ? " note-photo-picker-disabled" : ""
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  disabled={isBusy}
+                  onChange={(event) => {
+                    handleFilesSelected(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+                <span aria-hidden="true">＋</span>
+                <strong>Fotoğraf ekle</strong>
+                <small>JPG, PNG veya WEBP · Fotoğraf başına en fazla 8 MB</small>
+              </label>
+            )}
+
+            {(existingPhotos.length > 0 || photoDrafts.length > 0) && (
+              <div className="note-photo-draft-grid" aria-label="Not fotoğrafları">
+                {existingPhotos.map((photo) => (
+                  <div
+                    className="note-photo-draft note-photo-existing"
+                    key={photo.PlaceNotePhotoId}
+                  >
+                    <img src={photo.SignedUrl} alt="Not fotoğrafı" />
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => deleteExistingPhoto(photo.PlaceNotePhotoId)}
+                      aria-label="Fotoğrafı sil"
+                      title="Fotoğrafı sil"
+                    >
+                      {Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId)
+                        ? "…"
+                        : "×"}
+                    </button>
+                  </div>
+                ))}
+
+                {photoDrafts.map((draft) => (
+                  <div className="note-photo-draft" key={draft.id}>
+                    <img src={draft.previewUrl} alt="Yeni fotoğraf ön izlemesi" />
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => removeDraft(draft.id)}
+                      aria-label="Seçilen fotoğrafı kaldır"
+                      title="Seçilen fotoğrafı kaldır"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {photoError && (
+            <p className="note-edit-modal-error" role="alert">
+              {photoError}
+            </p>
+          )}
+
           {errorMessage && (
             <p className="note-edit-modal-error" role="alert">
               {errorMessage}
@@ -4754,7 +4974,7 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
             <button
               className="note-edit-modal-cancel"
               type="button"
-              disabled={isSaving}
+              disabled={isBusy}
               onClick={onCancel}
             >
               Vazgeç
@@ -4764,10 +4984,10 @@ function NoteEditModal({ note, isSaving, errorMessage, onCancel, onSave }) {
                 canSave ? "" : " note-edit-modal-save-incomplete"
               }`}
               type="submit"
-              disabled={isSaving}
-              aria-disabled={!canSave || isSaving}
+              disabled={isBusy}
+              aria-disabled={!canSave || isBusy}
             >
-              {isSaving ? "Kaydediliyor..." : "Değişiklikleri kaydet"}
+              {isBusy ? "Kaydediliyor..." : "Değişiklikleri kaydet"}
             </button>
           </div>
         </form>
@@ -4871,7 +5091,10 @@ function ConnectionList({ users, onOpenUser }) {
             </span>
 
             <span className="connection-copy">
-              <strong>{user.Username}</strong>
+              <strong>
+                {user.Username}
+                {isPrivateAccount(user.AccountVisibilityCode) ? " 🔒" : ""}
+              </strong>
               <span>{fullName || user.Username}</span>
               <small>
                 {[user.CityName, user.ZodiacSign].filter(Boolean).join(" · ")}
