@@ -5,6 +5,7 @@ import "../../css/profile-page.css";
 import "../../css/user-discovery.css";
 import "../../css/place-detail.css";
 import "../../css/profile-photo.css";
+import "../../css/deep-links.css";
 
 /*
  * Refactored from the application root.
@@ -18,13 +19,18 @@ import MapPage from "../map/MapPage.jsx";
 import UserProfilePage from "../discovery/UserProfilePage.jsx";
 import UserSearchPage from "../discovery/UserSearchPage.jsx";
 import { supabase } from "../../supabase.js";
+import { shareOrCopyLink } from "../../utils/share.js";
+import { detachCurrentPushSubscription, syncExistingPushSubscription } from "../../utils/pushNotifications.js";
 import { PlaceListDetailPage, ProfileCollectionPage } from "../collections/CollectionPages.jsx";
+import DeepLinkNotFoundPage from "../routing/DeepLinkNotFoundPage.jsx";
+import { getCollectionDeepLinkTarget, getCollectionDeepLinkTargetById, getNoteDeepLinkTarget, getNoteDeepLinkTargetById, getPlaceDeepLinkTarget, getPlaceDeepLinkTargetById, getUserDeepLinkTargetById, getUserDeepLinkTargetByUsername } from "../routing/deepLinkApi.js";
+import { ROUTE_PATHS, buildCollectionPath, buildNotePath, buildPlacePath, buildProfileCollectionPath, buildUserPath, createNavigationSnapshot, fromHistoryState, getLocationRoutePath, parseRoutePath, toHistoryState } from "../routing/routes.js";
 import { ListPage } from "../feed/FeedPage.jsx";
 import { NoteDetailPage } from "../notes/NoteComponents.jsx";
 import { PlaceDetailPage } from "../places/PlaceDetailPage.jsx";
 import { ProfileEditModal, ProfilePage } from "../profile/MyProfilePage.jsx";
 import { BottomNavigation, EMPTY_SUMMARY, PROFILE_COLLECTIONS, SILENT_NOTIFICATION_REFRESH_INTERVAL_MS, SearchIcon, SettingsIcon, createDiscoveryScreenId, isIOSDevice, isPrivateAccount, renderUsernameWithLock } from "./appShared.jsx";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -59,23 +65,123 @@ export default function App() {
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [citiesError, setCitiesError] = useState("");
 
+  const navigationRef = useRef(
+    createNavigationSnapshot({
+      activePage: "map",
+      discoveryStack: [],
+      mapTarget: null,
+      placeReviewFilter: null,
+      path: getLocationRoutePath(),
+    })
+  );
+  const initialRouteHandledRef = useRef(false);
+  const shareNoticeTimerRef = useRef(null);
+
+  useEffect(() => {
+    navigationRef.current = createNavigationSnapshot({
+      ...navigationRef.current,
+      activePage,
+      discoveryStack,
+      mapTarget,
+      placeReviewFilter,
+    });
+  }, [activePage, discoveryStack, mapTarget, placeReviewFilter]);
+
+  useEffect(() => () => {
+    if (shareNoticeTimerRef.current) {
+      window.clearTimeout(shareNoticeTimerRef.current);
+    }
+  }, []);
+
+  const applyNavigationSnapshot = useCallback((snapshot, historyMode = "none") => {
+    const nextNavigation = createNavigationSnapshot(snapshot);
+
+    navigationRef.current = nextNavigation;
+    setIsProfileEditOpen(false);
+    setIsNotificationsOpen(false);
+    setActivePage(nextNavigation.activePage);
+    setDiscoveryStack(nextNavigation.discoveryStack);
+    setMapTarget(nextNavigation.mapTarget);
+    setPlaceReviewFilter(nextNavigation.placeReviewFilter);
+
+    if (typeof window === "undefined" || historyMode === "none") {
+      return nextNavigation;
+    }
+
+    const state = toHistoryState(nextNavigation);
+
+    if (historyMode === "push") {
+      window.history.pushState(state, "", nextNavigation.path);
+    } else {
+      window.history.replaceState(state, "", nextNavigation.path);
+    }
+
+    return nextNavigation;
+  }, []);
+
+  const getRootPathForPage = useCallback((page) => {
+    if (page === "list") {
+      return ROUTE_PATHS.FEED;
+    }
+
+    if (page === "profile") {
+      return ROUTE_PATHS.PROFILE;
+    }
+
+    return ROUTE_PATHS.MAP;
+  }, []);
 
   const pushDiscoveryScreen = useCallback((screen) => {
-    setDiscoveryStack((currentStack) => [
-      ...currentStack,
+    const currentNavigation = navigationRef.current;
+    const nextScreen = {
+      id: createDiscoveryScreenId(screen.type),
+      ...screen,
+    };
+
+    return applyNavigationSnapshot(
       {
-        id: createDiscoveryScreenId(screen.type),
-        ...screen,
+        ...currentNavigation,
+        discoveryStack: [...currentNavigation.discoveryStack, nextScreen],
+        path: screen.path || currentNavigation.path,
       },
-    ]);
-  }, []);
+      "push"
+    );
+  }, [applyNavigationSnapshot]);
 
   const popDiscoveryScreen = useCallback(() => {
-    setDiscoveryStack((currentStack) => currentStack.slice(0, -1));
-  }, []);
+    if (typeof window !== "undefined" && fromHistoryState(window.history.state)) {
+      window.history.back();
+      return;
+    }
 
-  const closeDiscovery = useCallback(() => {
-    setDiscoveryStack([]);
+    const currentNavigation = navigationRef.current;
+    const nextStack = currentNavigation.discoveryStack.slice(0, -1);
+    const nextPath =
+      nextStack[nextStack.length - 1]?.path ||
+      getRootPathForPage(currentNavigation.activePage);
+
+    applyNavigationSnapshot(
+      {
+        ...currentNavigation,
+        discoveryStack: nextStack,
+        path: nextPath,
+      },
+      "replace"
+    );
+  }, [applyNavigationSnapshot, getRootPathForPage]);
+
+  const showTemporaryAppMessage = useCallback((messageKey) => {
+    if (shareNoticeTimerRef.current) {
+      window.clearTimeout(shareNoticeTimerRef.current);
+    }
+
+    setAppMessage(messageKey);
+    shareNoticeTimerRef.current = window.setTimeout(() => {
+      setAppMessage((currentMessage) =>
+        currentMessage === messageKey ? "" : currentMessage
+      );
+      shareNoticeTimerRef.current = null;
+    }, 2800);
   }, []);
 
   useEffect(() => {
@@ -117,6 +223,34 @@ export default function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!profile?.UserId) {
+      return undefined;
+    }
+
+    const syncSubscription = () => {
+      void syncExistingPushSubscription().catch((error) => {
+        console.warn("Push aboneliği yenilenemedi:", error);
+      });
+    };
+
+    const handleServiceWorkerMessage = (event) => {
+      if (event.data?.type === "PUSH_SUBSCRIPTION_CHANGED") {
+        syncSubscription();
+      }
+    };
+
+    syncSubscription();
+    navigator.serviceWorker?.addEventListener("message", handleServiceWorkerMessage);
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener(
+        "message",
+        handleServiceWorkerMessage
+      );
+    };
+  }, [profile?.UserId]);
 
   useEffect(() => {
     if (!profileNotice) {
@@ -174,7 +308,7 @@ export default function App() {
     const { data: profileData, error: profileQueryError } = await supabase
       .from("Users")
       .select(
-        "UserId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, AccountVisibilityStatusId, ProfilePhotoPath, IsActive"
+        "UserId, PublicId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, AccountVisibilityStatusId, ProfilePhotoPath, IsActive"
       )
       .eq("AuthUserId", session.user.id)
       .eq("IsActive", true)
@@ -478,7 +612,21 @@ export default function App() {
   };
 
   const clearMapTarget = useCallback(() => {
+    const nextNavigation = createNavigationSnapshot({
+      ...navigationRef.current,
+      mapTarget: null,
+    });
+
+    navigationRef.current = nextNavigation;
     setMapTarget(null);
+
+    if (typeof window !== "undefined" && fromHistoryState(window.history.state)) {
+      window.history.replaceState(
+        toHistoryState(nextNavigation),
+        "",
+        nextNavigation.path
+      );
+    }
   }, []);
 
   const handleOpenPlaceOnMap = useCallback(async (placeId, openAction = null) => {
@@ -516,28 +664,34 @@ export default function App() {
       ? String(openAction).trim().toLowerCase()
       : null;
 
-    setMapTarget({
-      requestId: `${place.PlaceId}-${Date.now()}`,
-      placeId: place.PlaceId,
-      id: place.GooglePlaceId,
-      name: place.Name,
-      address: place.FormattedAddress,
-      cityName: place.CityName,
-      postalCode: place.PostalCode,
-      venueCategoryCode: place.VenueCategoryCode ?? null,
-      openAction: normalizedOpenAction,
-      location: {
-        lat: latitude,
-        lng: longitude,
+    applyNavigationSnapshot(
+      {
+        activePage: "map",
+        discoveryStack: [],
+        placeReviewFilter: null,
+        path: ROUTE_PATHS.MAP,
+        mapTarget: {
+          requestId: `${place.PlaceId}-${Date.now()}`,
+          placeId: place.PlaceId,
+          id: place.GooglePlaceId,
+          name: place.Name,
+          address: place.FormattedAddress,
+          cityName: place.CityName,
+          postalCode: place.PostalCode,
+          venueCategoryCode: place.VenueCategoryCode ?? null,
+          openAction: normalizedOpenAction,
+          location: {
+            lat: latitude,
+            lng: longitude,
+          },
+        },
       },
-    });
-
-    closeDiscovery();
-    setActivePage("map");
-  }, [closeDiscovery]);
+      "push"
+    );
+  }, [applyNavigationSnapshot]);
 
   const handleOpenPlaceDetail = useCallback(
-    (place) => {
+    async (place) => {
       const context =
         place && typeof place === "object" ? place : { placeId: place };
       const placeId = Number(
@@ -549,17 +703,30 @@ export default function App() {
         return;
       }
 
-      const placeName =
-        String(
-          context?.placeName ?? context?.PlaceName ?? context?.name ?? ""
-        ).trim() || "Mekan";
+      const { data: target, error } = await getPlaceDeepLinkTargetById(placeId);
+
+      if (error || !target?.PublicId) {
+        setAppMessage(
+          getErrorMessageKey(error, MESSAGE_KEY.PLACE_TARGET_LOAD_FAILED)
+        );
+        return;
+      }
+
+      const publicId = String(target.PublicId);
+      const path = buildPlacePath(publicId);
+
+      if (!path) {
+        setAppMessage(MESSAGE_KEY.PLACE_TARGET_LOAD_FAILED);
+        return;
+      }
 
       pushDiscoveryScreen({
         type: "place",
-        placeId,
-        placeName,
-        venueCategoryCode:
-          context?.venueCategoryCode ?? context?.VenueCategoryCode ?? null,
+        placeId: Number(target.PlaceId),
+        publicId,
+        placeName: String(target.Name ?? "").trim() || "Mekan",
+        venueCategoryCode: target.VenueCategoryCode ?? null,
+        path,
       });
     },
     [pushDiscoveryScreen]
@@ -569,54 +736,83 @@ export default function App() {
 
   const handleTabNavigation = useCallback(
     (page) => {
-      // Profil düzenleme ekranı nav'ın altında kalır; sekme değişimi onu da kapatır.
-      setIsProfileEditOpen(false);
-      closeDiscovery();
-      setActivePage(page);
+      const currentNavigation = navigationRef.current;
+      const path = getRootPathForPage(page);
+
+      if (
+        currentNavigation.activePage === page &&
+        currentNavigation.discoveryStack.length === 0 &&
+        currentNavigation.path === path
+      ) {
+        return;
+      }
+
+      applyNavigationSnapshot(
+        {
+          activePage: page,
+          discoveryStack: [],
+          mapTarget: null,
+          placeReviewFilter: null,
+          path,
+        },
+        "push"
+      );
     },
-    [closeDiscovery]
+    [applyNavigationSnapshot, getRootPathForPage]
   );
 
   const openUserSearch = useCallback(() => {
-    setDiscoveryStack([
-      {
-        id: createDiscoveryScreenId("search"),
-        type: "search",
-      },
-    ]);
-  }, []);
+    pushDiscoveryScreen({
+      type: "search",
+      path: ROUTE_PATHS.SEARCH,
+    });
+  }, [pushDiscoveryScreen]);
 
   const handleOpenUserProfile = useCallback(
-    (userOrId) => {
+    async (userOrId) => {
       const user =
         userOrId && typeof userOrId === "object" ? userOrId : null;
       const normalizedUserId = Number(
         user?.UserId ?? user?.ActorUserId ?? userOrId
       );
-      const username = String(
-        user?.Username ?? user?.ActorUsername ?? ""
-      ).trim();
 
       if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
         return;
       }
 
-      if (normalizedUserId === ownUserId) {
-        closeDiscovery();
-        setActivePage("profile");
+      if (normalizedUserId === Number(ownUserId)) {
+        handleTabNavigation("profile");
+        return;
+      }
+
+      const { data: target, error } = await getUserDeepLinkTargetById(
+        normalizedUserId
+      );
+
+      if (error || !target?.Username) {
+        setAppMessage(
+          getErrorMessageKey(error, MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE)
+        );
+        return;
+      }
+
+      const username = String(target.Username).trim();
+      const path = buildUserPath(username);
+
+      if (!path) {
+        setAppMessage(MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE);
         return;
       }
 
       pushDiscoveryScreen({
         type: "profile",
-        userId: normalizedUserId,
+        userId: Number(target.UserId),
         username,
-        isPrivate: isPrivateAccount(
-          user?.AccountVisibilityCode ?? user?.accountVisibilityCode
-        ),
+        isPrivate: isPrivateAccount(target.AccountVisibilityCode),
+        path,
       });
     },
-    [closeDiscovery, ownUserId, pushDiscoveryScreen]
+    [handleTabNavigation, ownUserId, pushDiscoveryScreen]
   );
 
   const handleExternalProfileTitleChange = useCallback(
@@ -629,46 +825,77 @@ export default function App() {
         return;
       }
 
-      setDiscoveryStack((currentStack) => {
-        let hasChange = false;
+      const currentNavigation = navigationRef.current;
+      let hasChange = false;
+      const nextStack = currentNavigation.discoveryStack.map((screen) => {
+        if (screen.type !== "profile" || Number(screen.userId) !== normalizedUserId) {
+          return screen;
+        }
 
-        const nextStack = currentStack.map((screen) => {
-          if (screen.type !== "profile" || Number(screen.userId) !== normalizedUserId) {
-            return screen;
-          }
+        if (
+          screen.username === normalizedUsername &&
+          Boolean(screen.isPrivate) === nextIsPrivate
+        ) {
+          return screen;
+        }
 
-          if (
-            screen.username === normalizedUsername &&
-            Boolean(screen.isPrivate) === nextIsPrivate
-          ) {
-            return screen;
-          }
-
-          hasChange = true;
-          return {
-            ...screen,
-            username: normalizedUsername,
-            isPrivate: nextIsPrivate,
-          };
-        });
-
-        return hasChange ? nextStack : currentStack;
+        hasChange = true;
+        return {
+          ...screen,
+          username: normalizedUsername,
+          isPrivate: nextIsPrivate,
+        };
       });
+
+      if (!hasChange) {
+        return;
+      }
+
+      const activeScreen = nextStack[nextStack.length - 1];
+      applyNavigationSnapshot(
+        {
+          ...currentNavigation,
+          discoveryStack: nextStack,
+          path: activeScreen?.path || currentNavigation.path,
+        },
+        "replace"
+      );
     },
-    []
+    [applyNavigationSnapshot]
   );
 
   const handleOpenNote = useCallback(
-    (noteId) => {
+    async (noteId) => {
       const normalizedNoteId = Number(noteId);
 
       if (!Number.isInteger(normalizedNoteId) || normalizedNoteId <= 0) {
         return;
       }
 
+      const { data: target, error } = await getNoteDeepLinkTargetById(
+        normalizedNoteId
+      );
+
+      if (error || !target?.PublicId) {
+        setAppMessage(
+          getErrorMessageKey(error, MESSAGE_KEY.NOTE_NOT_FOUND_OR_RESTRICTED)
+        );
+        return;
+      }
+
+      const publicId = String(target.PublicId);
+      const path = buildNotePath(publicId);
+
+      if (!path) {
+        setAppMessage(MESSAGE_KEY.NOTE_NOT_FOUND_OR_RESTRICTED);
+        return;
+      }
+
       pushDiscoveryScreen({
         type: "note",
-        noteId: normalizedNoteId,
+        noteId: Number(target.PlaceNoteId),
+        publicId,
+        path,
       });
     },
     [pushDiscoveryScreen]
@@ -729,64 +956,101 @@ export default function App() {
   );
 
   const handleOpenCollectionForUser = useCallback(
-    (context) => {
-      if (!context?.userId || !context?.username || !context?.type) {
+    async (context) => {
+      const userId = Number(context?.userId);
+      const requestedType = String(context?.type ?? "").trim().toLowerCase();
+      let username = String(context?.username ?? "").trim();
+      let isPrivate = Boolean(context?.isPrivate);
+      if (
+        !Number.isInteger(userId) ||
+        userId <= 0 ||
+        !PROFILE_COLLECTIONS[requestedType]
+      ) {
+        return;
+      }
+
+      if (!username) {
+        const { data: target, error } = await getUserDeepLinkTargetById(userId);
+
+        if (error || !target?.Username) {
+          setAppMessage(
+            getErrorMessageKey(error, MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE)
+          );
+          return;
+        }
+
+        username = String(target.Username).trim();
+        isPrivate = isPrivateAccount(target.AccountVisibilityCode);
+      }
+
+      const path = buildProfileCollectionPath(username, requestedType);
+
+      if (!path) {
+        setAppMessage(MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE);
         return;
       }
 
       pushDiscoveryScreen({
         type: "collection",
-        userId: Number(context.userId),
-        username: context.username,
-        isPrivate: Boolean(context.isPrivate),
-        collectionType: context.type,
+        userId,
+        username,
+        isPrivate,
+        collectionType: requestedType,
+        path,
       });
     },
     [pushDiscoveryScreen]
   );
 
   const handleOpenPlaceList = useCallback(
-    (context) => {
+    async (context) => {
       const list = context?.list ?? context;
       const listId = Number(
         list?.UserPlaceListId ?? context?.userPlaceListId ?? context?.listId
       );
-      const userId = Number(context?.userId);
-      const username = String(context?.username ?? "").trim();
-      const listName =
-        String(list?.Name ?? context?.listName ?? "").trim() ||
-        "Mekan listesi";
-      const listDescription = String(
-        list?.Description ?? context?.listDescription ?? ""
-      ).trim();
-      const listCoverUrl = String(
-        list?.CoverSignedUrl ?? context?.listCoverUrl ?? ""
-      ).trim();
+
+      if (!Number.isInteger(listId) || listId <= 0) {
+        return;
+      }
+
+      const { data: target, error } = await getCollectionDeepLinkTargetById(
+        listId
+      );
+
+      if (error || !target?.PublicId) {
+        setAppMessage(
+          getErrorMessageKey(error, MESSAGE_KEY.COLLECTION_NOT_FOUND)
+        );
+        return;
+      }
+
+      const publicId = String(target.PublicId);
+      const path = buildCollectionPath(publicId);
+
+      if (!path) {
+        setAppMessage(MESSAGE_KEY.COLLECTION_NOT_FOUND);
+        return;
+      }
+
+      const userId = Number(target.UserId);
       const isOwner =
         Number.isInteger(userId) &&
         Number.isInteger(Number(ownUserId)) &&
         userId === Number(ownUserId);
 
-      if (
-        !Number.isInteger(listId) ||
-        listId <= 0 ||
-        !Number.isInteger(userId) ||
-        userId <= 0
-      ) {
-        return;
-      }
-
       pushDiscoveryScreen({
         type: "place-list",
-        listId,
-        listName,
-        listDescription,
-        listCoverUrl,
-        listIcon: String(list?.Icon ?? context?.listIcon ?? "✦").trim() || "✦",
+        listId: Number(target.UserPlaceListId),
+        publicId,
+        listName: String(target.Name ?? "").trim() || "Mekan listesi",
+        listDescription: String(target.Description ?? "").trim(),
+        listCoverUrl: String(list?.CoverSignedUrl ?? context?.listCoverUrl ?? "").trim(),
+        listIcon: String(target.Icon ?? "✦").trim() || "✦",
         userId,
-        username,
-        isPrivate: Boolean(context?.isPrivate),
+        username: String(target.Username ?? "").trim(),
+        isPrivate: isPrivateAccount(target.AccountVisibilityCode),
         isOwner,
+        path,
       });
     },
     [ownUserId, pushDiscoveryScreen]
@@ -822,6 +1086,8 @@ export default function App() {
   const handleLogout = async () => {
     setAppMessage("");
 
+    await detachCurrentPushSubscription();
+
     const { error } = await supabase.auth.signOut();
 
     if (error) {
@@ -832,17 +1098,406 @@ export default function App() {
       return false;
     }
 
-    closeDiscovery();
-    setActivePage("map");
+    applyNavigationSnapshot(
+      createNavigationSnapshot({
+        activePage: "map",
+        discoveryStack: [],
+        mapTarget: null,
+        placeReviewFilter: null,
+        path: ROUTE_PATHS.MAP,
+      }),
+      "replace"
+    );
     setProfile(null);
     setSummary(EMPTY_SUMMARY);
     setNotifications([]);
     setNotificationsError("");
     setFollowActivity([]);
     setFollowActivityError("");
-    setIsNotificationsOpen(false);
     return true;
   };
+
+  const handleShareLink = useCallback(
+    async ({ title, text, path }) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const url = new URL(path, window.location.origin).toString();
+      const result = await shareOrCopyLink({ title, text, url });
+
+      if (result.status === "copied") {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_COPIED);
+      } else if (result.status === "error") {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+      }
+    },
+    [showTemporaryAppMessage]
+  );
+
+  const handleShareProfile = useCallback(
+    (profileToShare) => {
+      const username = String(profileToShare?.Username ?? "").trim();
+      const path = buildUserPath(username);
+
+      if (!path) {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+        return;
+      }
+
+      void handleShareLink({
+        title: `${username} | Bizim Mekanlar`,
+        text: `${username} kullanıcısının Bizim Mekanlar profili`,
+        path,
+      });
+    },
+    [handleShareLink, showTemporaryAppMessage]
+  );
+
+  const handleShareOwnProfile = useCallback(() => {
+    handleShareProfile(profile);
+  }, [handleShareProfile, profile]);
+
+  const handleSharePlace = useCallback(
+    (screen) => {
+      const publicId = String(screen?.publicId ?? "").trim();
+      const placeName = String(screen?.placeName ?? "Mekan").trim() || "Mekan";
+      const path = buildPlacePath(publicId);
+
+      if (!path) {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+        return;
+      }
+
+      void handleShareLink({
+        title: `${placeName} | Bizim Mekanlar`,
+        text: `${placeName} mekanını Bizim Mekanlar'da incele`,
+        path,
+      });
+    },
+    [handleShareLink, showTemporaryAppMessage]
+  );
+
+  const handleShareNote = useCallback(
+    (screen, note) => {
+      const publicId = String(screen?.publicId ?? "").trim();
+      const path = buildNotePath(publicId);
+
+      if (!path) {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+        return;
+      }
+
+      const noteTitle = String(note?.Title ?? "").trim() || "Not";
+      const placeName = String(note?.PlaceName ?? "").trim();
+      void handleShareLink({
+        title: `${noteTitle} | Bizim Mekanlar`,
+        text: placeName
+          ? `${placeName} için bırakılan bir not`
+          : "Bizim Mekanlar'da paylaşılan bir not",
+        path,
+      });
+    },
+    [handleShareLink, showTemporaryAppMessage]
+  );
+
+  const handleShareCollection = useCallback(
+    (screen) => {
+      const publicId = String(screen?.publicId ?? "").trim();
+      const path = buildCollectionPath(publicId);
+
+      if (!path) {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+        return;
+      }
+
+      const listName = String(screen?.listName ?? "Koleksiyon").trim() || "Koleksiyon";
+      void handleShareLink({
+        title: `${listName} | Bizim Mekanlar`,
+        text: `${listName} koleksiyonunu Bizim Mekanlar'da incele`,
+        path,
+      });
+    },
+    [handleShareLink, showTemporaryAppMessage]
+  );
+
+  const createRouteScreen = useCallback((screen) => ({
+    id: createDiscoveryScreenId(screen.type),
+    ...screen,
+  }), []);
+
+  const buildNotFoundNavigation = useCallback(
+    (path) =>
+      createNavigationSnapshot({
+        activePage: "map",
+        discoveryStack: [
+          createRouteScreen({
+            type: "not-found",
+            path,
+          }),
+        ],
+        mapTarget: null,
+        placeReviewFilter: null,
+        path,
+      }),
+    [createRouteScreen]
+  );
+
+  const hydrateRouteFromLocation = useCallback(
+    async ({ initial = false } = {}) => {
+      const route = parseRoutePath(getLocationRoutePath());
+      const existingNavigation =
+        typeof window !== "undefined"
+          ? fromHistoryState(window.history.state)
+          : null;
+
+      if (initial && existingNavigation) {
+        applyNavigationSnapshot(existingNavigation, "none");
+        return;
+      }
+
+      const rootNavigation = createNavigationSnapshot({
+        activePage: "map",
+        discoveryStack: [],
+        mapTarget: null,
+        placeReviewFilter: null,
+        path: ROUTE_PATHS.MAP,
+      });
+      const shouldSeedInAppBack =
+        initial &&
+        !existingNavigation &&
+        route.path !== ROUTE_PATHS.MAP &&
+        typeof window !== "undefined";
+
+      if (shouldSeedInAppBack) {
+        window.history.replaceState(
+          toHistoryState(rootNavigation),
+          "",
+          ROUTE_PATHS.MAP
+        );
+      }
+
+      const historyMode = shouldSeedInAppBack ? "push" : "replace";
+      let nextNavigation = null;
+
+      if (route.kind === "map") {
+        nextNavigation = rootNavigation;
+      }
+
+      if (route.kind === "feed") {
+        nextNavigation = createNavigationSnapshot({
+          activePage: "list",
+          discoveryStack: [],
+          mapTarget: null,
+          placeReviewFilter: null,
+          path: route.path,
+        });
+      }
+
+      if (route.kind === "profile") {
+        nextNavigation = createNavigationSnapshot({
+          activePage: "profile",
+          discoveryStack: [],
+          mapTarget: null,
+          placeReviewFilter: null,
+          path: route.path,
+        });
+      }
+
+      if (route.kind === "search") {
+        nextNavigation = createNavigationSnapshot({
+          activePage: "map",
+          discoveryStack: [
+            createRouteScreen({
+              type: "search",
+              path: route.path,
+            }),
+          ],
+          mapTarget: null,
+          placeReviewFilter: null,
+          path: route.path,
+        });
+      }
+
+      if (route.kind === "user" || route.kind === "profile-collection") {
+        const { data: target } = await getUserDeepLinkTargetByUsername(
+          route.username
+        );
+
+        if (target?.UserId && target?.Username) {
+          const userId = Number(target.UserId);
+          const username = String(target.Username).trim();
+          const isPrivate = isPrivateAccount(target.AccountVisibilityCode);
+
+          if (route.kind === "user" && userId === Number(profile?.UserId)) {
+            nextNavigation = createNavigationSnapshot({
+              activePage: "profile",
+              discoveryStack: [],
+              mapTarget: null,
+              placeReviewFilter: null,
+              path: buildUserPath(username) || route.path,
+            });
+          } else if (route.kind === "user") {
+            nextNavigation = createNavigationSnapshot({
+              activePage: "map",
+              discoveryStack: [
+                createRouteScreen({
+                  type: "profile",
+                  userId,
+                  username,
+                            isPrivate,
+                  path: buildUserPath(username) || route.path,
+                }),
+              ],
+              mapTarget: null,
+              placeReviewFilter: null,
+              path: buildUserPath(username) || route.path,
+            });
+          } else {
+            const path =
+              buildProfileCollectionPath(username, route.collectionType) || route.path;
+            nextNavigation = createNavigationSnapshot({
+              activePage: "map",
+              discoveryStack: [
+                createRouteScreen({
+                  type: "collection",
+                  userId,
+                  username,
+                            isPrivate,
+                  collectionType: route.collectionType,
+                  path,
+                }),
+              ],
+              mapTarget: null,
+              placeReviewFilter: null,
+              path,
+            });
+          }
+        }
+      }
+
+      if (route.kind === "place") {
+        const { data: target } = await getPlaceDeepLinkTarget(route.publicId);
+
+        if (target?.PlaceId && target?.PublicId) {
+          const publicId = String(target.PublicId);
+          const path = buildPlacePath(publicId) || route.path;
+          nextNavigation = createNavigationSnapshot({
+            activePage: "map",
+            discoveryStack: [
+              createRouteScreen({
+                type: "place",
+                placeId: Number(target.PlaceId),
+                publicId,
+                placeName: String(target.Name ?? "").trim() || "Mekan",
+                venueCategoryCode: target.VenueCategoryCode ?? null,
+                path,
+              }),
+            ],
+            mapTarget: null,
+            placeReviewFilter: null,
+            path,
+          });
+        }
+      }
+
+      if (route.kind === "note") {
+        const { data: target } = await getNoteDeepLinkTarget(route.publicId);
+
+        if (target?.PlaceNoteId && target?.PublicId) {
+          const publicId = String(target.PublicId);
+          const path = buildNotePath(publicId) || route.path;
+          nextNavigation = createNavigationSnapshot({
+            activePage: "map",
+            discoveryStack: [
+              createRouteScreen({
+                type: "note",
+                noteId: Number(target.PlaceNoteId),
+                publicId,
+                path,
+              }),
+            ],
+            mapTarget: null,
+            placeReviewFilter: null,
+            path,
+          });
+        }
+      }
+
+      if (route.kind === "collection") {
+        const { data: target } = await getCollectionDeepLinkTarget(route.publicId);
+
+        if (target?.UserPlaceListId && target?.PublicId) {
+          const publicId = String(target.PublicId);
+          const path = buildCollectionPath(publicId) || route.path;
+          const userId = Number(target.UserId);
+          nextNavigation = createNavigationSnapshot({
+            activePage: "map",
+            discoveryStack: [
+              createRouteScreen({
+                type: "place-list",
+                listId: Number(target.UserPlaceListId),
+                publicId,
+                listName: String(target.Name ?? "").trim() || "Mekan listesi",
+                listDescription: String(target.Description ?? "").trim(),
+                listCoverUrl: "",
+                listIcon: String(target.Icon ?? "✦").trim() || "✦",
+                userId,
+                username: String(target.Username ?? "").trim(),
+                isPrivate: isPrivateAccount(target.AccountVisibilityCode),
+                isOwner: userId === Number(profile?.UserId),
+                path,
+              }),
+            ],
+            mapTarget: null,
+            placeReviewFilter: null,
+            path,
+          });
+        }
+      }
+
+      applyNavigationSnapshot(
+        nextNavigation || buildNotFoundNavigation(route.path),
+        historyMode
+      );
+    },
+    [
+      applyNavigationSnapshot,
+      buildNotFoundNavigation,
+      createRouteScreen,
+      profile?.UserId,
+    ]
+  );
+
+  useEffect(() => {
+    initialRouteHandledRef.current = false;
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!profile?.UserId || typeof window === "undefined") {
+      return undefined;
+    }
+
+    const onPopState = (event) => {
+      const snapshot = fromHistoryState(event.state);
+
+      if (snapshot) {
+        applyNavigationSnapshot(snapshot, "none");
+        return;
+      }
+
+      void hydrateRouteFromLocation();
+    };
+
+    window.addEventListener("popstate", onPopState);
+
+    if (!initialRouteHandledRef.current) {
+      initialRouteHandledRef.current = true;
+      void hydrateRouteFromLocation({ initial: true });
+    }
+
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [applyNavigationSnapshot, hydrateRouteFromLocation, profile?.UserId]);
 
   if (loading || (session?.user && profileLoading)) {
     return <main className="loading-screen">Yükleniyor...</main>;
@@ -1048,6 +1703,7 @@ export default function App() {
             onOpenPlaceList={handleOpenPlaceList}
             onOpenPlace={handleOpenPlaceDetail}
             onOpenNote={handleOpenNote}
+            onShareProfile={handleShareOwnProfile}
           />
         </section>
 
@@ -1084,6 +1740,7 @@ export default function App() {
                       onFollowChanged={handleFollowChanged}
                       onOpenNote={handleOpenNote}
                       onOpenPlace={handleOpenPlaceDetail}
+                      onShareProfile={handleShareProfile}
                     />
                   )}
 
@@ -1097,6 +1754,7 @@ export default function App() {
                       onOpenUser={handleOpenUserProfile}
                       onNoteDeleted={handleNoteDeleted}
                       onNoteUpdated={handleNoteUpdated}
+                      onShare={(note) => handleShareNote(screen, note)}
                     />
                   )}
 
@@ -1111,6 +1769,7 @@ export default function App() {
                       onOpenPlaceOnMap={handleOpenPlaceOnMap}
                       onOpenUser={handleOpenUserProfile}
                       onOpenNote={handleOpenNote}
+                      onShare={() => handleSharePlace(screen)}
                     />
                   )}
 
@@ -1130,6 +1789,10 @@ export default function App() {
                     />
                   )}
 
+                  {screen.type === "not-found" && (
+                    <DeepLinkNotFoundPage path={screen.path} />
+                  )}
+
                   {screen.type === "place-list" && (
                     <PlaceListDetailPage
                       userPlaceListId={screen.listId}
@@ -1143,6 +1806,7 @@ export default function App() {
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceDetail}
                       onListChanged={handlePlaceListChanged}
+                      onShare={() => handleShareCollection(screen)}
                     />
                   )}
                 </section>

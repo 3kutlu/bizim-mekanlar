@@ -3,6 +3,7 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
+import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
@@ -20,6 +21,7 @@ export function PlaceDetailPage({
   onOpenPlaceOnMap,
   onOpenUser,
   onOpenNote,
+  onShare,
 }) {
   const [place, setPlace] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -191,18 +193,16 @@ export function PlaceDetailPage({
 
   return (
     <div className="discovery-page-content place-detail-page">
-      <header className="discovery-page-header place-detail-page-header">
-        <button
-          className="discovery-back-button"
-          type="button"
-          onClick={onBack}
-          aria-label="Geri dön"
-        >
-          ‹
-          <span>Geri</span>
-        </button>
-
-        <span className="place-detail-header-label">MEKAN</span>
+      <header className="discovery-page-header discovery-page-header-no-back place-detail-page-header">
+        <div className="place-detail-header-actions">
+          <span className="place-detail-header-label">MEKAN</span>
+          <ShareIconButton
+            className="place-detail-share-button"
+            onClick={onShare}
+            disabled={!onShare}
+            label="Mekanı paylaş"
+          />
+        </div>
       </header>
 
       <div className="discovery-page-body place-detail-page-body">

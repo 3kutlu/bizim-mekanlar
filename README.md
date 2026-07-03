@@ -1,94 +1,71 @@
-# Bizim Mekanlar
+# Bizim Mekanlar — v3.1.0 Deep Links + Native Back
 
-Mobil odaklı mekan günlüğü ve sosyal keşif uygulaması.
+Bu paket, mevcut v3.0.0 çalışan projeye gerçek URL tabanlı navigasyon ekler. Arayüz ve mevcut özellikler korunur; detay ekranlarındaki sayfa içi `Geri` düğmeleri kaldırılır.
 
-Bu paket **v2.2.0 — Stabilizasyon + Koleksiyonlar** sürümüdür. V2.1.1 teknik refactor üzerine gelir; not tarihi, kaydetme hataları ve koleksiyon akışını güçlendirir.
-
-## Kurulum sırası
-
-1. Supabase SQL Editor’da şu migration’ı çalıştır:
+## Eklenen URL yapısı
 
 ```text
-supabase/migrations/20260703_v2_2_0_stabilization_collections.sql
+/user/:username?profile=:publicId
+/place/:publicId
+/note/:publicId
+/collection/:publicId
 ```
 
-2. Paket içindeki proje dosyalarını mevcut proje köküne taşı.
-3. Kendi `.env.local` dosyanı koru.
+Örnek:
+
+```text
+/user/smoke?profile=4f729b66-5b2a-4e84-9580-61b5c78e7e79
+/place/4f729b66-5b2a-4e84-9580-61b5c78e7e79
+/note/4f729b66-5b2a-4e84-9580-61b5c78e7e79
+/collection/4f729b66-5b2a-4e84-9580-61b5c78e7e79
+```
+
+`PublicId` değerleri UUID'dir; sıralı veritabanı ID'leri URL'lere çıkmaz.
+
+Profil URL'sindeki `profile` query parametresi özellikle önemlidir:
+
+- Kullanıcının görünen adresi hâlâ `/user/kullaniciadi` şeklindedir.
+- Paylaşılan link, hesap sahibini gizli UUID ile doğrular.
+- Kullanıcı adını değiştiren kişi eski adı yeniden boşa çıkarabilir.
+- Eski adı daha sonra başka biri alsa bile eski paylaşılan link yeni kişiyi açmaz; standart “sayfa bulunamadı” ekranına gider.
+
+## Uygulama adımları
+
+1. Supabase SQL Editor'da şu migration'ı **bir kez** çalıştır:
+
+   ```text
+   supabase/migrations/20260703_v3_1_0_deep_links.sql
+   ```
+
+   `v2.1.1.2` soft-delete migration'ını daha önce çalıştırmadıysan onu önce çalıştır:
+
+   ```text
+   supabase/migrations/20260703_v2_1_1_2_note_photo_soft_delete.sql
+   ```
+
+2. Paket dosyalarını proje köküne taşı. `.env.local` dosyanı koru.
+3. `vercel.json` proje kökünde kalmalı. Bu dosya, doğrudan açılan `/user/...`, `/place/...`, `/note/...` ve `/collection/...` adreslerini Vite uygulamasına yönlendirir.
 4. Kontrol et:
 
-```bash
-npm ci
-npm run check
-npm run dev
-```
+   ```bash
+   npm ci
+   npm run check
+   npm run dev
+   ```
 
-## V2.2.0 kapsamı
+## Davranış
 
-### Stabilizasyon
+- Android sistem geri tuşu ve tarayıcı geri hareketi, önce uygulama içindeki geçmiş ekranına döner.
+- Safari/iOS tarafında tarayıcının sol kenardan geri hareketi aynı geçmiş kaydını kullanır.
+- Doğrudan paylaşılan detay linki açıldığında uygulama önce bir iç harita geçmişi oluşturur; ilk geri hareketinde siteyi kapatmak yerine haritaya döner.
+- Kendi profilinde **Profilini paylaş**, mekan detayında **Paylaş** düğmesi vardır. Destekleyen cihazlarda native share sheet, diğerlerinde link kopyalama çalışır.
+- Not ve koleksiyon URL'leri de doğrudan açılabilir; mevcut gizlilik kuralları korunur. Yetkisiz özel not/koleksiyon standart bulunamadı ekranına düşer.
 
-- Not oluşturma ve not düzenleme tarih alanları Türkiye/Istanbul takvimini kullanır.
-- İlgili PostgreSQL function’ları da `Europe/Istanbul` saat dilimine bağlanır; gece yarısı sonrası yanlış “gelecek tarih” hatası önlenir.
-- Yeni not kaydında not oluşturma ile fotoğraf yükleme aşamaları ayrıldı.
-  - Not oluşturma başarısızsa net not hatası görünür.
-  - Not kaydolup fotoğraf aşaması başarısız olursa modal açık kalır; fotoğrafı tekrar denemek mümkündür.
-  - Storage, metadata/RPC ve temizlik hataları ayrı mesajlarla görünür.
-- Koleksiyon kaydetme ve düzenleme hataları daha okunabilir hale getirildi.
+## Supabase değişikliği
 
-### Koleksiyonlar
+Yeni bucket, Storage policy veya RLS policy yoktur. Migration yalnızca şu tablolara `PublicId` ekler ve güvenli hedef çözümleme RPC'lerini oluşturur:
 
-- Kendi özel koleksiyonunu oluşturma.
-- Koleksiyon adı, kısa açıklama, sembol ve görünürlük ayarı.
-- Özel koleksiyonu silme; mekanların ve notların silinmez.
-- Koleksiyona, o koleksiyondaki mekanlara ait **kendi not fotoğraflarından** kapak seçme.
-- Koleksiyon kartlarında kapak, açıklama, mekan sayısı ve görünürlük gösterimi.
-- Dış profillerde görünür koleksiyonların kapak ve açıklaması.
-- Hazır listelere açıklama eklendi:
-  - Gitmek istiyorum
-  - Favoriler
-  - Tekrar giderim
-  - Bir daha gitmem
-- Hazır listelerin kullanıcı tarafından düzenlenen adları ve sembolleri artık liste yüklenirken geri ezilmez.
-
-Koleksiyon kapakları yeni bir Storage bucket kullanmaz; mevcut özel `note-photos` bucket’ındaki erişilebilir not fotoğraflarını kullanır.
-
-## Ortam değişkenleri
-
-`VITE_SUPABASE_URL` ve `VITE_SUPABASE_PUBLISHABLE_KEY` istemci Supabase bağlantısı için kullanılır. Harita için `VITE_GOOGLE_MAPS_API_KEY` ile `VITE_GOOGLE_MAP_ID` gerekir. Gerçek anahtarları Git’e ekleme.
-
-## Kod yapısı
-
-- `src/features/app`: uygulama kabuğu, navigasyon koordinasyonu ve ortak UI yardımcıları.
-- `src/features/map`: harita ekranı; sayfa durumu, görsel widget’lar ve saf harita yardımcıları.
-- `src/features/notes`: akış kartları, not detayı, reaksiyonlar, not düzenleme ve fotoğraf işlemleri.
-- `src/features/profile`: kendi profilin, sekmeler ve profil düzenleme.
-- `src/features/discovery`: kullanıcı arama ve dış profil.
-- `src/features/collections`: mekan listesi düzenleme, liste detayı ve profil koleksiyonları.
-- `src/features/places`: mekan detay ve mekan fotoğraf galerisi.
-- `src/css/tokens.css`: ortak katman/z-index ve güvenli alan kuralları.
-- `src/utils`: tarih, Storage fotoğraf yardımcıları, hata eşleme ve mekan kategorisi eşlemesi.
-
-Dışarıdan kullanılan eski `src/pages/*` girişleri, ilgili feature modüllerine ince re-export olarak korunur.
-
-## Supabase Edge Function
-
-Passwordless OTP Edge Function kaynak kodu:
-
-```text
-supabase/functions/request-auth-otp/index.ts
-```
-
-Deploy komutu:
-
-```bash
-supabase functions deploy request-auth-otp
-```
-
-Function için Supabase ortamında `SUPABASE_URL` ve ilgili publishable/secret key değişkenleri tanımlı kalmalıdır.
-
-## V2.1.1 teknik refactor özeti
-
-- Büyük uygulama kökü alanlara ayrıldı.
-- Harita ekranı sayfa / widget / saf yardımcı katmanlarına ayrıldı.
-- Eski kullanılmayan Vite örnek dosyaları temizlendi.
-- Modal katman patch dosyası kaldırıldı; z-index ve safe-area davranışları tek token sistemine taşındı.
-- Lint yapılandırması, `.env.example`, `.gitignore`, backend contract dokümanı ve QA kontrol listesi eklendi.
+- `Users`
+- `Places`
+- `PlaceNotes`
+- `UserPlaceLists`

@@ -3,6 +3,7 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
+import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
@@ -24,6 +25,7 @@ export function ProfilePage({
   onOpenPlaceList,
   onOpenPlace,
   onOpenNote,
+  onShareProfile,
 }) {
   const [activeTab, setActiveTab] = useState(PROFILE_TAB_IDS.NOTES);
   const [profileNotes, setProfileNotes] = useState([]);
@@ -223,7 +225,14 @@ export function ProfilePage({
           </div>
 
           <div className="profile-identity">
-            <h1>{fullName || profile.Username}</h1>
+            <div className="profile-identity-heading">
+              <h1>{fullName || profile.Username}</h1>
+              <ShareIconButton
+                onClick={onShareProfile}
+                disabled={!onShareProfile}
+                label="Profili paylaş"
+              />
+            </div>
 
             <div className="profile-follow-links" aria-label="Profil istatistikleri">
               <button
@@ -1009,6 +1018,7 @@ export function ProfileEditModal({
             <input type="email" value={profile.Email ?? ""} disabled />
             <small>E-posta adresin şu an Supabase hesabından yönetiliyor.</small>
           </label>
+
 
           <label className="profile-privacy-toggle">
             <input

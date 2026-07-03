@@ -3,6 +3,7 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
+import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { MAX_NOTE_PHOTOS, createNotePhotoDrafts, createSignedNotePhotoUrls, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
@@ -318,6 +319,7 @@ export function NoteDetailPage({
   onOpenUser,
   onNoteDeleted,
   onNoteUpdated,
+  onShare,
 }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -611,17 +613,7 @@ export function NoteDetailPage({
 
   return (
     <div className="discovery-page-content note-detail-page">
-      <header className="discovery-page-header note-detail-page-header">
-        <button
-          className="discovery-back-button"
-          type="button"
-          onClick={onBack}
-          aria-label="Geri dön"
-        >
-          ‹
-          <span>Geri</span>
-        </button>
-
+      <header className="discovery-page-header discovery-page-header-no-back note-detail-page-header">
         {note && (
           <div className="note-detail-header-actions">
             <button
@@ -646,6 +638,12 @@ export function NoteDetailPage({
                 </small>
               </span>
             </button>
+
+            <ShareIconButton
+              onClick={() => onShare?.(note)}
+              disabled={!onShare}
+              label="Notu paylaş"
+            />
 
             {isOwnNote && (
               <div className="note-detail-more-menu" ref={actionMenuRef}>

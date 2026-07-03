@@ -83,21 +83,11 @@ export default function UserSearchPage({
 
   return (
     <div className="discovery-page-content user-search-page">
-      <header className="discovery-page-header">
+      <header className="discovery-page-header discovery-page-header-no-back">
         <div>
           <p className="eyebrow">KEŞFET</p>
           <h1>Kullanıcı ara</h1>
         </div>
-
-        <button
-          className="discovery-back-button"
-          type="button"
-          onClick={onBack}
-          aria-label="Geri dön"
-        >
-          ‹
-          <span>Geri</span>
-        </button>
       </header>
 
       <div className="user-search-input-wrap">

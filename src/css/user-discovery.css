@@ -104,6 +104,21 @@
   text-align: right;
 }
 
+/* Routed screens use browser/app history instead of a duplicate in-page back button. */
+.discovery-page-header-no-back > div:first-child {
+  margin-left: 0;
+  text-align: left;
+}
+
+.discovery-page-header-no-back.place-detail-page-header {
+  align-items: center;
+}
+
+.discovery-page-header-no-back .place-detail-header-actions {
+  margin-left: 0;
+  text-align: left;
+}
+
 .discovery-page-header .eyebrow {
   margin-bottom: 7px;
 }
@@ -115,37 +130,6 @@
   line-height: 1.15;
 }
 
-.discovery-back-button {
-  order: -1;
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-  border: 1px solid #353d4c;
-  border-radius: 11px;
-  padding: 7px 11px 7px 8px;
-  background: #171b23;
-  color: #e3e8f4;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.discovery-back-button:first-letter {
-  font-size: 24px;
-  font-weight: 400;
-}
-
-.discovery-back-button:hover:not(:disabled),
-.discovery-back-button:focus-visible {
-  border-color: #697fba;
-  background: #202735;
-}
-
-.discovery-back-button:disabled {
-  opacity: 0.55;
-}
 
 .discovery-page-body {
   width: 100%;
@@ -574,15 +558,6 @@ button.foreign-profile-stat:focus-visible {
     height: 42px;
   }
 
-  .discovery-back-button span {
-    display: none;
-  }
-
-  .discovery-back-button {
-    width: 38px;
-    justify-content: center;
-    padding: 6px;
-  }
 }
 
 /* EXTERNAL PROFILE TABS — v1.7.0 */

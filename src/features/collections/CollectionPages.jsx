@@ -3,6 +3,7 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
+import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
@@ -27,6 +28,7 @@ export function PlaceListDetailPage({
   onBack,
   onOpenPlace,
   onListChanged,
+  onShare,
 }) {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -148,39 +150,38 @@ export function PlaceListDetailPage({
 
   return (
     <div className="discovery-page-content place-list-detail-page">
-      <header className="discovery-page-header place-list-detail-header">
+      <header className="discovery-page-header discovery-page-header-no-back place-list-detail-header">
         <div className="place-list-detail-heading">
-          {profileUsername && <p className="eyebrow">@{profileUsername}</p>}
-          <div className="place-list-detail-title-row">
-            {listCoverUrl ? (
-              <img
-                className="place-list-detail-cover"
-                src={listCoverUrl}
-                alt=""
-              />
-            ) : (
-              <span className="place-list-detail-title-icon" aria-hidden="true">
-                {listIcon || "✦"}
-              </span>
-            )}
-            <div>
-              <h1>{normalizedListName}</h1>
-              {listDescription && (
-                <p className="place-list-detail-description">{listDescription}</p>
+          <div className="place-list-detail-heading-copy">
+            {profileUsername && <p className="eyebrow">@{profileUsername}</p>}
+            <div className="place-list-detail-title-row">
+              {listCoverUrl ? (
+                <img
+                  className="place-list-detail-cover"
+                  src={listCoverUrl}
+                  alt=""
+                />
+              ) : (
+                <span className="place-list-detail-title-icon" aria-hidden="true">
+                  {listIcon || "✦"}
+                </span>
               )}
+              <div>
+                <h1>{normalizedListName}</h1>
+                {listDescription && (
+                  <p className="place-list-detail-description">{listDescription}</p>
+                )}
+              </div>
             </div>
           </div>
+          <ShareIconButton
+            className="place-list-detail-share-button"
+            onClick={onShare}
+            disabled={!onShare}
+            label="Koleksiyonu paylaş"
+          />
         </div>
 
-        <button
-          className="discovery-back-button"
-          type="button"
-          onClick={onBack}
-          aria-label="Geri dön"
-        >
-          ‹
-          <span>Geri</span>
-        </button>
       </header>
 
       <div className="discovery-page-body place-list-detail-body">
@@ -532,7 +533,7 @@ export function ProfileCollectionPage({
 
   return (
     <div className="discovery-page-content collection-page">
-      <header className="discovery-page-header">
+      <header className="discovery-page-header discovery-page-header-no-back">
         <div>
           <p className="eyebrow">
             @{profileUsername}
@@ -541,15 +542,6 @@ export function ProfileCollectionPage({
           <h1>{config?.title || "Liste"}</h1>
         </div>
 
-        <button
-          className="discovery-back-button"
-          type="button"
-          onClick={onBack}
-          aria-label="Geri dön"
-        >
-          ‹
-          <span>Geri</span>
-        </button>
       </header>
 
       <div className="discovery-page-body">

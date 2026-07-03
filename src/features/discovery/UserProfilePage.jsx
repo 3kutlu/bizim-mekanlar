@@ -1,6 +1,7 @@
 /* Feature module: extracted without changing UI behavior. */
 
 import { useCallback, useEffect, useState } from "react";
+import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { supabase } from "../../supabase.js";
 import { getErrorMessageKey, MESSAGE_KEY, t } from "../../i18n/messages.js";
 import {
@@ -252,6 +253,7 @@ export default function UserProfilePage({
   onFollowChanged,
   onOpenNote,
   onOpenPlace,
+  onShareProfile,
 }) {
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -748,21 +750,10 @@ export default function UserProfilePage({
 
   return (
     <div className="discovery-page-content foreign-profile-page">
-      <header className="discovery-page-header foreign-profile-page-header">
+      <header className="discovery-page-header discovery-page-header-no-back foreign-profile-page-header">
         <div>
           <h1>Profil</h1>
         </div>
-
-        <button
-          className="discovery-back-button"
-          type="button"
-          onClick={onBack}
-          disabled={isActionLoading}
-          aria-label="Geri dön"
-        >
-          ‹
-          <span>Geri</span>
-        </button>
       </header>
 
       <div className="discovery-page-body">
@@ -788,7 +779,14 @@ export default function UserProfilePage({
                 </div>
 
                 <div className="foreign-profile-identity">
-                  <h2>{fullName || profile.Username}</h2>
+                  <div className="foreign-profile-identity-heading">
+                    <h2>{fullName || profile.Username}</h2>
+                    <ShareIconButton
+                      onClick={() => onShareProfile?.(profile)}
+                      disabled={!onShareProfile}
+                      label="Profili paylaş"
+                    />
+                  </div>
                   <div
                     className="foreign-profile-follow-links"
                     aria-label="Profil istatistikleri"

@@ -91,6 +91,9 @@ export const MESSAGE_KEY = Object.freeze({
   PROFILE_COLLECTION_NOTES_EMPTY: "PROFILE_COLLECTION_NOTES_EMPTY",
   PROFILE_COLLECTION_FOLLOWERS_EMPTY: "PROFILE_COLLECTION_FOLLOWERS_EMPTY",
   PROFILE_COLLECTION_FOLLOWING_EMPTY: "PROFILE_COLLECTION_FOLLOWING_EMPTY",
+
+  LINK_COPIED: "LINK_COPIED",
+  LINK_SHARE_FAILED: "LINK_SHARE_FAILED",
 });
 
 const TURKISH_MESSAGES = Object.freeze({
@@ -237,6 +240,10 @@ const TURKISH_MESSAGES = Object.freeze({
     "Henüz takipçi bulunmuyor.",
   [MESSAGE_KEY.PROFILE_COLLECTION_FOLLOWING_EMPTY]:
     "Henüz takip edilen hesap bulunmuyor.",
+
+  [MESSAGE_KEY.LINK_COPIED]: "Bağlantı kopyalandı.",
+  [MESSAGE_KEY.LINK_SHARE_FAILED]:
+    "Bağlantı şu an paylaşılamadı. Lütfen tekrar dene.",
 });
 
 const MESSAGES_BY_LOCALE = Object.freeze({

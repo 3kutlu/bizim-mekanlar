@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import PushNotificationSettings from "./PushNotificationSettings.jsx";
 import {
   getErrorMessageKey,
   MESSAGE_KEY,
@@ -233,6 +234,7 @@ export default function NotificationsPopover({
   };
 
   const isFollowTab = activeTab === "follow";
+  const isSettingsTab = activeTab === "settings";
   const visibleItems = isFollowTab ? safeFollowActivity : noteNotifications;
   const isCurrentTabLoading = isFollowTab
     ? followActivityLoading
@@ -280,9 +282,11 @@ export default function NotificationsPopover({
               <h2>Gelişmeler</h2>
             </div>
             <span className="notification-read-status">
-              {safeUnreadCount > 0
-                ? `${safeUnreadCount > 9 ? "9+" : safeUnreadCount} yeni`
-                : "Güncel"}
+              {isSettingsTab
+                ? "Ayarlar"
+                : safeUnreadCount > 0
+                  ? `${safeUnreadCount > 9 ? "9+" : safeUnreadCount} yeni`
+                  : "Güncel"}
             </span>
           </header>
 
@@ -318,136 +322,146 @@ export default function NotificationsPopover({
                 </span>
               )}
             </button>
+
+            <button
+              className={activeTab === "settings" ? "notification-tab-active" : ""}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "settings"}
+              onClick={() => handleTabChange("settings")}
+            >
+              Ayarlar
+            </button>
           </div>
 
           <div className="notification-popover-body" role="tabpanel">
-            {isCurrentTabLoading && (
-              <p className="notification-state">Yükleniyor...</p>
-            )}
+            {isSettingsTab ? (
+              <PushNotificationSettings />
+            ) : (
+              <>
+                {isCurrentTabLoading && (
+                  <p className="notification-state">Yükleniyor...</p>
+                )}
 
-            {!isCurrentTabLoading && currentTabError && (
-              <div className="notification-state notification-state-error">
-                <p>{t(currentTabError)}</p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    isFollowTab
-                      ? onRetryFollowActivity()
-                      : onRetryNotifications()
-                  }
-                >
-                  Tekrar dene
-                </button>
-              </div>
-            )}
+                {!isCurrentTabLoading && currentTabError && (
+                  <div className="notification-state notification-state-error">
+                    <p>{t(currentTabError)}</p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        isFollowTab
+                          ? onRetryFollowActivity()
+                          : onRetryNotifications()
+                      }
+                    >
+                      Tekrar dene
+                    </button>
+                  </div>
+                )}
 
-            {!isCurrentTabLoading &&
-              !currentTabError &&
-              visibleItems.length === 0 && (
-                <div className="notification-state">
-                  <span className="notification-empty-icon" aria-hidden="true">
-                    {isFollowTab ? "◉" : "✦"}
-                  </span>
-                  <p>
-                    {isFollowTab
-                      ? "Henüz takip hareketin yok."
-                      : "Yeni not bildirimin yok."}
-                  </p>
-                </div>
-              )}
+                {!isCurrentTabLoading &&
+                  !currentTabError &&
+                  visibleItems.length === 0 && (
+                    <div className="notification-state">
+                      <span className="notification-empty-icon" aria-hidden="true">
+                        {isFollowTab ? "◉" : "✦"}
+                      </span>
+                      <p>
+                        {isFollowTab
+                          ? "Henüz takip hareketin yok."
+                          : "Yeni not bildirimin yok."}
+                      </p>
+                    </div>
+                  )}
 
-            {!isCurrentTabLoading &&
-              !currentTabError &&
-              visibleItems.length > 0 && (
-                <div className="notification-list">
-                  {visibleItems.map((item) => {
-                    const copy = isFollowTab
-                      ? getFollowActivityCopy(item)
-                      : getNoteNotificationCopy(item);
-                    const actorUserId = Number(item?.ActorUserId);
-                    const canRespond = Boolean(item?.CanRespond);
-                    const isProcessing =
-                      canRespond &&
-                      Number.isInteger(actorUserId) &&
-                      processingFollowerUserId === actorUserId;
-                    const itemKey = isFollowTab
-                      ? item?.ActivityId || `follow-${actorUserId}-${item?.CreatedDate}`
-                      : item?.NotificationId || item?.CreatedDate;
+                {!isCurrentTabLoading &&
+                  !currentTabError &&
+                  visibleItems.length > 0 && (
+                    <div className="notification-list">
+                      {visibleItems.map((item) => {
+                        const copy = isFollowTab
+                          ? getFollowActivityCopy(item)
+                          : getNoteNotificationCopy(item);
+                        const actorUserId = Number(item?.ActorUserId);
+                        const canRespond = Boolean(item?.CanRespond);
+                        const isProcessing =
+                          canRespond &&
+                          Number.isInteger(actorUserId) &&
+                          processingFollowerUserId === actorUserId;
+                        const itemKey = isFollowTab
+                          ? item?.ActivityId || `follow-${actorUserId}-${item?.CreatedDate}`
+                          : item?.NotificationId || item?.CreatedDate;
 
-                    return (
-                      <article className="notification-item" key={itemKey}>
-                        <button
-                          className={`notification-item-main${
-                            !item?.IsRead ? " notification-item-unread" : ""
-                          }`}
-                          type="button"
-                          onClick={() => {
-                            /*
-                              Mevcut App.jsx sadece FOLLOWING_NOTE tipini not
-                              detayına yönlendiriyor. Reaksiyon bildirimlerini de
-                              aynı not akışı üzerinden açarak geriye dönük uyumu
-                              koruyoruz.
-                            */
-                            const notificationToOpen = isNoteNotificationType(
-                              item?.NotificationTypeCode
-                            )
-                              ? {
-                                  ...item,
-                                  NotificationTypeCode: "FOLLOWING_NOTE",
-                                }
-                              : item;
-
-                            onOpenNotification(notificationToOpen);
-                          }}
-                        >
-                          <span
-                            className="notification-item-icon"
-                            aria-hidden="true"
-                          >
-                            {copy.icon}
-                          </span>
-
-                          <span className="notification-item-copy">
-                            <strong>{copy.title}</strong>
-                            {copy.detail && <span>{copy.detail}</span>}
-                            <time dateTime={item?.CreatedDate}>
-                              {formatNotificationTime(item?.CreatedDate)}
-                            </time>
-                          </span>
-                        </button>
-
-                        {canRespond && (
-                          <div className="notification-request-actions">
+                        return (
+                          <article className="notification-item" key={itemKey}>
                             <button
-                              className="notification-request-accept"
+                              className={`notification-item-main${
+                                !item?.IsRead ? " notification-item-unread" : ""
+                              }`}
                               type="button"
-                              onClick={(event) =>
-                                handleRequestResponse(event, item, true)
-                              }
-                              disabled={isProcessing}
-                            >
-                              {isProcessing ? "İşleniyor..." : "Kabul et"}
-                            </button>
-                            <button
-                              className="notification-request-reject"
-                              type="button"
-                              onClick={(event) =>
-                                handleRequestResponse(event, item, false)
-                              }
-                              disabled={isProcessing}
-                            >
-                              Reddet
-                            </button>
-                          </div>
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
+                              onClick={() => {
+                                const notificationToOpen = isNoteNotificationType(
+                                  item?.NotificationTypeCode
+                                )
+                                  ? {
+                                      ...item,
+                                      NotificationTypeCode: "FOLLOWING_NOTE",
+                                    }
+                                  : item;
 
-            {actionError && (
-              <p className="notification-action-error">{t(actionError)}</p>
+                                onOpenNotification(notificationToOpen);
+                              }}
+                            >
+                              <span
+                                className="notification-item-icon"
+                                aria-hidden="true"
+                              >
+                                {copy.icon}
+                              </span>
+
+                              <span className="notification-item-copy">
+                                <strong>{copy.title}</strong>
+                                {copy.detail && <span>{copy.detail}</span>}
+                                <time dateTime={item?.CreatedDate}>
+                                  {formatNotificationTime(item?.CreatedDate)}
+                                </time>
+                              </span>
+                            </button>
+
+                            {canRespond && (
+                              <div className="notification-request-actions">
+                                <button
+                                  className="notification-request-accept"
+                                  type="button"
+                                  onClick={(event) =>
+                                    handleRequestResponse(event, item, true)
+                                  }
+                                  disabled={isProcessing}
+                                >
+                                  {isProcessing ? "İşleniyor..." : "Kabul et"}
+                                </button>
+                                <button
+                                  className="notification-request-reject"
+                                  type="button"
+                                  onClick={(event) =>
+                                    handleRequestResponse(event, item, false)
+                                  }
+                                  disabled={isProcessing}
+                                >
+                                  Reddet
+                                </button>
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                {actionError && (
+                  <p className="notification-action-error">{t(actionError)}</p>
+                )}
+              </>
             )}
           </div>
         </section>

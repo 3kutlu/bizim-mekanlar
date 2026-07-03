@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check": "npm run lint && npm run build"
+    "check": "npm run lint && npm run build",
+    "generate:vapid": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
