@@ -8,7 +8,7 @@ import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { createProfilePhotoDraft, deleteMyProfilePhotoObject, removeMyProfilePhotoPath, revokeProfilePhotoDraft, setMyProfilePhotoPath, uploadMyProfilePhotoDraft, useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { PROFILE_TAB_IDS, getFullName } from "../app/appShared.jsx";
-import { PlaceListEditModal } from "../collections/CollectionPages.jsx";
+import { PlaceListEditModal } from "../collections/CollectionEditorModal.jsx";
 import { LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -35,7 +35,7 @@ export function ProfilePage({
   const [placeLists, setPlaceLists] = useState([]);
   const [listsLoading, setListsLoading] = useState(false);
   const [listsError, setListsError] = useState("");
-  const [editingList, setEditingList] = useState(null);
+  const [collectionEditor, setCollectionEditor] = useState(null);
 
   const fullName = getFullName(profile);
   const avatarLetter = (profile.Username || profile.FirstName || "K")
@@ -112,14 +112,36 @@ export function ProfilePage({
     setListsLoading(true);
     setListsError("");
 
-    const { data, error } = await supabase.rpc("GetMyPlaceListsV2");
+    const { data, error } = await supabase.rpc("GetMyPlaceListsV3");
 
     if (error) {
       console.error("Kişisel mekan listeleri alınamadı:", error);
       setPlaceLists([]);
       setListsError("Mekan listelerin şu an yüklenemedi. Tekrar dene.");
-    } else {
-      setPlaceLists(data ?? []);
+      setListsLoading(false);
+      return;
+    }
+
+    const lists = data ?? [];
+
+    try {
+      const withSignedUrls = await createSignedNotePhotoUrls(
+        lists.map((list) => ({
+          ...list,
+          StoragePath: list?.CoverStoragePath ?? null,
+        }))
+      );
+
+      setPlaceLists(
+        withSignedUrls.map(({ SignedUrl, ...list }) => ({
+          ...list,
+          CoverSignedUrl: SignedUrl,
+        }))
+      );
+    } catch (signedUrlError) {
+      // A cover is decorative. Keep the lists usable when just the signed URL fails.
+      console.error("Koleksiyon kapak bağlantıları oluşturulamadı:", signedUrlError);
+      setPlaceLists(lists);
     }
 
     setListsLoading(false);
@@ -156,14 +178,38 @@ export function ProfilePage({
       return;
     }
 
+    setPlaceLists((currentLists) => {
+      const hasExisting = currentLists.some(
+        (currentList) =>
+          Number(currentList?.UserPlaceListId) === updatedListId
+      );
+
+      const nextLists = hasExisting
+        ? currentLists.map((currentList) =>
+            Number(currentList?.UserPlaceListId) === updatedListId
+              ? { ...currentList, ...updatedList }
+              : currentList
+          )
+        : [...currentLists, updatedList];
+
+      return [...nextLists].sort((left, right) =>
+        Number(left?.SortOrder ?? 0) - Number(right?.SortOrder ?? 0) ||
+        Number(left?.UserPlaceListId ?? 0) - Number(right?.UserPlaceListId ?? 0)
+      );
+    });
+    setCollectionEditor(null);
+  };
+
+  const handlePlaceListDeleted = (listId) => {
+    const normalizedListId = Number(listId);
+
     setPlaceLists((currentLists) =>
-      currentLists.map((currentList) =>
-        Number(currentList?.UserPlaceListId) === updatedListId
-          ? { ...currentList, ...updatedList }
-          : currentList
+      currentLists.filter(
+        (currentList) =>
+          Number(currentList?.UserPlaceListId) !== normalizedListId
       )
     );
-    setEditingList(null);
+    setCollectionEditor(null);
   };
 
   const isPrivateAccount = profile.AccountVisibilityStatusId === 2;
@@ -299,18 +345,25 @@ export function ProfilePage({
                   username: profile.Username,
                 })
               }
-              onEditList={setEditingList}
+              onCreateList={() =>
+                setCollectionEditor({ mode: "create", list: null })
+              }
+              onEditList={(list) =>
+                setCollectionEditor({ mode: "edit", list })
+              }
             />
           )}
         </div>
       </div>
 
-      {editingList &&
+      {collectionEditor &&
         createPortal(
           <PlaceListEditModal
-            list={editingList}
-            onClose={() => setEditingList(null)}
+            list={collectionEditor.list}
+            mode={collectionEditor.mode}
+            onClose={() => setCollectionEditor(null)}
             onSaved={handlePlaceListSaved}
+            onDeleted={handlePlaceListDeleted}
           />,
           document.body
         )}
@@ -419,6 +472,7 @@ export function ProfileSavedTab({
   accountIsPrivate,
   onRetry,
   onOpenList,
+  onCreateList,
   onEditList,
 }) {
   if (loading) {
@@ -443,13 +497,20 @@ export function ProfileSavedTab({
           ▤
         </span>
         <h2>Henüz mekan listen yok</h2>
-        <p>Haritadan mekan kaydettiğinde listelerin burada görünür.</p>
+        <p>Hazır listelerine mekan kaydedebilir veya kendi koleksiyonunu oluşturabilirsin.</p>
+        <button className="profile-new-collection-button" type="button" onClick={onCreateList}>
+          Yeni koleksiyon
+        </button>
       </div>
     );
   }
 
   return (
     <div className="profile-saved-list" aria-label="Mekan listelerin">
+      <button className="profile-new-collection-button" type="button" onClick={onCreateList}>
+        <span aria-hidden="true">＋</span>
+        Yeni koleksiyon
+      </button>
       {lists.map((list) => {
         const isPublic = String(list?.VisibilityCode ?? "PRIVATE")
           .trim()
@@ -464,12 +525,21 @@ export function ProfileSavedTab({
               onClick={() => onOpenList?.(list)}
               title={`${list.Name || "Mekan listesi"} listesini aç`}
             >
-              <span className="profile-saved-list-icon" aria-hidden="true">
-                {list.Icon || "✦"}
-              </span>
+              {list.CoverSignedUrl ? (
+                <img
+                  className="profile-saved-list-cover"
+                  src={list.CoverSignedUrl}
+                  alt=""
+                />
+              ) : (
+                <span className="profile-saved-list-icon" aria-hidden="true">
+                  {list.Icon || "✦"}
+                </span>
+              )}
 
               <span className="profile-saved-list-copy">
                 <strong>{list.Name}</strong>
+                {list.Description && <em>{list.Description}</em>}
                 <span>{placeCount} mekan</span>
               </span>
             </button>

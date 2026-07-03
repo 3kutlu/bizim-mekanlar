@@ -792,7 +792,7 @@
 
 .note-delete-modal-backdrop {
   position: fixed;
-  z-index: 1300;
+  z-index: var(--z-confirmation-modal);
   inset: 0;
   display: grid;
   place-items: center;

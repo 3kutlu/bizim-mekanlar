@@ -59,6 +59,20 @@ export const MESSAGE_KEY = Object.freeze({
   NOTE_SAVE_FAILED: "NOTE_SAVE_FAILED",
   NOTE_DELETE_FAILED: "NOTE_DELETE_FAILED",
   NOTE_DELETE_NOT_ALLOWED: "NOTE_DELETE_NOT_ALLOWED",
+  NOTE_VISIT_DATE_FUTURE: "NOTE_VISIT_DATE_FUTURE",
+  NOTE_CREATE_STAGE_FAILED: "NOTE_CREATE_STAGE_FAILED",
+  NETWORK_REQUEST_FAILED: "NETWORK_REQUEST_FAILED",
+  PLACE_LIST_SAVE_FAILED: "PLACE_LIST_SAVE_FAILED",
+  COLLECTION_SAVE_FAILED: "COLLECTION_SAVE_FAILED",
+  COLLECTION_DELETE_FAILED: "COLLECTION_DELETE_FAILED",
+  COLLECTION_NAME_EXISTS: "COLLECTION_NAME_EXISTS",
+  COLLECTION_SYSTEM_DELETE_BLOCKED: "COLLECTION_SYSTEM_DELETE_BLOCKED",
+  COLLECTION_NAME_INVALID: "COLLECTION_NAME_INVALID",
+  COLLECTION_DESCRIPTION_INVALID: "COLLECTION_DESCRIPTION_INVALID",
+  COLLECTION_ICON_INVALID: "COLLECTION_ICON_INVALID",
+  COLLECTION_VISIBILITY_INVALID: "COLLECTION_VISIBILITY_INVALID",
+  COLLECTION_NOT_FOUND: "COLLECTION_NOT_FOUND",
+  COLLECTION_COVER_INVALID: "COLLECTION_COVER_INVALID",
   PLACE_DATA_INCOMPLETE: "PLACE_DATA_INCOMPLETE",
   PLACE_LOCATION_INVALID: "PLACE_LOCATION_INVALID",
   PLACE_SUGGESTIONS_LOAD_FAILED: "PLACE_SUGGESTIONS_LOAD_FAILED",
@@ -169,6 +183,34 @@ const TURKISH_MESSAGES = Object.freeze({
     "Not silinemedi. Lütfen tekrar dene.",
   [MESSAGE_KEY.NOTE_DELETE_NOT_ALLOWED]:
     "Bu not silinemedi veya artık mevcut değil.",
+  [MESSAGE_KEY.NOTE_VISIT_DATE_FUTURE]:
+    "Ziyaret tarihi Türkiye saatine göre gelecekte olamaz.",
+  [MESSAGE_KEY.NOTE_CREATE_STAGE_FAILED]:
+    "Not kaydedilemedi. Lütfen bilgileri kontrol edip tekrar dene.",
+  [MESSAGE_KEY.NETWORK_REQUEST_FAILED]:
+    "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.",
+  [MESSAGE_KEY.PLACE_LIST_SAVE_FAILED]:
+    "Mekan listene kaydedilemedi. Tekrar dene.",
+  [MESSAGE_KEY.COLLECTION_SAVE_FAILED]:
+    "Koleksiyon kaydedilemedi. Tekrar dene.",
+  [MESSAGE_KEY.COLLECTION_DELETE_FAILED]:
+    "Koleksiyon silinemedi. Tekrar dene.",
+  [MESSAGE_KEY.COLLECTION_NAME_EXISTS]:
+    "Bu isimde zaten bir koleksiyonun var.",
+  [MESSAGE_KEY.COLLECTION_SYSTEM_DELETE_BLOCKED]:
+    "Hazır koleksiyonlar silinemez.",
+  [MESSAGE_KEY.COLLECTION_NAME_INVALID]:
+    "Koleksiyon adı 1 ile 60 karakter arasında olmalı.",
+  [MESSAGE_KEY.COLLECTION_DESCRIPTION_INVALID]:
+    "Koleksiyon açıklaması en fazla 180 karakter olabilir.",
+  [MESSAGE_KEY.COLLECTION_ICON_INVALID]:
+    "Koleksiyon sembolü geçersiz.",
+  [MESSAGE_KEY.COLLECTION_VISIBILITY_INVALID]:
+    "Koleksiyon görünürlüğü geçersiz.",
+  [MESSAGE_KEY.COLLECTION_NOT_FOUND]:
+    "Koleksiyon bulunamadı veya işlem yapma yetkin yok.",
+  [MESSAGE_KEY.COLLECTION_COVER_INVALID]:
+    "Kapak olarak yalnızca bu listedeki kendi not fotoğraflarını seçebilirsin.",
   [MESSAGE_KEY.PLACE_DATA_INCOMPLETE]:
     "Mekanın Google'dan gelen adı, adresi veya şehir bilgisi eksik. Lütfen listeden tekrar seç.",
   [MESSAGE_KEY.PLACE_LOCATION_INVALID]:

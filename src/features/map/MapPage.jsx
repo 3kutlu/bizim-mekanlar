@@ -6,6 +6,7 @@ import "../../css/map-page.css";
  */
 
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
+import { getNoteCreateErrorMessage, getPlaceSaveErrorMessage } from "../../utils/actionErrors.js";
 import { supabase } from "../../supabase.js";
 import { createNotePhotoDrafts, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
 import { ankaraCenter, cleanText, createPlaceNote, getLocalDateInputValue, getPartialPhotoUploadErrorMessage, getPlaceEligibility, getPlaceSavePayload } from "./mapUtils.js";
@@ -411,7 +412,7 @@ export default function MapPage({
     setPlaceSaveError("");
     setPlaceSaveNotice("");
 
-    const { data, error } = await supabase.rpc("GetMyPlaceListsForPlaceV2", {
+    const { data, error } = await supabase.rpc("GetMyPlaceListsForPlaceV3", {
       p_google_place_id: selectedPlace.id,
     });
 
@@ -504,9 +505,7 @@ export default function MapPage({
 
       if (error) {
         console.error("Mekan listeye kaydedilemedi:", error);
-        setPlaceSaveError(
-          error.message || "Mekan listene kaydedilemedi. Tekrar dene."
-        );
+        setPlaceSaveError(getPlaceSaveErrorMessage(error));
         setSavingPlaceListId(null);
         return;
       }
@@ -562,7 +561,8 @@ export default function MapPage({
     const content = cleanText(noteDraft);
     const rating = Number(noteRating);
     const visitedDate = cleanText(noteVisitedDate) || null;
-    const hasSavedNote = Number.isInteger(Number(createdNoteId)) && Number(createdNoteId) > 0;
+    const hasSavedNote =
+      Number.isInteger(Number(createdNoteId)) && Number(createdNoteId) > 0;
 
     if (!selectedPlace || isSavingNote) {
       return;
@@ -592,46 +592,52 @@ export default function MapPage({
     setIsSavingNote(true);
     setNoteSaveError("");
 
-    let didCreateNote = false;
+    let placeNoteId = Number(createdNoteId);
 
     try {
-      let placeNoteId = Number(createdNoteId);
-
       if (!hasSavedNote) {
-        const createdId = await createPlaceNote(selectedPlace, {
-          title,
-          content,
-          rating,
-          visitedDate,
-        });
+        try {
+          const createdId = await createPlaceNote(selectedPlace, {
+            title,
+            content,
+            rating,
+            visitedDate,
+          });
 
-        placeNoteId = Number(createdId);
+          placeNoteId = Number(createdId);
 
-        if (!Number.isInteger(placeNoteId) || placeNoteId <= 0) {
-          throw new Error("Not kaydedildi fakat oluşturulan not bulunamadı.");
+          if (!Number.isInteger(placeNoteId) || placeNoteId <= 0) {
+            throw new Error("Not kaydedildi fakat oluşturulan not bulunamadı.");
+          }
+        } catch (error) {
+          console.error("Not kaydedilemedi:", error);
+          setNoteSaveError(getNoteCreateErrorMessage(error));
+          return;
         }
 
+        // The note is durable at this point. Keep the modal open only when
+        // its optional photo stage still needs attention.
         setCreatedNoteId(placeNoteId);
-        didCreateNote = true;
-        await Promise.resolve(onNoteCreated?.());
+
+        try {
+          await Promise.resolve(onNoteCreated?.());
+        } catch (refreshError) {
+          console.warn("Not sonrası ekran verileri yenilenemedi:", refreshError);
+        }
       }
 
       if (notePhotoDraftsRef.current.length > 0) {
-        await uploadMyNotePhotoDrafts(placeNoteId, notePhotoDraftsRef.current);
+        try {
+          await uploadMyNotePhotoDrafts(placeNoteId, notePhotoDraftsRef.current);
+        } catch (error) {
+          console.error("Not kaydedildi ancak fotoğraflar yüklenemedi:", error);
+          setNoteSaveError(getPartialPhotoUploadErrorMessage(error));
+          return;
+        }
       }
 
       setIsNoteModalOpen(false);
       resetNoteForm();
-    } catch (error) {
-      console.error("Not veya fotoğraflar kaydedilirken hata oluştu:", error);
-
-      if (hasSavedNote || didCreateNote) {
-        setNoteSaveError(getPartialPhotoUploadErrorMessage(error));
-      } else {
-        setNoteSaveError(
-          getErrorMessageKey(error, MESSAGE_KEY.NOTE_SAVE_FAILED)
-        );
-      }
     } finally {
       setIsSavingNote(false);
     }

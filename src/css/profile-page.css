@@ -1069,3 +1069,304 @@
     scroll-margin-bottom: 16px;
   }
 }
+
+/* v2.2.0 — collection cards, editor and cover selection */
+.profile-new-collection-button {
+  width: 100%;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px dashed #4e5f80;
+  border-radius: 12px;
+  padding: 10px 13px;
+  background: rgba(30, 39, 54, 0.54);
+  color: #dfe8fb;
+  font-weight: 750;
+}
+
+.profile-new-collection-button:hover,
+.profile-new-collection-button:focus-visible {
+  border-color: #91a9ec;
+  background: #202a39;
+}
+
+.profile-saved-list-cover {
+  width: 42px;
+  height: 42px;
+  display: block;
+  border: 1px solid #394255;
+  border-radius: 13px;
+  object-fit: cover;
+}
+
+.profile-saved-list-copy em {
+  overflow: hidden;
+  color: #aab3c3;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-list-edit-modal {
+  max-height: min(820px, calc(100dvh - 40px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.place-list-edit-form textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 1px solid #343946;
+  border-radius: 11px;
+  padding: 12px 13px;
+  outline: none;
+  background: #0e1116;
+  color: #fff;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.place-list-edit-form textarea:focus {
+  border-color: #859cff;
+  box-shadow: 0 0 0 3px rgba(133, 156, 255, 0.14);
+}
+
+.collection-icon-field,
+.collection-cover-field {
+  display: grid;
+  gap: 10px;
+  color: #d7dbe4;
+  font-size: 14px;
+}
+
+.collection-icon-field > span,
+.collection-cover-field > div > span {
+  font-weight: 650;
+}
+
+.collection-icon-picker {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.collection-icon-option {
+  min-height: 40px;
+  border: 1px solid #343d4d;
+  border-radius: 11px;
+  background: #10131a;
+  color: #cdd8ef;
+  font-size: 18px;
+}
+
+.collection-icon-option:hover:not(:disabled),
+.collection-icon-option:focus-visible,
+.collection-icon-option-active {
+  border-color: #8499d7;
+  background: #202a3a;
+  color: #fff;
+}
+
+.collection-cover-field > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.collection-cover-field > div:first-child small {
+  color: #929bab;
+}
+
+.collection-cover-state {
+  margin: 0;
+  border: 1px dashed #39465c;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #9ea8ba;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.collection-cover-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.collection-cover-none,
+.collection-cover-option {
+  min-width: 0;
+  border: 1px solid #353e4d;
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  background: #10131a;
+  color: #cbd4e6;
+  text-align: left;
+}
+
+.collection-cover-none {
+  min-height: 82px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: #aab5c9;
+  font-size: 12px;
+  text-align: center;
+}
+
+.collection-cover-option img {
+  width: 100%;
+  aspect-ratio: 1 / 0.78;
+  display: block;
+  object-fit: cover;
+}
+
+.collection-cover-option span {
+  min-height: 30px;
+  display: block;
+  overflow: hidden;
+  padding: 6px 7px;
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-cover-none:hover:not(:disabled),
+.collection-cover-none:focus-visible,
+.collection-cover-option:hover:not(:disabled),
+.collection-cover-option:focus-visible,
+.collection-cover-selected {
+  border-color: #93a7e5;
+  box-shadow: 0 0 0 2px rgba(147, 167, 229, 0.16);
+}
+
+.collection-delete-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid #303744;
+  padding-top: 16px;
+}
+
+.collection-delete-section > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.collection-delete-section strong {
+  color: #f1d7dd;
+  font-size: 13px;
+}
+
+.collection-delete-section span {
+  color: #9ea7b9;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.collection-delete-section > button,
+.collection-delete-confirm {
+  border: 1px solid #73474f;
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: #251a1e;
+  color: #ffd8dd;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.collection-delete-backdrop {
+  position: fixed;
+  z-index: var(--z-confirmation-modal);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(5px);
+}
+
+.collection-delete-modal {
+  width: min(100%, 390px);
+  display: grid;
+  gap: 14px;
+  border: 1px solid #4f3a43;
+  border-radius: 18px;
+  padding: 20px;
+  background: #18171b;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+}
+
+.collection-delete-modal .eyebrow {
+  margin: 0;
+}
+
+.collection-delete-modal h3,
+.collection-delete-modal p {
+  margin: 0;
+}
+
+.collection-delete-modal h3 {
+  color: #fff;
+  font-size: 20px;
+}
+
+.collection-delete-modal > p {
+  color: #b4bac7;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.collection-delete-error {
+  color: #ffb4b4 !important;
+}
+
+.collection-delete-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.collection-delete-actions button {
+  min-height: 43px;
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-weight: 750;
+}
+
+.collection-delete-actions button:first-child {
+  border: 1px solid #3e4655;
+  background: transparent;
+  color: #d8deea;
+}
+
+@media (max-width: 520px) {
+  .profile-saved-list-cover {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .place-list-edit-modal {
+    max-height: calc(100dvh - 20px);
+  }
+
+  .collection-delete-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .collection-delete-modal {
+    width: 100%;
+    border-radius: 18px 18px 14px 14px;
+  }
+}

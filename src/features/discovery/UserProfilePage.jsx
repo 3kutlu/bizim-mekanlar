@@ -453,7 +453,7 @@ export default function UserProfilePage({
     setSavedListsLoading(true);
     setSavedListsError("");
 
-    const { data, error } = await supabase.rpc("GetVisibleUserPlaceListsV2", {
+    const { data, error } = await supabase.rpc("GetVisibleUserPlaceListsV3", {
       p_profile_user_id: profile.UserId,
     });
 
@@ -461,8 +461,29 @@ export default function UserProfilePage({
       console.error("Dış profil mekan listeleri alınamadı:", error);
       setSavedLists([]);
       setSavedListsError("Kaydedilenler şu an yüklenemedi. Tekrar dene.");
-    } else {
-      setSavedLists(data ?? []);
+      setSavedListsLoading(false);
+      return;
+    }
+
+    const lists = data ?? [];
+
+    try {
+      const withSignedUrls = await createSignedNotePhotoUrls(
+        lists.map((list) => ({
+          ...list,
+          StoragePath: list?.CoverStoragePath ?? null,
+        }))
+      );
+
+      setSavedLists(
+        withSignedUrls.map(({ SignedUrl, ...list }) => ({
+          ...list,
+          CoverSignedUrl: SignedUrl,
+        }))
+      );
+    } catch (signedUrlError) {
+      console.error("Dış profil koleksiyon kapak bağlantıları oluşturulamadı:", signedUrlError);
+      setSavedLists(lists);
     }
 
     setSavedListsLoading(false);
@@ -700,11 +721,20 @@ export default function UserProfilePage({
             }
             title={`${list.Name || "Mekan listesi"} listesini aç`}
           >
-            <span className="foreign-profile-saved-icon" aria-hidden="true">
-              {list.Icon || "✦"}
-            </span>
+            {list.CoverSignedUrl ? (
+              <img
+                className="foreign-profile-saved-cover"
+                src={list.CoverSignedUrl}
+                alt=""
+              />
+            ) : (
+              <span className="foreign-profile-saved-icon" aria-hidden="true">
+                {list.Icon || "✦"}
+              </span>
+            )}
             <span className="foreign-profile-saved-copy">
               <strong>{list.Name}</strong>
+              {list.Description && <em>{list.Description}</em>}
               <span>{Number(list.PlaceCount ?? 0)} mekan · Herkese açık</span>
             </span>
             <span className="foreign-profile-saved-arrow" aria-hidden="true">

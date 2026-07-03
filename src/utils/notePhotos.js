@@ -46,6 +46,16 @@ function normalizeFileName(file) {
   return source.slice(0, 255);
 }
 
+function createPhotoOperationError(stage, cause, fallbackMessage) {
+  const error = new Error(
+    String(cause?.message ?? fallbackMessage ?? "Fotoğraf işlemi tamamlanamadı.")
+  );
+
+  error.stage = stage;
+  error.cause = cause;
+  return error;
+}
+
 export function getPhotoSelectionError(files, currentCount = 0) {
   const incomingFiles = Array.from(files ?? []);
 
@@ -176,7 +186,11 @@ export async function uploadMyNotePhotoDrafts(placeNoteId, drafts) {
         });
 
       if (uploadError) {
-        throw uploadError;
+        throw createPhotoOperationError(
+          "upload",
+          uploadError,
+          "Fotoğraf dosyası Storage'a yüklenemedi."
+        );
       }
 
       uploadedPaths.push(objectPath);
@@ -195,7 +209,11 @@ export async function uploadMyNotePhotoDrafts(placeNoteId, drafts) {
     });
 
     if (error) {
-      throw error;
+      throw createPhotoOperationError(
+        "metadata",
+        error,
+        "Fotoğraflar nota bağlanamadı."
+      );
     }
 
     return data ?? [];
@@ -207,6 +225,11 @@ export async function uploadMyNotePhotoDrafts(placeNoteId, drafts) {
 
       if (cleanupError) {
         console.error("Yarım kalan fotoğraf yüklemesi temizlenemedi:", cleanupError);
+        throw createPhotoOperationError(
+          "cleanup",
+          error,
+          "Fotoğraf yüklemesi tamamlanamadı."
+        );
       }
     }
 

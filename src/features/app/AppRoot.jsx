@@ -756,6 +756,12 @@ export default function App() {
       const listName =
         String(list?.Name ?? context?.listName ?? "").trim() ||
         "Mekan listesi";
+      const listDescription = String(
+        list?.Description ?? context?.listDescription ?? ""
+      ).trim();
+      const listCoverUrl = String(
+        list?.CoverSignedUrl ?? context?.listCoverUrl ?? ""
+      ).trim();
       const isOwner =
         Number.isInteger(userId) &&
         Number.isInteger(Number(ownUserId)) &&
@@ -774,6 +780,8 @@ export default function App() {
         type: "place-list",
         listId,
         listName,
+        listDescription,
+        listCoverUrl,
         listIcon: String(list?.Icon ?? context?.listIcon ?? "✦").trim() || "✦",
         userId,
         username,
@@ -1127,6 +1135,8 @@ export default function App() {
                       userPlaceListId={screen.listId}
                       listName={screen.listName}
                       listIcon={screen.listIcon}
+                      listDescription={screen.listDescription}
+                      listCoverUrl={screen.listCoverUrl}
                       profileUsername={screen.username}
                       isOwner={Boolean(screen.isOwner)}
                       isActive={isActive}

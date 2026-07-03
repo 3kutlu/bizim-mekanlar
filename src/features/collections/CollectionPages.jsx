@@ -11,170 +11,16 @@ import { PROFILE_COLLECTIONS, formatRelativeNoteTime, getFullName, isPrivateAcco
 import { EmptyCollectionState, ErrorState, LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { PlaceListEditModal } from "./CollectionEditorModal.jsx";
 
-export function PlaceListEditModal({ list, onClose, onSaved }) {
-  const [name, setName] = useState(String(list?.Name ?? "").trim());
-  const [visibilityCode, setVisibilityCode] = useState(
-    String(list?.VisibilityCode ?? "PRIVATE").trim().toUpperCase() === "PUBLIC"
-      ? "PUBLIC"
-      : "PRIVATE"
-  );
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape" && !isSaving) {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isSaving, onClose]);
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    const nextName = name.trim();
-    const listId = Number(list?.UserPlaceListId);
-
-    if (!nextName) {
-      setErrorMessage("Liste adı boş olamaz.");
-      return;
-    }
-
-    if (!Number.isInteger(listId) || listId <= 0) {
-      setErrorMessage("Liste bilgisi geçersiz.");
-      return;
-    }
-
-    setIsSaving(true);
-    setErrorMessage("");
-
-    const { error } = await supabase.rpc("UpdateMyPlaceList", {
-      p_user_place_list_id: listId,
-      p_name: nextName,
-      p_visibility_code: visibilityCode,
-    });
-
-    if (error) {
-      console.error("Mekan listesi güncellenemedi:", error);
-      setErrorMessage(error.message || "Liste güncellenemedi. Tekrar dene.");
-      setIsSaving(false);
-      return;
-    }
-
-    onSaved({
-      ...list,
-      Name: nextName,
-      VisibilityCode: visibilityCode,
-    });
-  };
-
-  const handleBackdropMouseDown = (event) => {
-    if (!isSaving && event.target === event.currentTarget) {
-      onClose();
-    }
-  };
-
-  return (
-    <div
-      className="place-list-edit-backdrop"
-      role="presentation"
-      onMouseDown={handleBackdropMouseDown}
-    >
-      <section
-        className="place-list-edit-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="place-list-edit-title"
-      >
-        <div className="place-list-edit-header">
-          <div>
-            <p className="eyebrow">KOLEKSİYON</p>
-            <h2 id="place-list-edit-title">Listeyi düzenle</h2>
-          </div>
-          <button
-            className="place-list-edit-close"
-            type="button"
-            onClick={onClose}
-            disabled={isSaving}
-            aria-label="Kapat"
-          >
-            ×
-          </button>
-        </div>
-
-        <form className="place-list-edit-form" onSubmit={handleSubmit}>
-          <label>
-            Liste adı
-            <input
-              type="text"
-              value={name}
-              minLength="1"
-              maxLength="80"
-              autoFocus
-              disabled={isSaving}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-
-          <label>
-            Görünürlük
-            <select
-              value={visibilityCode}
-              disabled={isSaving}
-              onChange={(event) => setVisibilityCode(event.target.value)}
-            >
-              <option value="PRIVATE">Gizli</option>
-              <option value="PUBLIC">Herkese açık</option>
-            </select>
-            <small>
-              Herkese açık listeler, profilini görebilen kişilere görünür.
-            </small>
-          </label>
-
-          {errorMessage && (
-            <p className="place-list-edit-error" role="alert">
-              {errorMessage}
-            </p>
-          )}
-
-          <div className="place-list-edit-actions">
-            <button
-              className="place-list-edit-cancel"
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-            >
-              Vazgeç
-            </button>
-            <button
-              className="place-list-edit-save"
-              type="submit"
-              disabled={isSaving}
-            >
-              {isSaving ? "Kaydediliyor..." : "Kaydet"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
+export { PlaceListEditModal };
 
 export function PlaceListDetailPage({
   userPlaceListId,
   listName,
   listIcon,
+  listDescription = "",
+  listCoverUrl = "",
   profileUsername,
   isOwner = false,
   isActive,
@@ -303,14 +149,27 @@ export function PlaceListDetailPage({
   return (
     <div className="discovery-page-content place-list-detail-page">
       <header className="discovery-page-header place-list-detail-header">
-        <div>
+        <div className="place-list-detail-heading">
           {profileUsername && <p className="eyebrow">@{profileUsername}</p>}
-          <h1>
-            <span className="place-list-detail-title-icon" aria-hidden="true">
-              {listIcon || "✦"}
-            </span>
-            {normalizedListName}
-          </h1>
+          <div className="place-list-detail-title-row">
+            {listCoverUrl ? (
+              <img
+                className="place-list-detail-cover"
+                src={listCoverUrl}
+                alt=""
+              />
+            ) : (
+              <span className="place-list-detail-title-icon" aria-hidden="true">
+                {listIcon || "✦"}
+              </span>
+            )}
+            <div>
+              <h1>{normalizedListName}</h1>
+              {listDescription && (
+                <p className="place-list-detail-description">{listDescription}</p>
+              )}
+            </div>
+          </div>
         </div>
 
         <button

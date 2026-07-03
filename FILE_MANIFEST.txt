@@ -5,6 +5,7 @@ README.md
 docs/ARCHITECTURE.md
 docs/BACKEND-CONTRACT.md
 docs/QA-CHECKLIST.md
+docs/V2.2.0-RELEASE-NOTES.md
 eslint.config.js
 index.html
 package-lock.json
@@ -27,6 +28,7 @@ src/css/user-discovery.css
 src/features/app/AppRoot.jsx
 src/features/app/appShared.jsx
 src/features/auth/AuthPage.jsx
+src/features/collections/CollectionEditorModal.jsx
 src/features/collections/CollectionPages.jsx
 src/features/discovery/UserProfilePage.jsx
 src/features/discovery/UserSearchPage.jsx
@@ -45,7 +47,10 @@ src/pages/MapPage.jsx
 src/pages/UserProfilePage.jsx
 src/pages/UserSearchPage.jsx
 src/supabase.js
+src/utils/actionErrors.js
+src/utils/dates.js
 src/utils/notePhotos.js
 src/utils/profilePhotos.js
 src/utils/venueCategory.js
 supabase/functions/request-auth-otp/index.ts
+supabase/migrations/20260703_v2_2_0_stabilization_collections.sql

@@ -5,6 +5,7 @@
 
 import { MESSAGE_KEY, createAppError } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
+import { getIstanbulDateInputValue } from "../../utils/dates.js";
 import { getVenueCategoryFromGooglePlace, isSupportedVenueCategory } from "../../utils/venueCategory.js";
 
 export const ankaraCenter = {
@@ -23,20 +24,29 @@ export const CLUSTER_PIXEL_RADIUS_BY_ZOOM = [
 
 export const cleanText = (value) => String(value ?? "").trim();
 
-export function getLocalDateInputValue(date = new Date()) {
-  const localDate = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60_000
-  );
-
-  return localDate.toISOString().slice(0, 10);
-}
+// Backwards-compatible export used by the map widgets. The function is now
+// aligned with the Postgres Europe/Istanbul date validation.
+export const getLocalDateInputValue = getIstanbulDateInputValue;
 
 export function isMessageKey(value) {
   return /^[A-Z0-9_]+$/.test(cleanText(value));
 }
 
 export function getPartialPhotoUploadErrorMessage(error) {
+  const stage = cleanText(error?.stage).toLowerCase();
   const rawMessage = cleanText(error?.message).toLowerCase();
+
+  if (stage === "upload") {
+    return "Notun kaydedildi ancak fotoğraf dosyası Storage'a yüklenemedi. Bağlantını kontrol edip bu ekrandan tekrar dene.";
+  }
+
+  if (stage === "metadata") {
+    return "Notun kaydedildi ancak fotoğraf notuna bağlanamadı. Dosyalar temizlendi; bu ekrandan tekrar deneyebilirsin.";
+  }
+
+  if (stage === "cleanup") {
+    return "Notun kaydedildi ancak fotoğraf yüklemesi tamamlanamadı. Sayfayı yenileyip notu düzenleyerek fotoğrafı tekrar ekle.";
+  }
 
   if (
     rawMessage.includes("row-level security") ||
@@ -47,13 +57,21 @@ export function getPartialPhotoUploadErrorMessage(error) {
   }
 
   if (
+    rawMessage.includes("network") ||
+    rawMessage.includes("failed to fetch") ||
+    rawMessage.includes("fetch failed")
+  ) {
+    return "Notun kaydedildi ancak fotoğraf yüklemesi bağlantı nedeniyle tamamlanamadı. Bağlantını kontrol edip tekrar dene.";
+  }
+
+  if (
     rawMessage.includes("ambiguous") ||
     rawMessage.includes("column reference")
   ) {
-    return "Notun kaydedildi ancak fotoğraflar veritabanına eklenemedi. Sayfayı yenileyip not detayındaki Fotoğrafları yönet menüsünden tekrar dene.";
+    return "Notun kaydedildi ancak fotoğraflar veritabanına eklenemedi. Bu ekrandan tekrar deneyebilirsin.";
   }
 
-  return "Notun kaydedildi ancak fotoğraflar yüklenemedi. Sayfayı yenileyip not detayındaki Fotoğrafları yönet menüsünden tekrar deneyebilirsin.";
+  return "Notun kaydedildi ancak fotoğraflar yüklenemedi. Bu ekrandan tekrar deneyebilirsin.";
 }
 
 export function getAddressComponentText(addressComponents, ...types) {

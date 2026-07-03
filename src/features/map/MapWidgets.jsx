@@ -888,7 +888,7 @@ export function PlaceSaveSheet({
 
         <span className="place-save-list-copy">
           <strong>{list?.Name || "İsimsiz liste"}</strong>
-          <small>{placeCount} mekan</small>
+          <small>{list?.Description || `${placeCount} mekan`}</small>
         </span>
 
         <span className="place-save-list-status">

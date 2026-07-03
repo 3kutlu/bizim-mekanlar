@@ -7,6 +7,7 @@ import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { MAX_NOTE_PHOTOS, createNotePhotoDrafts, createSignedNotePhotoUrls, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
+import { getIstanbulDateInputValue } from "../../utils/dates.js";
 import { getVenueCategoryIcon, getVenueCategoryLabel } from "../../utils/venueCategory.js";
 import { EMPTY_NOTE_REACTION_SUMMARY, NoteReactionControls, ReadOnlyRatingStars, formatDate, formatNoteRating, formatRelativeNoteTime, getFullName, getNoteTitle, getReactionNoteId, getReactionSummaryRows, isPrivateAccount, normalizeReactionSummary, toDateInputValue } from "../app/appShared.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1130,7 +1131,7 @@ export function NoteEditModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState(null);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getIstanbulDateInputValue();
   const validation = {
     title: !form.title.trim(),
     rating:
