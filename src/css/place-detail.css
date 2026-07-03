@@ -415,3 +415,36 @@
     margin-top: 24px;
   }
 }
+
+/* Mobile detail header is full-bleed while its content keeps the page gutter. */
+@media (max-width: 700px) {
+  .place-detail-page .place-detail-page-header {
+    margin-right: -16px;
+    margin-left: -16px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}
+
+/* Keep the three venue stats on one row on narrow mobile screens. */
+@media (max-width: 520px) {
+  .place-detail-stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .place-detail-stat-row > div {
+    min-width: 0;
+    padding: 9px 10px;
+    border-radius: 12px;
+  }
+
+  .place-detail-stat-row strong {
+    font-size: 14px;
+  }
+
+  .place-detail-stat-row span {
+    font-size: 11px;
+  }
+}

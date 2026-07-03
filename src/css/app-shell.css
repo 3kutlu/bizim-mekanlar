@@ -52,7 +52,8 @@ button:disabled {
 
 .topbar {
   position: relative;
-  z-index: 10;
+  z-index: var(--z-global-chrome);
+  isolation: isolate;
   flex: 0 0 68px;
   height: 68px;
   display: flex;
@@ -126,6 +127,8 @@ button:disabled {
 */
 .page-content {
   position: relative;
+  z-index: var(--z-page-content);
+  isolation: isolate;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
@@ -318,7 +321,7 @@ button:disabled {
   /* Varsayılan alt menü: Android ve masaüstü mobil görünümü. */
   .bottom-nav {
     position: fixed;
-    z-index: 100;
+    z-index: var(--z-global-chrome);
     right: 10px;
     bottom: max(10px, env(safe-area-inset-bottom));
     left: 10px;
@@ -508,25 +511,5 @@ button:disabled {
   .bottom-nav-liquid-glass button,
   .bottom-nav-liquid-glass button span {
     transition-duration: 1ms;
-  }
-}
-
-/* v2.0.1.2 — persistent navigation layer (current-file safe patch)
-   Detail/discovery screens live inside .page-content, so containing that stack
-   at z-index:0 keeps global chrome above it. Note-photo lightbox remains above
-   this layer at its existing z-index:1500. */
-.topbar {
-  z-index: 1400;
-  isolation: isolate;
-}
-
-.page-content {
-  z-index: 0;
-  isolation: isolate;
-}
-
-@media (max-width: 700px) {
-  .bottom-nav {
-    z-index: 1400;
   }
 }

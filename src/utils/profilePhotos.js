@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../supabase.js";
 
 export const PROFILE_PHOTO_BUCKET = "profile-photos";
@@ -186,15 +186,16 @@ export async function removeMyProfilePhotoPath() {
 }
 
 export function useProfilePhotoUrls(userIds, refreshKey = "") {
-  const normalizedIds = useMemo(
-    () => normalizeUserIds(userIds),
-    [JSON.stringify(normalizeUserIds(userIds))]
-  );
-  const idsKey = normalizedIds.join(",");
+  // The primitive key gives the effect a stable dependency even when callers
+  // create a fresh array during render.
+  const idsKey = normalizeUserIds(userIds).join(",");
   const [photoUrlsByUserId, setPhotoUrlsByUserId] = useState({});
 
   useEffect(() => {
     let isCurrent = true;
+    const normalizedIds = idsKey
+      ? idsKey.split(",").map((value) => Number(value)).filter(Number.isInteger)
+      : [];
 
     if (normalizedIds.length === 0) {
       setPhotoUrlsByUserId({});

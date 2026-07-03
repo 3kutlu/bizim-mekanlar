@@ -138,21 +138,23 @@ export default function NotificationsPopover({
   const [processingFollowerUserId, setProcessingFollowerUserId] = useState(null);
   const [actionError, setActionError] = useState("");
 
-  const safeNotifications = Array.isArray(notifications) ? notifications : [];
   const safeFollowActivity = Array.isArray(followActivity) ? followActivity : [];
   const safeUnreadCount = Number(unreadCount) || 0;
 
   const noteNotifications = useMemo(
     () =>
-      safeNotifications.filter((notification) =>
+      (Array.isArray(notifications) ? notifications : []).filter((notification) =>
         isNoteNotificationType(notification?.NotificationTypeCode)
       ),
-    [safeNotifications]
+    [notifications]
   );
 
   const followUnreadCount = useMemo(
-    () => safeFollowActivity.filter((activity) => !activity?.IsRead).length,
-    [safeFollowActivity]
+    () =>
+      (Array.isArray(followActivity) ? followActivity : []).filter(
+        (activity) => !activity?.IsRead
+      ).length,
+    [followActivity]
   );
 
   useEffect(() => {

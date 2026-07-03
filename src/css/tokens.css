@@ -1,0 +1,20 @@
+/* Shared layout and layer tokens.
+   Layer order is intentional:
+   routed detail screens < profile editor < global chrome < action modals < lightbox. */
+:root {
+  --app-topbar-height: 68px;
+  --app-mobile-nav-safe-space: 0px;
+
+  --z-page-content: 0;
+  --z-profile-modal: 1300;
+  --z-global-chrome: 1400;
+  --z-action-modal: 1600;
+  --z-photo-lightbox: 1700;
+}
+
+@media (max-width: 700px) {
+  :root {
+    --app-topbar-height: calc(60px + env(safe-area-inset-top));
+    --app-mobile-nav-safe-space: calc(82px + env(safe-area-inset-bottom));
+  }
+}

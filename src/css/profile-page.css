@@ -124,8 +124,8 @@
 
 .profile-modal-backdrop {
   position: fixed;
-  z-index: 220;
-  inset: 0;
+  z-index: var(--z-profile-modal);
+  inset: var(--app-topbar-height) 0 0;
   display: grid;
   place-items: center;
   padding: 20px;
@@ -135,7 +135,7 @@
 
 .profile-modal {
   width: min(100%, 580px);
-  max-height: min(820px, calc(100dvh - 40px));
+  max-height: min(820px, calc(100dvh - var(--app-topbar-height) - 40px));
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid #343c4c;
@@ -874,7 +874,7 @@
 
 .place-list-edit-backdrop {
   position: fixed;
-  z-index: 1220;
+  z-index: var(--z-action-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -1043,5 +1043,29 @@
 
   .profile-list-visibility-badge {
     right: 49px;
+  }
+}
+
+/* Profile editor intentionally stays below global header and bottom navigation. */
+@media (max-width: 700px) {
+  .profile-modal-backdrop {
+    inset: var(--app-topbar-height) 0 0;
+    align-items: end;
+    padding: 10px 10px var(--app-mobile-nav-safe-space);
+  }
+
+  .profile-modal {
+    max-height: calc(
+      100dvh - var(--app-topbar-height) - var(--app-mobile-nav-safe-space) - 20px
+    );
+    scroll-padding-bottom: 16px;
+  }
+
+  .profile-edit-form {
+    padding-bottom: 0;
+  }
+
+  .profile-modal-logout-section {
+    scroll-margin-bottom: 16px;
   }
 }

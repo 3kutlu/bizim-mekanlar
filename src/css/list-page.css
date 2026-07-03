@@ -1106,7 +1106,7 @@
 
 .note-edit-modal-backdrop {
   position: fixed;
-  z-index: 1300;
+  z-index: var(--z-action-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -1678,7 +1678,7 @@
 
 .note-photo-lightbox {
   position: fixed;
-  z-index: 1500;
+  z-index: var(--z-photo-lightbox);
   inset: 0;
   display: grid;
   place-items: center;
