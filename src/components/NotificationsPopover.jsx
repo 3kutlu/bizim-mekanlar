@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import AppIcon from "./AppIcon.jsx";
 import PushNotificationSettings from "./PushNotificationSettings.jsx";
 import {
   getErrorMessageKey,
@@ -61,14 +62,14 @@ function getNoteNotificationCopy(notification) {
   switch (notification?.NotificationTypeCode) {
     case "NOTE_REACTION_UP":
       return {
-        icon: "👍",
+        icon: "thumbs-up-fill",
         title: `${actor} notunu beğendi.`,
         detail: notification?.PlaceName || "Notunu görmek için dokun.",
       };
 
     case "NOTE_REACTION_DOWN":
       return {
-        icon: "👎",
+        icon: "thumbs-down-fill",
         title: `${actor} notunu beğenmedi.`,
         detail: notification?.PlaceName || "Notunu görmek için dokun.",
       };
@@ -76,7 +77,7 @@ function getNoteNotificationCopy(notification) {
     case "FOLLOWING_NOTE":
     default:
       return {
-        icon: "✦",
+        icon: "star-fill",
         title: `${actor} yeni bir not ekledi.`,
         detail: notification?.PlaceName || "Takip ettiğin bir mekânda.",
       };
@@ -89,33 +90,28 @@ function getFollowActivityCopy(activity) {
   switch (activity?.ActivityTypeCode) {
     case "FOLLOW_REQUEST":
       return {
-        icon: "⌁",
+        icon: "user-circle-plus",
         title: `${actor} sana takip isteği gönderdi.`,
         detail: "İsteği kabul edebilir veya reddedebilirsin.",
       };
     case "FOLLOW_REQUEST_ACCEPTED":
       return {
-        icon: "✓",
+        icon: "check",
         title: `${actor} takip isteğini kabul etti.`,
         detail: "Artık bu hesabın notlarını ve takip listelerini görebilirsin.",
       };
     case "FOLLOWED":
     default:
       return {
-        icon: "◉",
+        icon: "user-fill",
         title: `${actor} seni takip etmeye başladı.`,
         detail: "Profilini görmek için dokun.",
       };
   }
 }
 
-function BellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M18 9a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-      <path d="M10 21h4" />
-    </svg>
-  );
+function BellIcon({ hasUnread = false }) {
+  return <AppIcon name={hasUnread ? "bell-ringing" : "bell"} />;
 }
 
 export default function NotificationsPopover({
@@ -258,7 +254,7 @@ export default function NotificationsPopover({
         aria-haspopup="dialog"
         title="Gelişmeler"
       >
-        <BellIcon />
+        <BellIcon hasUnread={safeUnreadCount > 0} />
         {safeUnreadCount > 0 && (
           <span
             className="notification-count"
@@ -416,7 +412,7 @@ export default function NotificationsPopover({
                                 className="notification-item-icon"
                                 aria-hidden="true"
                               >
-                                {copy.icon}
+                                <AppIcon name={copy.icon} />
                               </span>
 
                               <span className="notification-item-copy">

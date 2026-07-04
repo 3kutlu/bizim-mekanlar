@@ -1,6 +1,7 @@
 /* Feature module: extracted without changing UI behavior. */
 
 import { useEffect, useRef, useState } from "react";
+import AppIcon from "../../components/AppIcon.jsx";
 import { supabase } from "../../supabase.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import "../../css/user-discovery.css";
@@ -91,7 +92,7 @@ export default function UserSearchPage({
       </header>
 
       <div className="user-search-input-wrap">
-        <span aria-hidden="true">⌕</span>
+        <AppIcon name="magnifying-glass" />
         <input
           ref={inputRef}
           type="search"

@@ -1,3 +1,5 @@
+import AppIcon from "./AppIcon.jsx";
+
 export default function ShareIconButton({
   onClick,
   disabled = false,
@@ -13,7 +15,7 @@ export default function ShareIconButton({
       aria-label={label}
       title={label}
     >
-      <span aria-hidden="true">↗</span>
+      <AppIcon name="share-fat" />
     </button>
   );
 }

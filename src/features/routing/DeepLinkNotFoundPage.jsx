@@ -1,3 +1,4 @@
+import AppIcon from "../../components/AppIcon.jsx";
 import "../../css/deep-links.css";
 
 export default function DeepLinkNotFoundPage({ path }) {
@@ -5,7 +6,7 @@ export default function DeepLinkNotFoundPage({ path }) {
     <div className="discovery-page-content deep-link-not-found-page">
       <div className="deep-link-not-found-card" role="status">
         <span className="deep-link-not-found-icon" aria-hidden="true">
-          ?
+          <AppIcon name="warning" />
         </span>
         <p className="eyebrow">BAĞLANTI</p>
         <h1>Bu sayfa bulunamadı</h1>

@@ -1822,3 +1822,5 @@
     padding: 12px;
   }
 }
+.note-detail-star .app-icon { width: 1em; height: 1em; }
+.note-reaction-button .app-icon, .note-reaction-static .app-icon { width: 15px; height: 15px; }

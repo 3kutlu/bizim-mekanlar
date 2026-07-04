@@ -6,6 +6,7 @@
 import { MESSAGE_KEY } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { useCallback, useEffect, useRef, useState } from "react";
+import AppIcon from "../../components/AppIcon.jsx";
 
 export const EMPTY_SUMMARY = {
   CityName: "",
@@ -44,9 +45,9 @@ export const EMPTY_NOTE_REACTION_SUMMARY = Object.freeze({
 });
 
 export const BOTTOM_NAV_ITEMS = Object.freeze([
-  { id: "map", label: "Harita", icon: "⌖" },
-  { id: "list", label: "Liste", icon: "☷" },
-  { id: "profile", label: "Profil", icon: "◉" },
+  { id: "map", label: "Harita", icon: "map-trifold", activeIcon: "map-trifold-fill" },
+  { id: "list", label: "Liste", icon: "list-bullets", activeIcon: "list-bullets-fill" },
+  { id: "profile", label: "Profil", icon: "user", activeIcon: "user-fill" },
 ]);
 
 export function formatDate(value, options = { day: "numeric", month: "long", year: "numeric" }) {
@@ -160,7 +161,7 @@ export function ReadOnlyRatingStars({ value }) {
           }
           aria-hidden="true"
         >
-          {star <= rating ? "★" : "☆"}
+          <AppIcon name={star <= rating ? "star-fill" : "star"} />
         </span>
       ))}
     </span>
@@ -295,11 +296,11 @@ export function NoteReactionControls({
       >
         <span className="note-reaction-static">
           <strong>{reactionSummary.UpCount}</strong>
-          <span aria-hidden="true">👍</span>
+          <AppIcon name="thumbs-up-fill" />
         </span>
         <span className="note-reaction-static">
           <strong>{reactionSummary.DownCount}</strong>
-          <span aria-hidden="true">👎</span>
+          <AppIcon name="thumbs-down-fill" />
         </span>
       </div>
     );
@@ -321,7 +322,7 @@ export function NoteReactionControls({
         onClick={(event) => updateReaction(event, "UP")}
       >
         <strong>{reactionSummary.UpCount}</strong>
-        <span aria-hidden="true">👍</span>
+        <AppIcon name="thumbs-up-fill" />
       </button>
 
       <button
@@ -344,7 +345,7 @@ export function NoteReactionControls({
         onClick={(event) => updateReaction(event, "DOWN")}
       >
         <strong>{reactionSummary.DownCount}</strong>
-        <span aria-hidden="true">👎</span>
+        <AppIcon name="thumbs-down-fill" />
       </button>
 
       {errorMessage && (
@@ -356,23 +357,9 @@ export function NoteReactionControls({
   );
 }
 
-export function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="10.8" cy="10.8" r="5.8" />
-      <path d="m15.2 15.2 4 4" />
-    </svg>
-  );
-}
+export function SearchIcon() { return <AppIcon name="magnifying-glass" />; }
 
-export function SettingsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Z" />
-      <path d="m19.4 13.3 1.2.9-1.8 3.1-1.5-.6a7.7 7.7 0 0 1-1.7 1l-.2 1.6h-3.6l-.2-1.6a7.7 7.7 0 0 1-1.7-1l-1.5.6-1.8-3.1 1.2-.9a7.2 7.2 0 0 1 0-2.6L7.6 9.8l1.8-3.1 1.5.6a7.7 7.7 0 0 1 1.7-1l.2-1.6h3.6l.2 1.6a7.7 7.7 0 0 1 1.7 1l1.5-.6 1.8 3.1-1.2.9a7.2 7.2 0 0 1 0 2.6Z" />
-    </svg>
-  );
-}
+export function SettingsIcon() { return <AppIcon name="gear" />; }
 
 export function getFullName(user) {
   return [user?.FirstName, user?.LastName].filter(Boolean).join(" ");
@@ -569,7 +556,7 @@ export function BottomNavigation({ activePage, onNavigate, liquidGlassEnabled })
           aria-current={activePage === item.id ? "page" : undefined}
           onClick={() => handleButtonClick(item.id)}
         >
-          <span>{item.icon}</span>
+          <span><AppIcon name={activePage === item.id ? item.activeIcon : item.icon} /></span>
           {item.label}
         </button>
       ))}
@@ -588,7 +575,5 @@ export function isPrivateAccount(value) {
 export function renderUsernameWithLock(username, isPrivate) {
   const normalizedUsername = String(username ?? "").trim();
 
-  return isPrivate && normalizedUsername
-    ? `${normalizedUsername} 🔒`
-    : normalizedUsername;
+  return normalizedUsername;
 }
