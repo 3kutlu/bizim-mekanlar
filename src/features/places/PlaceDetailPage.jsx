@@ -9,7 +9,7 @@ import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { getVenueCategoryIcon, getVenueCategoryLabel } from "../../utils/venueCategory.js";
 import { ErrorState, LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function PlaceDetailPage({
   placeId,
@@ -33,6 +33,8 @@ export function PlaceDetailPage({
   const [notesError, setNotesError] = useState("");
   const [photosError, setPhotosError] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const photosSectionRef = useRef(null);
+  const reviewsSectionRef = useRef(null);
 
   const normalizedPlaceId = Number(placeId);
 
@@ -191,6 +193,13 @@ export function PlaceDetailPage({
     ? visiblePhotoCount
     : placePhotos.length;
 
+  const scrollToSection = (sectionRef) => {
+    sectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   return (
     <div className="discovery-page-content place-detail-page">
       <header className="discovery-page-header discovery-page-header-no-back place-detail-page-header">
@@ -233,14 +242,25 @@ export function PlaceDetailPage({
                   </strong>
                   <span>{ratings.length > 0 ? `${ratings.length} puan` : "Henüz puanlanmadı"}</span>
                 </div>
-                <div>
-                  <strong>{notes.length}</strong>
-                  <span>yorum</span>
-                </div>
-                <div>
+                <button
+                  className="place-detail-stat-button"
+                  type="button"
+                  onClick={() => scrollToSection(photosSectionRef)}
+                  disabled={photosLoading || safePhotoCount === 0}
+                  aria-label={`${safePhotoCount} fotoğrafın olduğu alana git`}
+                >
                   <strong>{photosLoading ? "…" : safePhotoCount}</strong>
                   <span>fotoğraf</span>
-                </div>
+                </button>
+                <button
+                  className="place-detail-stat-button"
+                  type="button"
+                  onClick={() => scrollToSection(reviewsSectionRef)}
+                  aria-label={`${notes.length} yorumun olduğu alana git`}
+                >
+                  <strong>{notes.length}</strong>
+                  <span>yorum</span>
+                </button>
               </div>
 
               <div className="place-detail-actions">
@@ -278,10 +298,11 @@ export function PlaceDetailPage({
               errorMessage={photosError}
               onRetry={loadPlace}
               onOpenNote={onOpenNote}
+              headingRef={photosSectionRef}
             />
 
             <section className="place-detail-reviews" aria-label="Mekan yorumları">
-              <div className="place-detail-reviews-heading">
+              <div ref={reviewsSectionRef} className="place-detail-reviews-heading place-detail-scroll-target">
                 <div>
                   <p className="eyebrow">YORUMLAR</p>
                   <h2>Bu mekan hakkında</h2>
@@ -344,11 +365,65 @@ export function PlaceDetailPage({
   );
 }
 
-export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOpenNote }) {
+export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOpenNote, headingRef }) {
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+
+  const visiblePhotoCount = Number(photos[0]?.VisiblePhotoCount ?? photos.length);
+  const totalPhotoCount = Number.isFinite(visiblePhotoCount)
+    ? visiblePhotoCount
+    : photos.length;
+  const previewPhotos = photos.slice(0, 3);
+  const activePhoto = photos[activePhotoIndex] ?? null;
+
+  const openGallery = (index = 0) => {
+    setActivePhotoIndex(Math.min(Math.max(index, 0), Math.max(photos.length - 1, 0)));
+    setIsGalleryOpen(true);
+  };
+
+  const closeGallery = () => {
+    setIsGalleryOpen(false);
+  };
+
+  const showPreviousPhoto = () => {
+    setActivePhotoIndex((currentIndex) =>
+      currentIndex === 0 ? photos.length - 1 : currentIndex - 1
+    );
+  };
+
+  const showNextPhoto = () => {
+    setActivePhotoIndex((currentIndex) =>
+      currentIndex === photos.length - 1 ? 0 : currentIndex + 1
+    );
+  };
+
+  useEffect(() => {
+    if (!isGalleryOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeGallery();
+      }
+
+      if (event.key === "ArrowLeft") {
+        showPreviousPhoto();
+      }
+
+      if (event.key === "ArrowRight") {
+        showNextPhoto();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isGalleryOpen, photos.length]);
+
   if (loading) {
     return (
       <section className="place-detail-photo-section" aria-busy="true">
-        <div className="place-detail-photo-heading">
+        <div ref={headingRef} className="place-detail-photo-heading place-detail-scroll-target">
           <div>
             <p className="eyebrow">FOTOĞRAFLAR</p>
             <h2>Mekandan kareler</h2>
@@ -362,7 +437,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
   if (errorMessage) {
     return (
       <section className="place-detail-photo-section">
-        <div className="place-detail-photo-heading">
+        <div ref={headingRef} className="place-detail-photo-heading place-detail-scroll-target">
           <div>
             <p className="eyebrow">FOTOĞRAFLAR</p>
             <h2>Mekandan kareler</h2>
@@ -381,39 +456,114 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
   }
 
   return (
-    <section className="place-detail-photo-section" aria-label="Mekan fotoğrafları">
-      <div className="place-detail-photo-heading">
-        <div>
-          <p className="eyebrow">FOTOĞRAFLAR</p>
-          <h2>Mekandan kareler</h2>
+    <>
+      <section className="place-detail-photo-section" aria-label="Mekan fotoğrafları">
+        <button
+          className="place-detail-photo-heading place-detail-photo-heading-button place-detail-scroll-target"
+          ref={headingRef}
+          type="button"
+          onClick={() => openGallery(0)}
+          aria-label={`${totalPhotoCount} mekan fotoğrafının tamamını aç`}
+        >
+          <div>
+            <p className="eyebrow">FOTOĞRAFLAR</p>
+            <h2>Mekandan kareler</h2>
+          </div>
+          <span>{totalPhotoCount}</span>
+        </button>
+
+        <div className="place-detail-photo-grid place-detail-photo-preview-grid">
+          {previewPhotos.map((photo, index) => {
+            const isLastPreview = index === previewPhotos.length - 1;
+            const remainingPhotoCount = Math.max(totalPhotoCount - previewPhotos.length, 0);
+
+            return (
+              <button
+                className="place-detail-photo-tile"
+                type="button"
+                key={photo.PlaceNotePhotoId}
+                onClick={() => openGallery(index)}
+                disabled={!photo.SignedUrl}
+                aria-label={`${index + 1}. fotoğrafı galeride aç`}
+              >
+                <img src={photo.SignedUrl} alt="Mekan fotoğrafı" />
+                {isLastPreview && remainingPhotoCount > 0 && (
+                  <span className="place-detail-photo-more-count">+{remainingPhotoCount}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
-        <span>{Number(photos[0]?.VisiblePhotoCount ?? photos.length)}</span>
-      </div>
+      </section>
 
-      <div className="place-detail-photo-grid">
-        {photos.map((photo) => {
-          const author = String(photo?.Username ?? "").trim();
-          const title = String(photo?.NoteTitle ?? "").trim();
-          const label = author ? `@${author}` : title || "Notu aç";
+      {isGalleryOpen && activePhoto && (
+        <div
+          className="place-photo-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mekan fotoğraf galerisi"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeGallery();
+            }
+          }}
+        >
+          <div className="place-photo-lightbox-panel">
+            <div className="place-photo-lightbox-header">
+              <span>{activePhotoIndex + 1} / {totalPhotoCount}</span>
+              <button type="button" onClick={closeGallery} aria-label="Galeriyi kapat">
+                ×
+              </button>
+            </div>
 
-          return (
-            <button
-              className="place-detail-photo-tile"
-              type="button"
-              key={photo.PlaceNotePhotoId}
-              onClick={() => onOpenNote?.(Number(photo.PlaceNoteId))}
-              disabled={!photo.SignedUrl || !photo.PlaceNoteId || !onOpenNote}
-              title={author ? `${label} notunu aç` : "Not detayını aç"}
-            >
+            <div className="place-photo-lightbox-content">
+              {photos.length > 1 && (
+                <button
+                  className="place-photo-lightbox-nav place-photo-lightbox-nav-previous"
+                  type="button"
+                  onClick={showPreviousPhoto}
+                  aria-label="Önceki fotoğraf"
+                >
+                  ‹
+                </button>
+              )}
+
               <img
-                src={photo.SignedUrl}
-                alt={author ? `${author} kullanıcısının mekan fotoğrafı` : "Mekan fotoğrafı"}
+                src={activePhoto.SignedUrl}
+                alt="Mekan fotoğrafı"
               />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
+
+              {photos.length > 1 && (
+                <button
+                  className="place-photo-lightbox-nav place-photo-lightbox-nav-next"
+                  type="button"
+                  onClick={showNextPhoto}
+                  aria-label="Sonraki fotoğraf"
+                >
+                  ›
+                </button>
+              )}
+            </div>
+
+            <div className="place-photo-lightbox-footer">
+              <span>
+                {activePhoto.Username ? `@${activePhoto.Username}` : "Mekan fotoğrafı"}
+              </span>
+              {activePhoto.PlaceNoteId && onOpenNote && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeGallery();
+                    onOpenNote(Number(activePhoto.PlaceNoteId));
+                  }}
+                >
+                  Notu aç
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
