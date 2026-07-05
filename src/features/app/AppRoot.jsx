@@ -13,6 +13,7 @@ import "../../css/deep-links.css";
  */
 
 import NotificationsPopover from "../../components/NotificationsPopover.jsx";
+import PushNotificationPrompt from "../../components/PushNotificationPrompt.jsx";
 import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import AuthPage from "../auth/AuthPage.jsx";
@@ -21,7 +22,7 @@ import UserProfilePage from "../discovery/UserProfilePage.jsx";
 import UserSearchPage from "../discovery/UserSearchPage.jsx";
 import { supabase } from "../../supabase.js";
 import { shareOrCopyLink } from "../../utils/share.js";
-import { detachCurrentPushSubscription, syncExistingPushSubscription } from "../../utils/pushNotifications.js";
+import { detachCurrentPushSubscription, enablePushNotifications, getPushNotificationStatus, syncExistingPushSubscription } from "../../utils/pushNotifications.js";
 import { PlaceListDetailPage, ProfileCollectionPage } from "../collections/CollectionPages.jsx";
 import DeepLinkNotFoundPage from "../routing/DeepLinkNotFoundPage.jsx";
 import { getCollectionDeepLinkTarget, getCollectionDeepLinkTargetById, getNoteDeepLinkTarget, getNoteDeepLinkTargetById, getPlaceDeepLinkTarget, getPlaceDeepLinkTargetById, getUserDeepLinkTargetById, getUserDeepLinkTargetByUsername } from "../routing/deepLinkApi.js";
@@ -62,6 +63,10 @@ export default function App() {
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
+  const [isPushPermissionPromptOpen, setIsPushPermissionPromptOpen] = useState(false);
+  const [isPushPermissionPromptBusy, setIsPushPermissionPromptBusy] = useState(false);
+  const [pushPermissionPromptFeedback, setPushPermissionPromptFeedback] = useState("");
+
   const [cities, setCities] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [citiesError, setCitiesError] = useState("");
@@ -77,6 +82,45 @@ export default function App() {
   );
   const initialRouteHandledRef = useRef(false);
   const shareNoticeTimerRef = useRef(null);
+  const pushPermissionPromptTimerRef = useRef(null);
+
+  const getPushPermissionPromptStorageKey = useCallback(
+    () => `bizim-mekanlar:push-permission-prompt:${Number(profile?.UserId) || "anonymous"}`,
+    [profile?.UserId]
+  );
+
+  const readPushPermissionPromptState = useCallback(() => {
+    if (typeof window === "undefined" || !profile?.UserId) {
+      return { attempts: 0, lastDismissedAt: 0, terminal: false };
+    }
+
+    try {
+      const rawValue = window.localStorage.getItem(getPushPermissionPromptStorageKey());
+      const parsedValue = rawValue ? JSON.parse(rawValue) : null;
+      return {
+        attempts: Math.max(0, Number(parsedValue?.attempts) || 0),
+        lastDismissedAt: Math.max(0, Number(parsedValue?.lastDismissedAt) || 0),
+        terminal: Boolean(parsedValue?.terminal),
+      };
+    } catch {
+      return { attempts: 0, lastDismissedAt: 0, terminal: false };
+    }
+  }, [getPushPermissionPromptStorageKey, profile?.UserId]);
+
+  const writePushPermissionPromptState = useCallback((nextState) => {
+    if (typeof window === "undefined" || !profile?.UserId) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        getPushPermissionPromptStorageKey(),
+        JSON.stringify(nextState)
+      );
+    } catch {
+      // Storage is only a convenience for prompt frequency; failure must not block the app.
+    }
+  }, [getPushPermissionPromptStorageKey, profile?.UserId]);
 
   useEffect(() => {
     navigationRef.current = createNavigationSnapshot({
@@ -91,6 +135,10 @@ export default function App() {
   useEffect(() => () => {
     if (shareNoticeTimerRef.current) {
       window.clearTimeout(shareNoticeTimerRef.current);
+    }
+
+    if (pushPermissionPromptTimerRef.current) {
+      window.clearTimeout(pushPermissionPromptTimerRef.current);
     }
   }, []);
 
@@ -273,6 +321,135 @@ export default function App() {
       );
     };
   }, [profile?.UserId]);
+
+  const unreadNoteCount = Number(notifications[0]?.UnreadCount ?? 0);
+  const unreadFollowActivityCount = Number(
+    followActivity[0]?.UnreadCount ?? 0
+  );
+  const unreadNotificationCount = unreadNoteCount + unreadFollowActivityCount;
+
+  useEffect(() => {
+    if (!profile?.UserId || activePage !== "map" || discoveryStack.length > 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const schedulePrompt = async () => {
+      const promptState = readPushPermissionPromptState();
+      const now = Date.now();
+      const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+      const hasMeaningfulActivity =
+        notesRefreshKey > 0 ||
+        unreadNotificationCount > 0 ||
+        followActivity.length > 0;
+
+      if (
+        promptState.terminal ||
+        promptState.attempts >= 2 ||
+        (promptState.attempts === 1 &&
+          (now - promptState.lastDismissedAt < fourteenDays || !hasMeaningfulActivity))
+      ) {
+        return;
+      }
+
+      const status = await getPushNotificationStatus();
+
+      if (
+        cancelled ||
+        status.state !== "ready" ||
+        typeof Notification === "undefined" ||
+        Notification.permission !== "default"
+      ) {
+        return;
+      }
+
+      pushPermissionPromptTimerRef.current = window.setTimeout(() => {
+        if (!cancelled) {
+          setPushPermissionPromptFeedback("");
+          setIsPushPermissionPromptOpen(true);
+        }
+      }, 1600);
+    };
+
+    void schedulePrompt();
+
+    return () => {
+      cancelled = true;
+      if (pushPermissionPromptTimerRef.current) {
+        window.clearTimeout(pushPermissionPromptTimerRef.current);
+        pushPermissionPromptTimerRef.current = null;
+      }
+    };
+  }, [
+    activePage,
+    discoveryStack.length,
+    followActivity.length,
+    notesRefreshKey,
+    profile?.UserId,
+    readPushPermissionPromptState,
+    unreadNotificationCount,
+  ]);
+
+  const dismissPushPermissionPrompt = useCallback(() => {
+    const currentState = readPushPermissionPromptState();
+    const attempts = Math.min(2, currentState.attempts + 1);
+
+    writePushPermissionPromptState({
+      attempts,
+      lastDismissedAt: Date.now(),
+      terminal: attempts >= 2,
+    });
+
+    setPushPermissionPromptFeedback("");
+    setIsPushPermissionPromptOpen(false);
+  }, [readPushPermissionPromptState, writePushPermissionPromptState]);
+
+  const handleEnablePushPermissionPrompt = useCallback(async () => {
+    if (isPushPermissionPromptBusy) {
+      return;
+    }
+
+    setIsPushPermissionPromptBusy(true);
+    setPushPermissionPromptFeedback("");
+
+    try {
+      const result = await enablePushNotifications();
+
+      if (result.state === "enabled") {
+        writePushPermissionPromptState({
+          attempts: 2,
+          lastDismissedAt: Date.now(),
+          terminal: true,
+        });
+        setIsPushPermissionPromptOpen(false);
+        return;
+      }
+
+      if (result.state === "blocked") {
+        writePushPermissionPromptState({
+          attempts: 2,
+          lastDismissedAt: Date.now(),
+          terminal: true,
+        });
+        setPushPermissionPromptFeedback(
+          "Bildirim izni tarayıcıda engellendi. Sonradan Bildirim Ayarları'ndan açabilirsin."
+        );
+        return;
+      }
+
+      setPushPermissionPromptFeedback(
+        "Bildirimler şu an açılamadı. İstersen daha sonra Bildirim Ayarları'ndan tekrar deneyebilirsin."
+      );
+    } catch (error) {
+      console.error("İlk bildirim izni isteği başarısız:", error);
+      setPushPermissionPromptFeedback(
+        "Bildirimler şu an açılamadı. İstersen daha sonra Bildirim Ayarları'ndan tekrar deneyebilirsin."
+      );
+    } finally {
+      setIsPushPermissionPromptBusy(false);
+    }
+  }, [isPushPermissionPromptBusy, writePushPermissionPromptState]);
 
   useEffect(() => {
     if (!profileNotice) {
@@ -527,12 +704,6 @@ export default function App() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [profile?.UserId, refreshNotificationCenter]);
-
-  const unreadNoteCount = Number(notifications[0]?.UnreadCount ?? 0);
-  const unreadFollowActivityCount = Number(
-    followActivity[0]?.UnreadCount ?? 0
-  );
-  const unreadNotificationCount = unreadNoteCount + unreadFollowActivityCount;
 
   const handleNotificationToggle = useCallback(async () => {
     const willOpen = !isNotificationsOpen;
@@ -1728,6 +1899,15 @@ export default function App() {
             ×
           </button>
         </div>
+      )}
+
+      {isPushPermissionPromptOpen && (
+        <PushNotificationPrompt
+          isBusy={isPushPermissionPromptBusy}
+          feedback={pushPermissionPromptFeedback}
+          onEnable={() => void handleEnablePushPermissionPrompt()}
+          onLater={dismissPushPermissionPrompt}
+        />
       )}
 
       <main className="page-content">

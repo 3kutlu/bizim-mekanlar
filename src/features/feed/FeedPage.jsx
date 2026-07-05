@@ -86,6 +86,15 @@ export function ListPage({
         </h1>
         <p>{headingDescription}</p>
 
+        {!isPlaceReviewMode && (
+          <p className="list-page-feedback-note">
+            Bizim Mekanlar henüz gelişmeye devam ediyor. Her türlü hata, öneri ya da fikir için{" "}
+            <a href="mailto:3kutlu@gmail.com?subject=Bizim%20Mekanlar%20Geri%20Bildirim">
+              bizimle iletişime geçebilirsiniz.
+            </a>
+          </p>
+        )}
+
         {isPlaceReviewMode && (
           <button
             className="place-review-reset-button"

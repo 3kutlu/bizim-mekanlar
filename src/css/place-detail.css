@@ -710,3 +710,9 @@
 .place-detail-reviews .note-feed-place-link {
   display: none;
 }
+
+.place-photo-lightbox-header button .app-icon,
+.place-photo-lightbox-nav .app-icon {
+  filter: brightness(0) invert(1);
+  opacity: 1;
+}

@@ -8,6 +8,7 @@ import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { getVenueCategoryIcon, getVenueCategoryLabel } from "../../utils/venueCategory.js";
 import { ErrorState, LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
+import AppIcon from "../../components/AppIcon.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function PlaceDetailPage({
@@ -499,7 +500,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
             <div className="place-photo-lightbox-header">
               <span>{activePhotoIndex + 1} / {totalPhotoCount}</span>
               <button type="button" onClick={closeGallery} aria-label="Galeriyi kapat">
-                ×
+                <AppIcon name="x" />
               </button>
             </div>
 
@@ -511,7 +512,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
                   onClick={showPreviousPhoto}
                   aria-label="Önceki fotoğraf"
                 >
-                  ‹
+                  <AppIcon name="caret-left-fill" />
                 </button>
               )}
 
@@ -527,7 +528,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
                   onClick={showNextPhoto}
                   aria-label="Sonraki fotoğraf"
                 >
-                  ›
+                  <AppIcon name="caret-right-fill" />
                 </button>
               )}
             </div>

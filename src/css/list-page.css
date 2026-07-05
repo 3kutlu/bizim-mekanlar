@@ -1880,3 +1880,26 @@
   height: 13px;
   flex: 0 0 auto;
 }
+
+
+/* Akış geri bildirim notu */
+.list-page-feedback-note {
+  margin: 10px 0 0;
+  color: #8e97a8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.list-page-feedback-note a {
+  color: #cbd8f4;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: rgba(203, 216, 244, 0.5);
+  text-underline-offset: 3px;
+}
+
+.list-page-feedback-note a:hover,
+.list-page-feedback-note a:focus-visible {
+  color: #ffffff;
+  text-decoration-color: currentColor;
+}
