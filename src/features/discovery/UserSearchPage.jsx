@@ -153,20 +153,15 @@ export default function UserSearchPage({
                       {isPrivate && (
                         <span
                           className="username-private-lock"
-                          role="img"
                           aria-label="Gizli hesap"
                           title="Gizli hesap"
                         >
-                          🔒
+                          <AppIcon name="eye-slash" />
                         </span>
                       )}
                     </strong>
                     <span>{fullName || user.Username}</span>
-                    <small>
-                      {[user.CityName, user.ZodiacSign]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </small>
+                    {user.CityName && <small>{user.CityName}</small>}
                   </span>
 
                 </button>

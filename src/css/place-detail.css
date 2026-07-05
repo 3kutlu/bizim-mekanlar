@@ -572,8 +572,10 @@
   width: 34px;
   height: 34px;
   padding: 0;
-  font-size: 24px;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  font-size: 0;
+  line-height: 0;
 }
 
 .place-photo-lightbox-footer {
@@ -620,8 +622,10 @@
   padding: 0;
   background: rgba(17, 22, 30, 0.88);
   color: #fff;
-  font-size: 31px;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  font-size: 0;
+  line-height: 0;
   transform: translateY(-50%);
   cursor: pointer;
 }
@@ -632,6 +636,18 @@
 
 .place-photo-lightbox-nav-next {
   right: 12px;
+}
+
+.place-photo-lightbox-header button .app-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.place-photo-lightbox-nav .app-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
 .place-photo-lightbox-header button:hover,
@@ -673,7 +689,11 @@
   .place-photo-lightbox-nav {
     width: 34px;
     height: 34px;
-    font-size: 27px;
+  }
+
+  .place-photo-lightbox-nav .app-icon {
+    width: 20px;
+    height: 20px;
   }
 
   .place-photo-lightbox-nav-previous {

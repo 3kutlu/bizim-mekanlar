@@ -1864,3 +1864,19 @@
 .note-photo-picker > small {
   grid-column: 2;
 }
+
+.connection-meta,
+.connection-meta .zodiac-inline {
+  display: inline-flex;
+  align-items: center;
+}
+
+.connection-meta .zodiac-inline {
+  gap: 4px;
+}
+
+.connection-meta .zodiac-inline .app-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}

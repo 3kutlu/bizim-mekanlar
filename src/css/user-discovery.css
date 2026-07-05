@@ -1441,3 +1441,52 @@ button.foreign-profile-saved-card-button:focus-visible {
   }
 }
 .user-search-input-wrap > .app-icon { width: 21px; height: 21px; flex: 0 0 auto; opacity: .78; }
+
+
+/* Gizli hesap göstergeleri: emoji yerine AppIcon kullanılır. */
+.username-private-lock {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  vertical-align: -0.12em;
+}
+
+.username-private-lock .app-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.foreign-profile-identity-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.foreign-profile-name-row {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.foreign-profile-private-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #3d475a;
+  border-radius: 8px;
+  color: #dce6f8;
+}
+
+.foreign-profile-private-icon .app-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+}

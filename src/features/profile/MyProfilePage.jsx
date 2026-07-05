@@ -14,6 +14,7 @@ import { LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
+import { getZodiacIconName } from "../../utils/zodiac.js";
 
 export function ProfilePage({
   profile,
@@ -267,7 +268,7 @@ export function ProfilePage({
           aria-label="Herkese açık profil bilgileri"
         >
           {summary.CityName && <span><AppIcon name="map-pin" className="profile-detail-icon" />{summary.CityName}</span>}
-          {profile.ZodiacSign && <span><AppIcon name="star" className="profile-detail-icon" />{profile.ZodiacSign}</span>}
+          {profile.ZodiacSign && <span><AppIcon name={getZodiacIconName(profile.ZodiacSign)} className="profile-detail-icon" />{profile.ZodiacSign}</span>}
           {isPrivateAccount && <span><AppIcon name="eye-slash" className="profile-detail-icon" />Gizli hesap</span>}
         </div>
 

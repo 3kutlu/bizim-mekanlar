@@ -3,6 +3,7 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
+import AppIcon from "../../components/AppIcon.jsx";
 import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
@@ -512,7 +513,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
             <div className="place-photo-lightbox-header">
               <span>{activePhotoIndex + 1} / {totalPhotoCount}</span>
               <button type="button" onClick={closeGallery} aria-label="Galeriyi kapat">
-                ×
+                <AppIcon name="x" />
               </button>
             </div>
 
@@ -524,7 +525,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
                   onClick={showPreviousPhoto}
                   aria-label="Önceki fotoğraf"
                 >
-                  ‹
+                  <AppIcon name="caret-left-fill" />
                 </button>
               )}
 
@@ -540,7 +541,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
                   onClick={showNextPhoto}
                   aria-label="Sonraki fotoğraf"
                 >
-                  ›
+                  <AppIcon name="caret-right-fill" />
                 </button>
               )}
             </div>

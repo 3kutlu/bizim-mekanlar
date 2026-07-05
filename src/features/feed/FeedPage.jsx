@@ -105,7 +105,7 @@ export function ListPage({
 
       {!loading && !errorMessage && notes.length === 0 && (
         <EmptyCollectionState
-          icon={isPlaceReviewMode ? "✦" : "✦"}
+          icon="star"
           title={
             isPlaceReviewMode
               ? "Bu mekanda sana görünür yorum yok"

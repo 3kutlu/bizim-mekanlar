@@ -268,7 +268,7 @@ export function PlaceListEditModal({
               disabled={isSaving || isDeleting}
               aria-label="Kapat"
             >
-              ×
+              <AppIcon name="x" />
             </button>
           </div>
 

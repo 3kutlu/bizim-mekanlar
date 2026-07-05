@@ -609,9 +609,7 @@ export function ConnectionList({ users, onOpenUser }) {
                 {isPrivateAccount(user.AccountVisibilityCode) ? " 🔒" : ""}
               </strong>
               <span>{fullName || user.Username}</span>
-              <small>
-                {[user.CityName, user.ZodiacSign].filter(Boolean).join(" · ")}
-              </small>
+              {user.CityName && <small>{user.CityName}</small>}
             </span>
           </button>
         );

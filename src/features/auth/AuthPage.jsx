@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../supabase.js";
+import AppIcon from "../../components/AppIcon.jsx";
 import "../../css/auth.css";
 
 const usernamePattern = /^[a-z0-9._]{3,30}$/;
@@ -561,7 +562,7 @@ export default function AuthPage() {
 
               {mode === "signup" && (
                 <p className="auth-passwordless-note">
-                  <span aria-hidden="true">✦</span>
+                  <span aria-hidden="true"><AppIcon name="star" /></span>
                   Şifre oluşturman gerekmiyor. Girişte e-posta adresine tek
                   kullanımlık 8 haneli kod göndeririz.
                 </p>
@@ -605,7 +606,8 @@ export default function AuthPage() {
               disabled={submitting}
               onClick={returnToForm}
             >
-              ‹ Geri
+              <AppIcon name="arrow-left" />
+              Geri
             </button>
 
             <h1>E-postandaki kodu gir.</h1>

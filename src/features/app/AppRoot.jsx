@@ -13,6 +13,7 @@ import "../../css/deep-links.css";
  */
 
 import NotificationsPopover from "../../components/NotificationsPopover.jsx";
+import AppIcon from "../../components/AppIcon.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import AuthPage from "../auth/AuthPage.jsx";
 import MapPage from "../map/MapPage.jsx";
@@ -170,19 +171,40 @@ export default function App() {
     );
   }, [applyNavigationSnapshot, getRootPathForPage]);
 
+  const dismissAppMessage = useCallback(() => {
+    if (shareNoticeTimerRef.current) {
+      window.clearTimeout(shareNoticeTimerRef.current);
+      shareNoticeTimerRef.current = null;
+    }
+
+    setAppMessage("");
+  }, []);
+
   const showTemporaryAppMessage = useCallback((messageKey) => {
+    setAppMessage(messageKey);
+  }, []);
+
+  useEffect(() => {
+    if (!appMessage) {
+      return undefined;
+    }
+
     if (shareNoticeTimerRef.current) {
       window.clearTimeout(shareNoticeTimerRef.current);
     }
 
-    setAppMessage(messageKey);
     shareNoticeTimerRef.current = window.setTimeout(() => {
-      setAppMessage((currentMessage) =>
-        currentMessage === messageKey ? "" : currentMessage
-      );
+      setAppMessage("");
       shareNoticeTimerRef.current = null;
-    }, 2800);
-  }, []);
+    }, 6000);
+
+    return () => {
+      if (shareNoticeTimerRef.current) {
+        window.clearTimeout(shareNoticeTimerRef.current);
+        shareNoticeTimerRef.current = null;
+      }
+    };
+  }, [appMessage]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1554,6 +1576,9 @@ export default function App() {
       : activePage === "list"
         ? "Akış"
         : "Bizim Mekanlar";
+  const isPrivateDiscoveryProfile =
+    activeDiscoveryScreen?.type === "profile" &&
+    Boolean(activeDiscoveryScreen?.isPrivate);
   const showDesktopNavigation = !isOwnProfileTopbar && !isDiscoveryTopbar;
 
   return (
@@ -1574,7 +1599,14 @@ export default function App() {
           title={topbarTitle}
           aria-label={`${topbarTitle}. Haritaya dön`}
         >
-          {topbarTitle}
+          <span className="topbar-title-text">{topbarTitle}</span>
+          {isPrivateDiscoveryProfile && (
+            <AppIcon
+              name="eye-slash"
+              className="topbar-private-icon"
+              aria-hidden="true"
+            />
+          )}
         </button>
 
         <div className="topbar-actions">
@@ -1646,8 +1678,16 @@ export default function App() {
       </header>
 
       {appMessage && (
-        <div className="app-message" role="status">
-          {t(appMessage)}
+        <div className="app-message" role="status" aria-live="polite">
+          <span>{t(appMessage)}</span>
+          <button
+            type="button"
+            onClick={dismissAppMessage}
+            aria-label="Uyarıyı kapat"
+            title="Kapat"
+          >
+            ×
+          </button>
         </div>
       )}
 

@@ -103,7 +103,19 @@ import windIcon from "../assets/icons/wind.svg";
 import xIcon from "../assets/icons/x.svg";
 import x_circleIcon from "../assets/icons/x-circle.svg";
 import x_circle_fillIcon from "../assets/icons/x-circle-fill.svg";
-import gpsSlash from "../assets/icons/gps-slash.svg";
+
+import zodiac_ariesIcon from "../assets/icons/zodiac-aries.svg";
+import zodiac_taurusIcon from "../assets/icons/zodiac-taurus.svg";
+import zodiac_geminiIcon from "../assets/icons/zodiac-gemini.svg";
+import zodiac_cancerIcon from "../assets/icons/zodiac-cancer.svg";
+import zodiac_leoIcon from "../assets/icons/zodiac-leo.svg";
+import zodiac_virgoIcon from "../assets/icons/zodiac-virgo.svg";
+import zodiac_libraIcon from "../assets/icons/zodiac-libra.svg";
+import zodiac_scorpioIcon from "../assets/icons/zodiac-scorpio.svg";
+import zodiac_sagittariusIcon from "../assets/icons/zodiac-sagittarius.svg";
+import zodiac_capricornIcon from "../assets/icons/zodiac-capricorn.svg";
+import zodiac_aquariusIcon from "../assets/icons/zodiac-aquarius.svg";
+import zodiac_piscesIcon from "../assets/icons/zodiac-pisces.svg";
 
 const ICONS = Object.freeze({
   "arrow-left": arrow_leftIcon,
@@ -211,6 +223,18 @@ const ICONS = Object.freeze({
   "x": xIcon,
   "x-circle": x_circleIcon,
   "x-circle-fill": x_circle_fillIcon,
+  "zodiac-aries": zodiac_ariesIcon,
+  "zodiac-taurus": zodiac_taurusIcon,
+  "zodiac-gemini": zodiac_geminiIcon,
+  "zodiac-cancer": zodiac_cancerIcon,
+  "zodiac-leo": zodiac_leoIcon,
+  "zodiac-virgo": zodiac_virgoIcon,
+  "zodiac-libra": zodiac_libraIcon,
+  "zodiac-scorpio": zodiac_scorpioIcon,
+  "zodiac-sagittarius": zodiac_sagittariusIcon,
+  "zodiac-capricorn": zodiac_capricornIcon,
+  "zodiac-aquarius": zodiac_aquariusIcon,
+  "zodiac-pisces": zodiac_piscesIcon,
 });
 
 const LEGACY_ICON_MAP = Object.freeze({

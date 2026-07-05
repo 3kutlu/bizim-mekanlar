@@ -781,7 +781,18 @@ export default function UserProfilePage({
 
                 <div className="foreign-profile-identity">
                   <div className="foreign-profile-identity-heading">
-                    <h2>{fullName || profile.Username}</h2>
+                    <div className="foreign-profile-name-row">
+                      <h2>{fullName || profile.Username}</h2>
+                      {visibilityIsPrivate && (
+                        <span
+                          className="foreign-profile-private-icon"
+                          aria-label="Gizli hesap"
+                          title="Gizli hesap"
+                        >
+                          <AppIcon name="eye-slash" />
+                        </span>
+                      )}
+                    </div>
                     <ShareIconButton
                       onClick={() => onShareProfile?.(profile)}
                       disabled={!onShareProfile}
