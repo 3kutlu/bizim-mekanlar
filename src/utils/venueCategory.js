@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import AppIcon from "../components/AppIcon.jsx";
+
 export const VENUE_CATEGORY_CODE = Object.freeze({
   CAFE_BAKERY: "CAFE_BAKERY",
   RESTAURANT: "RESTAURANT",
@@ -9,27 +12,27 @@ export const VENUE_CATEGORY_CODE = Object.freeze({
 
 const CATEGORY_META = Object.freeze({
   [VENUE_CATEGORY_CODE.CAFE_BAKERY]: {
-    icon: "☕",
+    icon: "coffee",
     label: "Kafe ve pastane",
   },
   [VENUE_CATEGORY_CODE.RESTAURANT]: {
-    icon: "🍽️",
+    icon: "fork-knife",
     label: "Restoran",
   },
   [VENUE_CATEGORY_CODE.BAR_NIGHTLIFE]: {
-    icon: "🍸",
+    icon: "martini",
     label: "Bar ve gece hayatı",
   },
   [VENUE_CATEGORY_CODE.FITNESS]: {
-    icon: "💪",
+    icon: "barbell",
     label: "Spor ve fitness",
   },
   [VENUE_CATEGORY_CODE.CULTURE_ACTIVITY]: {
-    icon: "🎭",
+    icon: "cheers",
     label: "Kültür ve aktivite",
   },
   [VENUE_CATEGORY_CODE.OTHER]: {
-    icon: "📍",
+    icon: "map-pin",
     label: "Mekan",
   },
 });
@@ -120,7 +123,7 @@ export function getVenueCategoryMeta(categoryCode) {
 }
 
 export function getVenueCategoryIcon(categoryCode) {
-  return getVenueCategoryMeta(categoryCode).icon;
+  return createElement(AppIcon, { name: getVenueCategoryMeta(categoryCode).icon, className: "venue-category-app-icon" });
 }
 
 export function getVenueCategoryLabel(categoryCode) {

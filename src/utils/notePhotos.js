@@ -1,7 +1,7 @@
 import { supabase } from "../supabase.js";
 
 export const NOTE_PHOTO_BUCKET = "note-photos";
-export const MAX_NOTE_PHOTOS = 5;
+export const MAX_NOTE_PHOTOS = 3;
 export const MAX_NOTE_PHOTO_BYTES = 8 * 1024 * 1024;
 export const ALLOWED_NOTE_PHOTO_TYPES = new Set([
   "image/jpeg",

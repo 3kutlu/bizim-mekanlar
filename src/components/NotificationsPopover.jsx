@@ -360,7 +360,7 @@ export default function NotificationsPopover({
                   visibleItems.length === 0 && (
                     <div className="notification-state">
                       <span className="notification-empty-icon" aria-hidden="true">
-                        {isFollowTab ? "◉" : "✦"}
+                        <AppIcon name={isFollowTab ? "user" : "bell"} />
                       </span>
                       <p>
                         {isFollowTab

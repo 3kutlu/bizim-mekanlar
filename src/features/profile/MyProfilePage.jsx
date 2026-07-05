@@ -13,6 +13,7 @@ import { PlaceListEditModal } from "../collections/CollectionEditorModal.jsx";
 import { LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 
 export function ProfilePage({
   profile,
@@ -194,9 +195,9 @@ export function ProfilePage({
           )
         : [...currentLists, updatedList];
 
-      return [...nextLists].sort((left, right) =>
-        Number(left?.SortOrder ?? 0) - Number(right?.SortOrder ?? 0) ||
-        Number(left?.UserPlaceListId ?? 0) - Number(right?.UserPlaceListId ?? 0)
+      return [...nextLists].sort(
+        (left, right) =>
+          Number(right?.UserPlaceListId ?? 0) - Number(left?.UserPlaceListId ?? 0)
       );
     });
     setCollectionEditor(null);
@@ -265,9 +266,9 @@ export function ProfilePage({
           className="profile-public-details"
           aria-label="Herkese açık profil bilgileri"
         >
-          {summary.CityName && <span>⌖ {summary.CityName}</span>}
-          {profile.ZodiacSign && <span>✦ {profile.ZodiacSign}</span>}
-          {isPrivateAccount && <span>⌁ Gizli hesap</span>}
+          {summary.CityName && <span><AppIcon name="map-pin" className="profile-detail-icon" />{summary.CityName}</span>}
+          {profile.ZodiacSign && <span><AppIcon name="star" className="profile-detail-icon" />{profile.ZodiacSign}</span>}
+          {isPrivateAccount && <span><AppIcon name="eye-slash" className="profile-detail-icon" />Gizli hesap</span>}
         </div>
 
         <div className="profile-tabs" role="tablist" aria-label="Profil içerikleri">
@@ -407,9 +408,7 @@ export function ProfileNotesTab({
   if (notes.length === 0) {
     return (
       <div className="profile-tab-empty-state">
-        <span className="profile-tab-empty-icon" aria-hidden="true">
-          ✦
-        </span>
+        <span className="profile-tab-empty-icon" aria-hidden="true"><AppIcon name="bookmark" /></span>
         <h2>Henüz not yok</h2>
         <p>İlk mekan notunu eklediğinde burada görünecek.</p>
       </div>
@@ -446,9 +445,7 @@ export function ProfilePhotosTab({ photos, loading, errorMessage, onRetry, onOpe
   if (photos.length === 0) {
     return (
       <div className="profile-tab-empty-state profile-photo-empty-state">
-        <span className="profile-tab-empty-icon" aria-hidden="true">
-          ◌
-        </span>
+        <span className="profile-tab-empty-icon" aria-hidden="true"><AppIcon name="images" /></span>
         <h2>Henüz fotoğraf yok</h2>
         <p>Notlarına fotoğraf eklediğinde burada bir galeri olarak göreceksin.</p>
       </div>
@@ -502,9 +499,7 @@ export function ProfileSavedTab({
   if (lists.length === 0) {
     return (
       <div className="profile-tab-empty-state">
-        <span className="profile-tab-empty-icon" aria-hidden="true">
-          ▤
-        </span>
+        <span className="profile-tab-empty-icon" aria-hidden="true"><AppIcon name="bookmarks" /></span>
         <h2>Henüz mekan listen yok</h2>
         <p>Hazır listelerine mekan kaydedebilir veya kendi koleksiyonunu oluşturabilirsin.</p>
         <button className="profile-new-collection-button" type="button" onClick={onCreateList}>
@@ -517,7 +512,7 @@ export function ProfileSavedTab({
   return (
     <div className="profile-saved-list" aria-label="Mekan listelerin">
       <button className="profile-new-collection-button" type="button" onClick={onCreateList}>
-        <span aria-hidden="true">＋</span>
+        <AppIcon name="plus" className="profile-new-collection-icon" />
         Yeni koleksiyon
       </button>
       {lists.map((list) => {
@@ -542,7 +537,7 @@ export function ProfileSavedTab({
                 />
               ) : (
                 <span className="profile-saved-list-icon" aria-hidden="true">
-                  {list.Icon || "✦"}
+                  <CollectionIcon value={list.Icon} />
                 </span>
               )}
 
@@ -568,7 +563,7 @@ export function ProfileSavedTab({
               aria-label={`${list.Name || "Mekan listesi"} listesini düzenle`}
               title="Listeyi düzenle"
             >
-              <span aria-hidden="true">⋯</span>
+              <AppIcon name="dots-three" className="profile-list-more-icon" />
             </button>
           </article>
         );
@@ -870,7 +865,7 @@ export function ProfileEditModal({
             disabled={saving || loggingOut}
             aria-label="Kapat"
           >
-            ×
+            <AppIcon name="x" />
           </button>
         </div>
 

@@ -524,14 +524,24 @@
 
   .notification-popover {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 72px);
+    top: 72px;
     right: 12px;
     left: 12px;
+
     width: auto;
     max-width: none;
-    max-height: calc(100dvh - 96px);
-    overflow-y: auto;
+    height: min(560px, calc(100dvh - 160px));
+    max-height: none;
+
+    overflow: hidden;
     z-index: 1000;
+  }
+
+  .notification-popover-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .notification-popover-header,
@@ -546,4 +556,6 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
-}.notification-item-icon .app-icon { width: 20px; height: 20px; }
+}
+.notification-item-icon .app-icon { width: 20px; height: 20px; }
+

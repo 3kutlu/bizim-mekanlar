@@ -3,8 +3,12 @@ import { createPortal } from "react-dom";
 import { getCollectionErrorMessage } from "../../utils/actionErrors.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { supabase } from "../../supabase.js";
+import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 
-const ICON_OPTIONS = ["✦", "♥", "↻", "−", "☕", "✹"];
+const ICON_OPTIONS = [
+  "bookmark", "heart", "star", "coffee", "martini", "fork-knife",
+  "map-pin", "flag", "push-pin", "storefront", "barbell", "paw",
+];
 
 function toNullableText(value) {
   const normalized = String(value ?? "").trim();
@@ -71,7 +75,7 @@ export function PlaceListEditModal({
   const initialName = String(list?.Name ?? "").trim();
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(String(list?.Description ?? "").trim());
-  const [icon, setIcon] = useState(String(list?.Icon ?? "✦").trim() || "✦");
+  const [icon, setIcon] = useState(String(list?.Icon ?? "bookmark").trim() || "bookmark");
   const [visibilityCode, setVisibilityCode] = useState(
     normalizeVisibility(list?.VisibilityCode)
   );
@@ -308,7 +312,7 @@ export function PlaceListEditModal({
                     disabled={isSaving || isDeleting}
                     onClick={() => setIcon(option)}
                   >
-                    {option}
+                    <CollectionIcon value={option} />
                   </button>
                 ))}
               </div>

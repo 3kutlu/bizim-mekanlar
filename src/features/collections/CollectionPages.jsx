@@ -13,6 +13,7 @@ import { EmptyCollectionState, ErrorState, LoadingState, NoteFeed } from "../not
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PlaceListEditModal } from "./CollectionEditorModal.jsx";
+import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 
 export { PlaceListEditModal };
 
@@ -163,7 +164,7 @@ export function PlaceListDetailPage({
                 />
               ) : (
                 <span className="place-list-detail-title-icon" aria-hidden="true">
-                  {listIcon || "✦"}
+                  <CollectionIcon value={listIcon} />
                 </span>
               )}
               <div>
@@ -194,7 +195,7 @@ export function PlaceListDetailPage({
         {!isLoading && !errorMessage && items.length === 0 && (
           <EmptyCollectionState
             compact
-            icon={listIcon || "✦"}
+            icon=<CollectionIcon value={listIcon} />
             title="Bu listede henüz mekan yok"
             message={
               isOwner
@@ -304,9 +305,7 @@ export function PlaceListDetailPage({
                           )}
                         </small>
                       </span>
-                      <span className="place-list-item-arrow" aria-hidden="true">
-                        ›
-                      </span>
+                      <span className="place-list-item-arrow" aria-hidden="true"><AppIcon name="caret-right-fill" /></span>
                     </button>
 
                     {isOwner && (

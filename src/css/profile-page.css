@@ -1443,3 +1443,50 @@
     width: 100%;
   }
 }
+
+/* v2.2.0 — Phosphor icon primitives */
+.app-icon {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  flex: 0 0 auto;
+  object-fit: contain;
+  vertical-align: -0.14em;
+}
+
+.profile-detail-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+}
+
+.profile-public-details span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.profile-tab-empty-icon .app-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.profile-new-collection-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.profile-list-more-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.collection-icon-option .app-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.place-list-edit-close .app-icon,
+.profile-modal-close .app-icon {
+  width: 18px;
+  height: 18px;
+}

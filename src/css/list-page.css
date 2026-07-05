@@ -1824,3 +1824,43 @@
 }
 .note-detail-star .app-icon { width: 1em; height: 1em; }
 .note-reaction-button .app-icon, .note-reaction-static .app-icon { width: 15px; height: 15px; }
+
+.venue-category-app-icon {
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: -0.15em;
+}
+
+.place-list-detail-title-icon .app-icon,
+.place-list-item-icon .app-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.place-list-item-arrow .app-icon,
+.place-list-item-more-button .app-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Photo picker icon can be span or AppIcon img. */
+.note-photo-picker > .app-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  grid-row: span 2;
+  align-self: center;
+  justify-self: center;
+  border: 1px solid #52627d;
+  border-radius: 10px;
+  padding: 6px;
+  object-fit: contain;
+  box-sizing: border-box;
+}
+
+.note-photo-picker > strong,
+.note-photo-picker > small {
+  grid-column: 2;
+}

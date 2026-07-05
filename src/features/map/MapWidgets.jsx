@@ -10,6 +10,7 @@ import { getVenueCategoryFromGooglePlace, getVenueCategoryIcon, getVenueCategory
 import { MAP_NOTE_LIMIT, buildMapClusters, cleanText, formatAverageRating, formatReviewLinkLabel, getLocalDateInputValue, getPlaceEligibility, getSelectedPlaceFromGooglePlace, getSelectedPlaceFromMapRow, isMessageKey } from "./mapUtils.js";
 import { AdvancedMarker, Circle, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 
 export function MapReference({ mapRef }) {
   const map = useMap();
@@ -220,7 +221,7 @@ export function SelectedPlaceMarker({ selectedPlace }) {
       title={`Seçilen mekan: ${selectedPlace.name}`}
     >
       <div className="selected-place-marker" aria-hidden="true">
-        🚩
+        <AppIcon name="map-pin" />
       </div>
     </AdvancedMarker>
   );
@@ -746,7 +747,7 @@ export function SelectedPlaceCard({
         aria-label="Seçili mekanı kapat"
         title="Mekanı kapat"
       >
-        ×
+        <AppIcon name="x" />
       </button>
 
       <div className="selected-place-copy">
@@ -772,7 +773,7 @@ export function SelectedPlaceCard({
           {reviewSummary?.isRatingLoading
             ? "Genel puan yükleniyor..."
             : Number(reviewSummary?.ratingCount) > 0
-              ? `${formatAverageRating(reviewSummary?.averageRating)} / 5 ☆`
+              ? <><span>{formatAverageRating(reviewSummary?.averageRating)} / 5</span><AppIcon name="star" className="selected-place-rating-star" /></>
               : "Henüz puan yok"}
         </p>
       </div>
@@ -883,7 +884,7 @@ export function PlaceSaveSheet({
         onClick={() => onToggleList(list)}
       >
         <span className="place-save-list-icon" aria-hidden="true">
-          {isSaving ? "…" : isSaved ? "✓" : "+"}
+          {isSaving ? <AppIcon name="circle-notch" className="place-save-list-spinner" /> : isSaved ? <AppIcon name="check" /> : <CollectionIcon value={list?.Icon} />}
         </span>
 
         <span className="place-save-list-copy">
@@ -930,7 +931,7 @@ export function PlaceSaveSheet({
             disabled={Boolean(savingListId)}
             aria-label="Kapat"
           >
-            ×
+            <AppIcon name="x" />
           </button>
         </div>
 
@@ -1151,7 +1152,7 @@ export function AddNoteModal({
                 disabled={isSaving || noteHasBeenSaved}
                 onClick={() => onRatingChange(rating)}
               >
-                ★
+                <AppIcon name={rating <= Number(noteRating) ? "star-fill" : "star"} />
               </button>
             ))}
             <strong>{noteRating ? `${noteRating} / 5` : "Puan ver"}</strong>
@@ -1228,7 +1229,7 @@ export function AddNoteModal({
                   event.target.value = "";
                 }}
               />
-              <span aria-hidden="true">＋</span>
+              <AppIcon name="camera-plus" className="note-photo-picker-icon" />
               <strong>Fotoğraf ekle</strong>
               <small>JPG, PNG veya WEBP · fotoğraf başına en fazla 8 MB</small>
             </label>
@@ -1246,7 +1247,7 @@ export function AddNoteModal({
                     aria-label={`${draft.name} fotoğrafını kaldır`}
                     title="Fotoğrafı kaldır"
                   >
-                    ×
+                    <AppIcon name="x" />
                   </button>
                 </div>
               ))}
@@ -1337,7 +1338,7 @@ export function MapBottomControls({
         disabled={!userLocation}
         onClick={goToMyLocation}
       >
-        ◎
+        <AppIcon name={userLocation ? "gps-fix" : "gps-slash"} />
       </button>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ShareIconButton from "../../components/ShareIconButton.jsx";
+import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 import { supabase } from "../../supabase.js";
 import { getErrorMessageKey, MESSAGE_KEY, t } from "../../i18n/messages.js";
 import {
@@ -204,7 +205,7 @@ function LockedProfileTab({ type }) {
 
   return (
     <div className="foreign-profile-tab-state foreign-profile-tab-state-locked">
-      <span aria-hidden="true">⌁</span>
+      <AppIcon name="eye-slash" className="foreign-profile-state-icon" />
       <h3>Bu hesap gizli</h3>
       <p>{copy}</p>
     </div>
@@ -215,27 +216,27 @@ function EmptyProfileTab({ type }) {
   const copy =
     type === PROFILE_TABS.PHOTOS
       ? {
-          icon: "▦",
+          icon: "images",
           title: "Henüz fotoğraf paylaşılmadı",
           message:
             "Fotoğraflar yakında notlara bağlanarak burada görünecek.",
         }
       : type === PROFILE_TABS.SAVED
         ? {
-            icon: "✦",
+            icon: "bookmarks",
             title: "Görünür liste yok",
             message:
               "Bu kullanıcının herkese açık bir mekan listesi bulunmuyor.",
           }
         : {
-            icon: "✦",
+            icon: "bookmarks",
             title: "Henüz not yok",
             message: "Bu kullanıcı henüz görünür bir not paylaşmadı.",
           };
 
   return (
     <div className="foreign-profile-tab-state">
-      <span aria-hidden="true">{copy.icon}</span>
+      <AppIcon name={copy.icon} className="foreign-profile-state-icon" />
       <h3>{copy.title}</h3>
       <p>{copy.message}</p>
     </div>
@@ -731,7 +732,7 @@ export default function UserProfilePage({
               />
             ) : (
               <span className="foreign-profile-saved-icon" aria-hidden="true">
-                {list.Icon || "✦"}
+                <CollectionIcon value={list.Icon || "bookmarks"} className="foreign-profile-list-icon" />
               </span>
             )}
             <span className="foreign-profile-saved-copy">
@@ -740,7 +741,7 @@ export default function UserProfilePage({
               <span>{Number(list.PlaceCount ?? 0)} mekan · Herkese açık</span>
             </span>
             <span className="foreign-profile-saved-arrow" aria-hidden="true">
-              ›
+              <AppIcon name="caret-right-fill" className="foreign-profile-list-caret" />
             </span>
           </button>
         ))}
@@ -819,8 +820,8 @@ export default function UserProfilePage({
                     />
                   </div>
                   <div className="foreign-profile-public-details">
-                    {profile.CityName && <span>⌖ {profile.CityName}</span>}
-                    {profile.ZodiacSign && <span>✦ {profile.ZodiacSign}</span>}
+                    {profile.CityName && <span><AppIcon name="map-pin" /> {profile.CityName}</span>}
+                    {profile.ZodiacSign && <span><AppIcon name="star" /> {profile.ZodiacSign}</span>}
                   </div>
                 </div>
               </div>

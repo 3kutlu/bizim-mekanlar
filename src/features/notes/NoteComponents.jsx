@@ -4,6 +4,7 @@
  */
 
 import ShareIconButton from "../../components/ShareIconButton.jsx";
+import AppIcon from "../../components/AppIcon.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { MAX_NOTE_PHOTOS, createNotePhotoDrafts, createSignedNotePhotoUrls, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
@@ -656,7 +657,7 @@ export function NoteDetailPage({
                   aria-haspopup="menu"
                   title="Not işlemleri"
                 >
-                  <span aria-hidden="true">•••</span>
+                  <AppIcon name="dots-three" />
                 </button>
 
                 {isActionMenuOpen && (
@@ -876,7 +877,7 @@ export function NotePhotoGallery({ photos, loading, errorMessage, onRetry }) {
               onClick={() => setActivePhotoIndex(null)}
               aria-label="Fotoğrafı kapat"
             >
-              ×
+              <AppIcon name="x" />
             </button>
             <img src={activePhoto.SignedUrl} alt="Mekan notu fotoğrafı" />
           </div>,
@@ -1025,7 +1026,7 @@ export function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChang
             disabled={isSaving || Boolean(deletingPhotoId)}
             aria-label="Kapat"
           >
-            ×
+            <AppIcon name="x" />
           </button>
         </div>
 
@@ -1045,7 +1046,7 @@ export function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChang
                 event.target.value = "";
               }}
             />
-            <span aria-hidden="true">＋</span>
+            <AppIcon name="plus" />
             <strong>Fotoğraf ekle</strong>
             <small>{totalCount} / {MAX_NOTE_PHOTOS} · Fotoğraf başına en fazla 8 MB</small>
           </label>
@@ -1063,7 +1064,7 @@ export function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChang
                   aria-label="Fotoğrafı sil"
                   title="Fotoğrafı sil"
                 >
-                  {Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId) ? "…" : "×"}
+                  <AppIcon name={Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId) ? "circle-notch" : "x"} />
                 </button>
               </div>
             ))}
@@ -1319,7 +1320,7 @@ export function NoteEditModal({
             disabled={isBusy}
             aria-label="Kapat"
           >
-            ×
+            <AppIcon name="x" />
           </button>
         </div>
 
@@ -1437,7 +1438,7 @@ export function NoteEditModal({
                     event.target.value = "";
                   }}
                 />
-                <span aria-hidden="true">＋</span>
+                <AppIcon name="plus" />
                 <strong>Fotoğraf ekle</strong>
                 <small>JPG, PNG veya WEBP · Fotoğraf başına en fazla 8 MB</small>
               </label>
