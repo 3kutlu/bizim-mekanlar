@@ -103,6 +103,7 @@ import windIcon from "../assets/icons/wind.svg";
 import xIcon from "../assets/icons/x.svg";
 import x_circleIcon from "../assets/icons/x-circle.svg";
 import x_circle_fillIcon from "../assets/icons/x-circle-fill.svg";
+import gpsSlash from "../assets/icons/gps-slash.svg";
 
 const ICONS = Object.freeze({
   "arrow-left": arrow_leftIcon,
