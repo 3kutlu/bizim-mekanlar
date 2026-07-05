@@ -66,9 +66,6 @@ button:disabled {
 }
 
 .logo-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   border: 0;
   border-radius: 8px;
   padding: 6px 0;
@@ -85,19 +82,6 @@ button:disabled {
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.topbar-title-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.topbar-private-icon {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 auto;
 }
 
 .logo-button:focus-visible,
@@ -591,3 +575,30 @@ button:disabled {
 .app-icon { width: 1em; height: 1em; display: block; object-fit: contain; }
 .bottom-nav .app-icon { width: 22px; height: 22px; }
 .settings-trigger .app-icon, .notification-trigger .app-icon, .user-search-trigger .app-icon, .share-icon-button .app-icon { width: 21px; height: 21px; }
+
+
+/* v2.4.1 — topbar context actions */
+.topbar-title {
+  min-width: 0;
+  border-radius: 8px;
+  padding: 6px 0;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-share-button {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 700px) {
+  .topbar-share-button {
+    width: 38px;
+    height: 38px;
+  }
+}

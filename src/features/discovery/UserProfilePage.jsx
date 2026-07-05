@@ -1,7 +1,6 @@
 /* Feature module: extracted without changing UI behavior. */
 
-import { useCallback, useEffect, useState } from "react";
-import ShareIconButton from "../../components/ShareIconButton.jsx";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 import { supabase } from "../../supabase.js";
 import { getErrorMessageKey, MESSAGE_KEY, t } from "../../i18n/messages.js";
@@ -11,6 +10,7 @@ import {
 } from "../../utils/venueCategory.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
+import { getZodiacIconName } from "../../utils/zodiac.js";
 import "../../css/user-discovery.css";
 
 const PROFILE_TABS = Object.freeze({
@@ -254,7 +254,6 @@ export default function UserProfilePage({
   onFollowChanged,
   onOpenNote,
   onOpenPlace,
-  onShareProfile,
 }) {
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -271,6 +270,11 @@ export default function UserProfilePage({
   const [savedLists, setSavedLists] = useState([]);
   const [savedListsLoading, setSavedListsLoading] = useState(false);
   const [savedListsError, setSavedListsError] = useState("");
+  const initialContentLoadRef = useRef(null);
+  const lastListsRefreshKeyRef = useRef(placeListsRefreshKey);
+  const swipeStartRef = useRef(null);
+  const [tabDragOffset, setTabDragOffset] = useState(0);
+  const [isTabDragging, setIsTabDragging] = useState(false);
 
   const loadProfile = useCallback(
     async ({ silent = false } = {}) => {
@@ -493,30 +497,106 @@ export default function UserProfilePage({
   }, [canViewProfileContent, profile?.UserId]);
 
   useEffect(() => {
-    if (!profile || !canViewProfileContent) {
+    const profileId = Number(profile?.UserId);
+    const contentKey = `${profileId}:${canViewProfileContent}`;
+
+    if (!Number.isInteger(profileId) || profileId <= 0 || !canViewProfileContent) {
       return;
     }
 
-    if (activeTab === PROFILE_TABS.NOTES) {
-      void loadNotes();
+    if (initialContentLoadRef.current === contentKey) {
+      return;
     }
 
-    if (activeTab === PROFILE_TABS.PHOTOS) {
-      void loadPhotos();
-    }
+    initialContentLoadRef.current = contentKey;
+    lastListsRefreshKeyRef.current = placeListsRefreshKey;
 
-    if (activeTab === PROFILE_TABS.SAVED) {
-      void loadSavedLists();
-    }
+    void Promise.all([loadNotes(), loadPhotos(), loadSavedLists()]);
   }, [
-    activeTab,
     canViewProfileContent,
     loadNotes,
     loadPhotos,
     loadSavedLists,
     placeListsRefreshKey,
-    profile,
+    profile?.UserId,
   ]);
+
+  useEffect(() => {
+    if (!canViewProfileContent || lastListsRefreshKeyRef.current === placeListsRefreshKey) {
+      return;
+    }
+
+    lastListsRefreshKeyRef.current = placeListsRefreshKey;
+    void loadSavedLists();
+  }, [canViewProfileContent, loadSavedLists, placeListsRefreshKey]);
+
+  const handleTabSwipeStart = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    swipeStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      width: event.currentTarget.clientWidth || 1,
+      axis: null,
+    };
+    setTabDragOffset(0);
+    setIsTabDragging(false);
+  };
+
+  const handleTabSwipeMove = (event) => {
+    const start = swipeStartRef.current;
+    const touch = event.touches?.[0];
+    if (!start || !touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (!start.axis) {
+      if (Math.abs(deltaX) < 6 && Math.abs(deltaY) < 6) return;
+      start.axis = Math.abs(deltaX) > Math.abs(deltaY) ? "x" : "y";
+    }
+
+    if (start.axis !== "x") return;
+
+    const tabs = [PROFILE_TABS.NOTES, PROFILE_TABS.PHOTOS, PROFILE_TABS.SAVED];
+    const currentIndex = tabs.indexOf(activeTab);
+    const atFirst = currentIndex === 0 && deltaX > 0;
+    const atLast = currentIndex === tabs.length - 1 && deltaX < 0;
+    const resistedOffset = (atFirst || atLast) ? deltaX * 0.28 : deltaX;
+
+    event.preventDefault();
+    setIsTabDragging(true);
+    setTabDragOffset(resistedOffset);
+  };
+
+  const finishTabSwipe = (event, cancelled = false) => {
+    const start = swipeStartRef.current;
+    const touch = event.changedTouches?.[0];
+    swipeStartRef.current = null;
+
+    if (!start || !touch) {
+      setTabDragOffset(0);
+      setIsTabDragging(false);
+      return;
+    }
+
+    const deltaX = touch.clientX - start.x;
+    const tabs = [PROFILE_TABS.NOTES, PROFILE_TABS.PHOTOS, PROFILE_TABS.SAVED];
+    const currentIndex = tabs.indexOf(activeTab);
+    const threshold = Math.min(92, start.width * 0.22);
+
+    if (!cancelled && start.axis === "x" && Math.abs(deltaX) >= threshold) {
+      const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+      if (tabs[nextIndex]) setActiveTab(tabs[nextIndex]);
+    }
+
+    setTabDragOffset(0);
+    setIsTabDragging(false);
+  };
+
+  const handleTabSwipeEnd = (event) => finishTabSwipe(event);
+  const handleTabSwipeCancel = (event) => finishTabSwipe(event, true);
 
   const handleFollowAction = async () => {
     if (!profile || isActionLoading) {
@@ -599,7 +679,8 @@ export default function UserProfilePage({
     { id: PROFILE_TABS.SAVED, label: "Kaydedilenler" },
   ];
 
-  const renderActiveTab = () => {
+  const renderTab = (tabId) => {
+    const activeTab = tabId;
     if (!canViewProfileContent) {
       return <LockedProfileTab type={activeTab} />;
     }
@@ -751,12 +832,6 @@ export default function UserProfilePage({
 
   return (
     <div className="discovery-page-content foreign-profile-page">
-      <header className="discovery-page-header discovery-page-header-no-back foreign-profile-page-header">
-        <div>
-          <h1>Profil</h1>
-        </div>
-      </header>
-
       <div className="discovery-page-body">
         {isLoading && (
           <div className="foreign-profile-state">Profil yükleniyor...</div>
@@ -782,7 +857,9 @@ export default function UserProfilePage({
                 <div className="foreign-profile-identity">
                   <div className="foreign-profile-identity-heading">
                     <div className="foreign-profile-name-row">
-                      <h2>{fullName || profile.Username}</h2>
+                      <div className="foreign-profile-name-block">
+                        <h2>{fullName || profile.Username}</h2>
+                      </div>
                       {visibilityIsPrivate && (
                         <span
                           className="foreign-profile-private-icon"
@@ -793,11 +870,6 @@ export default function UserProfilePage({
                         </span>
                       )}
                     </div>
-                    <ShareIconButton
-                      onClick={() => onShareProfile?.(profile)}
-                      disabled={!onShareProfile}
-                      label="Profili paylaş"
-                    />
                   </div>
                   <div
                     className="foreign-profile-follow-links"
@@ -831,8 +903,8 @@ export default function UserProfilePage({
                     />
                   </div>
                   <div className="foreign-profile-public-details">
-                    {profile.CityName && <span><AppIcon name="map-pin" /> {profile.CityName}</span>}
-                    {profile.ZodiacSign && <span><AppIcon name="star" /> {profile.ZodiacSign}</span>}
+                    {profile.CityName && <span><AppIcon name="map-pin" className="foreign-profile-detail-icon" /> {profile.CityName}</span>}
+                    {profile.ZodiacSign && <span><AppIcon name={getZodiacIconName(profile.ZodiacSign)} className="foreign-profile-detail-icon" /> {profile.ZodiacSign}</span>}
                   </div>
                 </div>
               </div>
@@ -876,13 +948,37 @@ export default function UserProfilePage({
                   aria-selected={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
                 >
-                  {tab.label}
+                  <AppIcon
+                    name={
+                      tab.id === PROFILE_TABS.PHOTOS
+                        ? "images"
+                        : tab.id === PROFILE_TABS.SAVED
+                          ? "bookmarks"
+                          : "pencil-simple-line"
+                    }
+                    className="foreign-profile-tab-icon"
+                  />
+                  <span>{tab.label}</span>
                 </button>
               ))}
             </div>
 
-            <section className="foreign-profile-tab-panel" role="tabpanel">
-              {renderActiveTab()}
+            <section
+              className="foreign-profile-tab-viewport"
+              role="tabpanel"
+              onTouchStart={handleTabSwipeStart}
+              onTouchMove={handleTabSwipeMove}
+              onTouchEnd={handleTabSwipeEnd}
+              onTouchCancel={handleTabSwipeCancel}
+            >
+              <div
+                className={`foreign-profile-tab-track${isTabDragging ? " foreign-profile-tab-track-dragging" : ""}`}
+                style={{ transform: `translate3d(calc(-${[PROFILE_TABS.NOTES, PROFILE_TABS.PHOTOS, PROFILE_TABS.SAVED].indexOf(activeTab) * 100}% + ${tabDragOffset}px), 0, 0)` }}
+              >
+                <div className="foreign-profile-tab-panel">{renderTab(PROFILE_TABS.NOTES)}</div>
+                <div className="foreign-profile-tab-panel">{renderTab(PROFILE_TABS.PHOTOS)}</div>
+                <div className="foreign-profile-tab-panel">{renderTab(PROFILE_TABS.SAVED)}</div>
+              </div>
             </section>
           </div>
         )}

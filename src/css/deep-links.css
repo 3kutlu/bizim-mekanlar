@@ -106,13 +106,6 @@
   flex: 1 1 auto;
 }
 
-.place-detail-header-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  margin-left: auto;
-}
-
 .place-list-detail-heading {
   width: 100%;
   display: flex;

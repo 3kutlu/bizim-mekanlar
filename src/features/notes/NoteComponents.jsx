@@ -3,7 +3,6 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
-import ShareIconButton from "../../components/ShareIconButton.jsx";
 import AppIcon from "../../components/AppIcon.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
@@ -226,24 +225,12 @@ export function NoteFeed({
                           title="Kullanıcı profilini aç"
                         >
                           {username}
-                          {isPrivateAccount(note.AccountVisibilityCode) && (
-                            <AppIcon
-                              name="eye-slash"
-                              className="username-private-lock"
-                              title="Gizli hesap"
-                            />
-                          )}
+                          {isPrivateAccount(note.AccountVisibilityCode) ? " 🔒" : ""}
                         </button>
                       ) : (
                         <strong>
                           {username}
-                          {isPrivateAccount(note.AccountVisibilityCode) && (
-                            <AppIcon
-                              name="eye-slash"
-                              className="username-private-lock"
-                              title="Gizli hesap"
-                            />
-                          )}
+                          {isPrivateAccount(note.AccountVisibilityCode) ? " 🔒" : ""}
                         </strong>
                       )}
 
@@ -647,22 +634,11 @@ export function NoteDetailPage({
                 <strong>{fullName || username}</strong>
                 <small>
                   @{username}
-                  {isPrivateAccount(note?.AccountVisibilityCode) && (
-                    <AppIcon
-                      name="eye-slash"
-                      className="username-private-lock"
-                      title="Gizli hesap"
-                    />
-                  )}
+                  {isPrivateAccount(note?.AccountVisibilityCode) ? " 🔒" : ""}
                 </small>
               </span>
             </button>
 
-            <ShareIconButton
-              onClick={() => onShare?.(note)}
-              disabled={!onShare}
-              label="Notu paylaş"
-            />
 
             {isOwnNote && (
               <div className="note-detail-more-menu" ref={actionMenuRef}>
@@ -1096,7 +1072,7 @@ export function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChang
                   aria-label={`${draft.name} fotoğrafını kaldır`}
                   title="Fotoğrafı kaldır"
                 >
-                  <AppIcon name="x" />
+                  ×
                 </button>
               </div>
             ))}
@@ -1371,31 +1347,24 @@ export function NoteEditModal({
               role="radiogroup"
               aria-label="Puanın"
             >
-              {[1, 2, 3, 4, 5].map((rating) => {
-                const isActive = rating <= Number(form.rating);
-
-                return (
-                  <button
-                    className={
-                      isActive
-                        ? "note-edit-rating-star note-edit-rating-star-active"
-                        : "note-edit-rating-star"
-                    }
-                    type="button"
-                    key={rating}
-                    role="radio"
-                    aria-checked={Number(form.rating) === rating}
-                    aria-label={`${rating} yıldız`}
-                    disabled={isBusy}
-                    onClick={() => updateField("rating", rating)}
-                  >
-                    <AppIcon
-                      name={isActive ? "star-fill" : "star"}
-                      className="note-edit-rating-star-icon"
-                    />
-                  </button>
-                );
-              })}
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  className={
+                    rating <= Number(form.rating)
+                      ? "note-edit-rating-star note-edit-rating-star-active"
+                      : "note-edit-rating-star"
+                  }
+                  type="button"
+                  key={rating}
+                  role="radio"
+                  aria-checked={Number(form.rating) === rating}
+                  aria-label={`${rating} yıldız`}
+                  disabled={isBusy}
+                  onClick={() => updateField("rating", rating)}
+                >
+                  ★
+                </button>
+              ))}
               <strong>{form.rating ? `${form.rating} / 5` : "Puan ver"}</strong>
             </div>
             {showRatingError && (
@@ -1484,13 +1453,9 @@ export function NoteEditModal({
                       aria-label="Fotoğrafı sil"
                       title="Fotoğrafı sil"
                     >
-                      <AppIcon
-                        name={
-                          Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId)
-                            ? "circle-notch"
-                            : "x"
-                        }
-                      />
+                      {Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId)
+                        ? "…"
+                        : "×"}
                     </button>
                   </div>
                 ))}
@@ -1505,7 +1470,7 @@ export function NoteEditModal({
                       aria-label="Seçilen fotoğrafı kaldır"
                       title="Seçilen fotoğrafı kaldır"
                     >
-                      <AppIcon name="x" />
+                      ×
                     </button>
                   </div>
                 ))}

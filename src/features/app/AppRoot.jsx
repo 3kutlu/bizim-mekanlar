@@ -13,7 +13,7 @@ import "../../css/deep-links.css";
  */
 
 import NotificationsPopover from "../../components/NotificationsPopover.jsx";
-import AppIcon from "../../components/AppIcon.jsx";
+import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import AuthPage from "../auth/AuthPage.jsx";
 import MapPage from "../map/MapPage.jsx";
@@ -1576,10 +1576,54 @@ export default function App() {
       : activePage === "list"
         ? "Akış"
         : "Bizim Mekanlar";
-  const isPrivateDiscoveryProfile =
-    activeDiscoveryScreen?.type === "profile" &&
-    Boolean(activeDiscoveryScreen?.isPrivate);
   const showDesktopNavigation = !isOwnProfileTopbar && !isDiscoveryTopbar;
+  const topbarShare = (() => {
+    if (isOwnProfileTopbar) {
+      return {
+        onClick: handleShareOwnProfile,
+        label: "Profili paylaş",
+      };
+    }
+
+    if (!activeDiscoveryScreen) {
+      return null;
+    }
+
+    if (activeDiscoveryScreen.type === "profile") {
+      return {
+        onClick: () => handleShareProfile({ Username: activeDiscoveryScreen.username }),
+        label: "Profili paylaş",
+      };
+    }
+
+    if (activeDiscoveryScreen.type === "place") {
+      return {
+        onClick: () => handleSharePlace(activeDiscoveryScreen),
+        label: "Mekanı paylaş",
+      };
+    }
+
+    if (activeDiscoveryScreen.type === "note") {
+      return {
+        onClick: () =>
+          handleShareLink({
+            title: "Not | Bizim Mekanlar",
+            text: "Bizim Mekanlar'da paylaşılan bir not",
+            path: buildNotePath(activeDiscoveryScreen.publicId),
+          }),
+        label: "Notu paylaş",
+      };
+    }
+
+    if (activeDiscoveryScreen.type === "place-list") {
+      return {
+        onClick: () => handleShareCollection(activeDiscoveryScreen),
+        label: "Koleksiyonu paylaş",
+      };
+    }
+
+    return null;
+  })();
 
   return (
     <div
@@ -1592,22 +1636,9 @@ export default function App() {
           isNotificationsOpen ? " topbar-notifications-open" : ""
         }`}
       >
-        <button
-          className="logo-button topbar-title"
-          type="button"
-          onClick={() => handleTabNavigation("map")}
-          title={topbarTitle}
-          aria-label={`${topbarTitle}. Haritaya dön`}
-        >
-          <span className="topbar-title-text">{topbarTitle}</span>
-          {isPrivateDiscoveryProfile && (
-            <AppIcon
-              name="eye-slash"
-              className="topbar-private-icon"
-              aria-hidden="true"
-            />
-          )}
-        </button>
+        <div className="topbar-title" title={topbarTitle}>
+          {topbarTitle}
+        </div>
 
         <div className="topbar-actions">
           {showDesktopNavigation && (
@@ -1634,6 +1665,14 @@ export default function App() {
                 Profil
               </button>
             </nav>
+          )}
+
+          {topbarShare && (
+            <ShareIconButton
+              className="topbar-share-button"
+              onClick={topbarShare.onClick}
+              label={topbarShare.label}
+            />
           )}
 
           {isOwnProfileTopbar && (

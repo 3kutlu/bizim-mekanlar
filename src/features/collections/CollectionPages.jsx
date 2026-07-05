@@ -3,7 +3,6 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
-import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
@@ -175,12 +174,6 @@ export function PlaceListDetailPage({
               </div>
             </div>
           </div>
-          <ShareIconButton
-            className="place-list-detail-share-button"
-            onClick={onShare}
-            disabled={!onShare}
-            label="Koleksiyonu paylaş"
-          />
         </div>
 
       </header>
@@ -609,7 +602,9 @@ export function ConnectionList({ users, onOpenUser }) {
                 {isPrivateAccount(user.AccountVisibilityCode) ? " 🔒" : ""}
               </strong>
               <span>{fullName || user.Username}</span>
-              {user.CityName && <small>{user.CityName}</small>}
+              <small>
+                {[user.CityName, user.ZodiacSign].filter(Boolean).join(" · ")}
+              </small>
             </span>
           </button>
         );

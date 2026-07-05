@@ -3,7 +3,6 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
-import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
@@ -27,7 +26,6 @@ export function ProfilePage({
   onOpenPlaceList,
   onOpenPlace,
   onOpenNote,
-  onShareProfile,
 }) {
   const [activeTab, setActiveTab] = useState(PROFILE_TAB_IDS.NOTES);
   const [profileNotes, setProfileNotes] = useState([]);
@@ -40,6 +38,12 @@ export function ProfilePage({
   const [listsLoading, setListsLoading] = useState(false);
   const [listsError, setListsError] = useState("");
   const [collectionEditor, setCollectionEditor] = useState(null);
+  const initialContentLoadRef = useRef(null);
+  const lastNotesRefreshKeyRef = useRef(notesRefreshKey);
+  const lastListsRefreshKeyRef = useRef(placeListsRefreshKey);
+  const swipeStartRef = useRef(null);
+  const [tabDragOffset, setTabDragOffset] = useState(0);
+  const [isTabDragging, setIsTabDragging] = useState(false);
 
   const fullName = getFullName(profile);
   const avatarLetter = (profile.Username || profile.FirstName || "K")
@@ -152,28 +156,119 @@ export function ProfilePage({
   }, []);
 
   useEffect(() => {
-    if (activeTab !== PROFILE_TAB_IDS.NOTES) {
+    const profileId = Number(profile?.UserId);
+
+    if (!Number.isInteger(profileId) || profileId <= 0) {
       return;
     }
 
-    void loadProfileNotes();
-  }, [activeTab, loadProfileNotes, notesRefreshKey]);
+    if (initialContentLoadRef.current === profileId) {
+      return;
+    }
+
+    initialContentLoadRef.current = profileId;
+    lastNotesRefreshKeyRef.current = notesRefreshKey;
+    lastListsRefreshKeyRef.current = placeListsRefreshKey;
+
+    void Promise.all([
+      loadProfileNotes(),
+      loadProfilePhotos(),
+      loadPlaceLists(),
+    ]);
+  }, [
+    loadPlaceLists,
+    loadProfileNotes,
+    loadProfilePhotos,
+    notesRefreshKey,
+    placeListsRefreshKey,
+    profile?.UserId,
+  ]);
 
   useEffect(() => {
-    if (activeTab !== PROFILE_TAB_IDS.PHOTOS) {
+    if (lastNotesRefreshKeyRef.current === notesRefreshKey) {
       return;
     }
 
-    void loadProfilePhotos();
-  }, [activeTab, loadProfilePhotos, notesRefreshKey]);
+    lastNotesRefreshKeyRef.current = notesRefreshKey;
+    void Promise.all([loadProfileNotes(), loadProfilePhotos()]);
+  }, [loadProfileNotes, loadProfilePhotos, notesRefreshKey]);
 
   useEffect(() => {
-    if (activeTab !== PROFILE_TAB_IDS.SAVED) {
+    if (lastListsRefreshKeyRef.current === placeListsRefreshKey) {
       return;
     }
 
+    lastListsRefreshKeyRef.current = placeListsRefreshKey;
     void loadPlaceLists();
-  }, [activeTab, loadPlaceLists, placeListsRefreshKey]);
+  }, [loadPlaceLists, placeListsRefreshKey]);
+
+  const handleTabSwipeStart = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    swipeStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      width: event.currentTarget.clientWidth || 1,
+      axis: null,
+    };
+    setTabDragOffset(0);
+    setIsTabDragging(false);
+  };
+
+  const handleTabSwipeMove = (event) => {
+    const start = swipeStartRef.current;
+    const touch = event.touches?.[0];
+    if (!start || !touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (!start.axis) {
+      if (Math.abs(deltaX) < 6 && Math.abs(deltaY) < 6) return;
+      start.axis = Math.abs(deltaX) > Math.abs(deltaY) ? "x" : "y";
+    }
+
+    if (start.axis !== "x") return;
+
+    const tabs = [PROFILE_TAB_IDS.NOTES, PROFILE_TAB_IDS.PHOTOS, PROFILE_TAB_IDS.SAVED];
+    const currentIndex = tabs.indexOf(activeTab);
+    const atFirst = currentIndex === 0 && deltaX > 0;
+    const atLast = currentIndex === tabs.length - 1 && deltaX < 0;
+    const resistedOffset = (atFirst || atLast) ? deltaX * 0.28 : deltaX;
+
+    event.preventDefault();
+    setIsTabDragging(true);
+    setTabDragOffset(resistedOffset);
+  };
+
+  const finishTabSwipe = (event, cancelled = false) => {
+    const start = swipeStartRef.current;
+    const touch = event.changedTouches?.[0];
+    swipeStartRef.current = null;
+
+    if (!start || !touch) {
+      setTabDragOffset(0);
+      setIsTabDragging(false);
+      return;
+    }
+
+    const deltaX = touch.clientX - start.x;
+    const tabs = [PROFILE_TAB_IDS.NOTES, PROFILE_TAB_IDS.PHOTOS, PROFILE_TAB_IDS.SAVED];
+    const currentIndex = tabs.indexOf(activeTab);
+    const threshold = Math.min(92, start.width * 0.22);
+
+    if (!cancelled && start.axis === "x" && Math.abs(deltaX) >= threshold) {
+      const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+      if (tabs[nextIndex]) setActiveTab(tabs[nextIndex]);
+    }
+
+    setTabDragOffset(0);
+    setIsTabDragging(false);
+  };
+
+  const handleTabSwipeEnd = (event) => finishTabSwipe(event);
+  const handleTabSwipeCancel = (event) => finishTabSwipe(event, true);
 
   const handlePlaceListSaved = (updatedList) => {
     const updatedListId = Number(updatedList?.UserPlaceListId);
@@ -228,12 +323,9 @@ export function ProfilePage({
 
           <div className="profile-identity">
             <div className="profile-identity-heading">
-              <h1>{fullName || profile.Username}</h1>
-              <ShareIconButton
-                onClick={onShareProfile}
-                disabled={!onShareProfile}
-                label="Profili paylaş"
-              />
+              <div className="profile-name-block">
+                <h1>{fullName || profile.Username}</h1>
+              </div>
             </div>
 
             <div className="profile-follow-links" aria-label="Profil istatistikleri">
@@ -284,7 +376,8 @@ export function ProfilePage({
             id="profile-tab-notes"
             onClick={() => setActiveTab(PROFILE_TAB_IDS.NOTES)}
           >
-            Notlar
+            <AppIcon name="pencil-simple-line" className="profile-tab-icon" />
+            <span>Notlar</span>
           </button>
           <button
             className={`profile-tab-button${
@@ -297,7 +390,8 @@ export function ProfilePage({
             id="profile-tab-photos"
             onClick={() => setActiveTab(PROFILE_TAB_IDS.PHOTOS)}
           >
-            Fotoğraflar
+            <AppIcon name="images" className="profile-tab-icon" />
+            <span>Fotoğraflar</span>
           </button>
           <button
             className={`profile-tab-button${
@@ -310,60 +404,69 @@ export function ProfilePage({
             id="profile-tab-saved"
             onClick={() => setActiveTab(PROFILE_TAB_IDS.SAVED)}
           >
-            Kaydedilenler
+            <AppIcon name="bookmarks" className="profile-tab-icon" />
+            <span>Listeler</span>
           </button>
         </div>
 
         <div
-          className="profile-tab-panel"
-          id={`profile-tab-panel-${activeTab}`}
+          className="profile-tab-viewport"
           role="tabpanel"
           aria-labelledby={`profile-tab-${activeTab}`}
+          onTouchStart={handleTabSwipeStart}
+          onTouchMove={handleTabSwipeMove}
+          onTouchEnd={handleTabSwipeEnd}
+          onTouchCancel={handleTabSwipeCancel}
         >
-          {activeTab === PROFILE_TAB_IDS.NOTES && (
-            <ProfileNotesTab
-              notes={profileNotes}
-              loading={notesLoading}
-              errorMessage={notesError}
-              currentUserId={currentUserId}
-              onRetry={loadProfileNotes}
-              onOpenPlace={onOpenPlace}
-              onOpenNote={onOpenNote}
-            />
-          )}
+          <div
+            className={`profile-tab-track${isTabDragging ? " profile-tab-track-dragging" : ""}`}
+            style={{ transform: `translate3d(calc(-${[PROFILE_TAB_IDS.NOTES, PROFILE_TAB_IDS.PHOTOS, PROFILE_TAB_IDS.SAVED].indexOf(activeTab) * 100}% + ${tabDragOffset}px), 0, 0)` }}
+          >
+            <section className="profile-tab-panel" id="profile-tab-panel-notes">
+              <ProfileNotesTab
+                notes={profileNotes}
+                loading={notesLoading}
+                errorMessage={notesError}
+                currentUserId={currentUserId}
+                onRetry={loadProfileNotes}
+                onOpenPlace={onOpenPlace}
+                onOpenNote={onOpenNote}
+              />
+            </section>
 
-          {activeTab === PROFILE_TAB_IDS.PHOTOS && (
-            <ProfilePhotosTab
-              photos={profilePhotos}
-              loading={photosLoading}
-              errorMessage={photosError}
-              onRetry={loadProfilePhotos}
-              onOpenNote={onOpenNote}
-            />
-          )}
+            <section className="profile-tab-panel" id="profile-tab-panel-photos">
+              <ProfilePhotosTab
+                photos={profilePhotos}
+                loading={photosLoading}
+                errorMessage={photosError}
+                onRetry={loadProfilePhotos}
+                onOpenNote={onOpenNote}
+              />
+            </section>
 
-          {activeTab === PROFILE_TAB_IDS.SAVED && (
-            <ProfileSavedTab
-              lists={placeLists}
-              loading={listsLoading}
-              errorMessage={listsError}
-              accountIsPrivate={isPrivateAccount}
-              onRetry={loadPlaceLists}
-              onOpenList={(list) =>
-                onOpenPlaceList?.({
-                  list,
-                  userId: profile.UserId,
-                  username: profile.Username,
-                })
-              }
-              onCreateList={() =>
-                setCollectionEditor({ mode: "create", list: null })
-              }
-              onEditList={(list) =>
-                setCollectionEditor({ mode: "edit", list })
-              }
-            />
-          )}
+            <section className="profile-tab-panel" id="profile-tab-panel-saved">
+              <ProfileSavedTab
+                lists={placeLists}
+                loading={listsLoading}
+                errorMessage={listsError}
+                accountIsPrivate={isPrivateAccount}
+                onRetry={loadPlaceLists}
+                onOpenList={(list) =>
+                  onOpenPlaceList?.({
+                    list,
+                    userId: profile.UserId,
+                    username: profile.Username,
+                  })
+                }
+                onCreateList={() =>
+                  setCollectionEditor({ mode: "create", list: null })
+                }
+                onEditList={(list) =>
+                  setCollectionEditor({ mode: "edit", list })
+                }
+              />
+            </section>
+          </div>
         </div>
       </div>
 

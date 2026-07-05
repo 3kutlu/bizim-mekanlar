@@ -3,8 +3,6 @@
  * This feature module intentionally keeps existing UI behavior intact.
  */
 
-import AppIcon from "../../components/AppIcon.jsx";
-import ShareIconButton from "../../components/ShareIconButton.jsx";
 import { MESSAGE_KEY, getErrorMessageKey } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
@@ -203,18 +201,6 @@ export function PlaceDetailPage({
 
   return (
     <div className="discovery-page-content place-detail-page">
-      <header className="discovery-page-header discovery-page-header-no-back place-detail-page-header">
-        <div className="place-detail-header-actions">
-          <span className="place-detail-header-label">MEKAN</span>
-          <ShareIconButton
-            className="place-detail-share-button"
-            onClick={onShare}
-            disabled={!onShare}
-            label="Mekanı paylaş"
-          />
-        </div>
-      </header>
-
       <div className="discovery-page-body place-detail-page-body">
         {loading && <LoadingState compact />}
 
@@ -513,7 +499,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
             <div className="place-photo-lightbox-header">
               <span>{activePhotoIndex + 1} / {totalPhotoCount}</span>
               <button type="button" onClick={closeGallery} aria-label="Galeriyi kapat">
-                <AppIcon name="x" />
+                ×
               </button>
             </div>
 
@@ -525,7 +511,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
                   onClick={showPreviousPhoto}
                   aria-label="Önceki fotoğraf"
                 >
-                  <AppIcon name="caret-left-fill" />
+                  ‹
                 </button>
               )}
 
@@ -541,7 +527,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
                   onClick={showNextPhoto}
                   aria-label="Sonraki fotoğraf"
                 >
-                  <AppIcon name="caret-right-fill" />
+                  ›
                 </button>
               )}
             </div>
