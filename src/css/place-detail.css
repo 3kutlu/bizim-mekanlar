@@ -71,7 +71,8 @@
   margin-top: 3px;
 }
 
-.place-detail-stat-row > div {
+.place-detail-stat-row > div,
+.place-detail-stat-button {
   min-width: 116px;
   display: grid;
   gap: 3px;
@@ -79,6 +80,29 @@
   border-radius: 13px;
   padding: 10px 12px;
   background: #101319;
+}
+
+.place-detail-stat-button {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.place-detail-stat-button:hover:not(:disabled),
+.place-detail-stat-button:focus-visible {
+  border-color: #71819e;
+  background: #1a202b;
+  outline: none;
+}
+
+.place-detail-stat-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.place-detail-scroll-target {
+  scroll-margin-top: 16px;
 }
 
 .place-detail-stat-row strong {
@@ -414,4 +438,281 @@
   .place-detail-photo-section {
     margin-top: 24px;
   }
+}
+
+/* Mobile detail header is full-bleed while its content keeps the page gutter. */
+@media (max-width: 700px) {
+  .place-detail-page .place-detail-page-header {
+    margin-right: -16px;
+    margin-left: -16px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}
+
+/* Keep the three venue stats on one row on narrow mobile screens. */
+@media (max-width: 520px) {
+  .place-detail-stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .place-detail-stat-row > div,
+  .place-detail-stat-button {
+    min-width: 0;
+    padding: 9px 10px;
+    border-radius: 12px;
+  }
+
+  .place-detail-stat-row strong {
+    font-size: 14px;
+  }
+
+  .place-detail-stat-row span {
+    font-size: 11px;
+  }
+}
+
+
+/* v2.0.2 — compact photo preview + full gallery */
+.place-detail-photo-heading-button {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.place-detail-photo-heading-button:hover h2,
+.place-detail-photo-heading-button:focus-visible h2 {
+  color: #fff;
+}
+
+.place-detail-photo-heading-button:focus-visible {
+  outline: 2px solid #9cbaff;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.place-detail-photo-preview-grid {
+  max-height: 132px;
+}
+
+.place-detail-photo-preview-grid .place-detail-photo-tile {
+  min-height: 132px;
+}
+
+.place-detail-photo-more-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: rgba(7, 10, 15, 0.58);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: -0.03em;
+}
+
+.place-photo-lightbox {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(4, 6, 10, 0.88);
+}
+
+.place-photo-lightbox-panel {
+  width: min(100%, 920px);
+  max-height: min(90dvh, 860px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid #303846;
+  border-radius: 18px;
+  background: #11151c;
+  box-shadow: 0 22px 80px rgba(0, 0, 0, 0.46);
+}
+
+.place-photo-lightbox-header,
+.place-photo-lightbox-footer {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
+  color: #c2cbda;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.place-photo-lightbox-header {
+  border-bottom: 1px solid #28303c;
+}
+
+.place-photo-lightbox-header button,
+.place-photo-lightbox-footer button {
+  border: 1px solid #3b4556;
+  border-radius: 10px;
+  background: #18202b;
+  color: #f4f7fb;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.place-photo-lightbox-header button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0;
+  line-height: 0;
+}
+
+.place-photo-lightbox-footer {
+  border-top: 1px solid #28303c;
+}
+
+.place-photo-lightbox-footer > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-photo-lightbox-footer button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.place-photo-lightbox-content {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px 58px;
+  background: #090b0f;
+}
+
+.place-photo-lightbox-content img {
+  max-width: 100%;
+  max-height: calc(min(90dvh, 860px) - 128px);
+  display: block;
+  object-fit: contain;
+}
+
+.place-photo-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #445065;
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(17, 22, 30, 0.88);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0;
+  line-height: 0;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.place-photo-lightbox-nav-previous {
+  left: 12px;
+}
+
+.place-photo-lightbox-nav-next {
+  right: 12px;
+}
+
+.place-photo-lightbox-header button .app-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.place-photo-lightbox-nav .app-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.place-photo-lightbox-header button:hover,
+.place-photo-lightbox-header button:focus-visible,
+.place-photo-lightbox-footer button:hover,
+.place-photo-lightbox-footer button:focus-visible,
+.place-photo-lightbox-nav:hover,
+.place-photo-lightbox-nav:focus-visible {
+  border-color: #93a9cc;
+  background: #263247;
+}
+
+@media (max-width: 520px) {
+  .place-detail-photo-preview-grid {
+    max-height: 104px;
+  }
+
+  .place-detail-photo-preview-grid .place-detail-photo-tile {
+    min-height: 104px;
+  }
+
+  .place-photo-lightbox {
+    padding: 10px;
+  }
+
+  .place-photo-lightbox-panel {
+    max-height: 94dvh;
+    border-radius: 15px;
+  }
+
+  .place-photo-lightbox-content {
+    padding: 10px 46px;
+  }
+
+  .place-photo-lightbox-content img {
+    max-height: calc(94dvh - 124px);
+  }
+
+  .place-photo-lightbox-nav {
+    width: 34px;
+    height: 34px;
+  }
+
+  .place-photo-lightbox-nav .app-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .place-photo-lightbox-nav-previous {
+    left: 6px;
+  }
+
+  .place-photo-lightbox-nav-next {
+    right: 6px;
+  }
+}
+
+/* v2.0.5 — Mekan detayında not kartları zaten açık olan mekanı tekrar göstermez. */
+.place-detail-reviews .note-feed-place-separator,
+.place-detail-reviews .note-feed-place-link {
+  display: none;
+}
+
+.place-photo-lightbox-header button .app-icon,
+.place-photo-lightbox-nav .app-icon {
+  filter: brightness(0) invert(1);
+  opacity: 1;
 }

@@ -98,7 +98,7 @@
 
 .notification-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
   padding: 0 16px 12px;
   border-bottom: 1px solid #2b323e;
@@ -327,6 +327,177 @@
   font-size: 12px;
 }
 
+
+/* Notification preferences */
+.notification-settings-panel {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.notification-settings-section {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-settings-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.notification-settings-heading > div,
+.notification-settings-preference-intro,
+.notification-preference-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.notification-settings-heading strong,
+.notification-settings-preference-intro > strong,
+.notification-preference-copy strong {
+  color: #edf1fa;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.notification-settings-heading span,
+.notification-settings-preference-intro > span,
+.notification-preference-copy small,
+.notification-settings-device-status,
+.notification-settings-state {
+  color: #9ea8b9;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.notification-settings-device-action {
+  min-height: 34px;
+  border: 1px solid #4a5872;
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: #1f2938;
+  color: #e8eefb;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.notification-settings-device-action:hover:not(:disabled) {
+  border-color: #7895d4;
+  background: #26334a;
+}
+
+.notification-settings-device-action:disabled {
+  opacity: 0.58;
+}
+
+.notification-settings-device-status,
+.notification-settings-state,
+.notification-settings-error {
+  margin: 0;
+}
+
+.notification-settings-divider {
+  height: 1px;
+  background: #2b323e;
+}
+
+.notification-preference-list {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #2d3542;
+  border-radius: 13px;
+  background: #11151c;
+}
+
+.notification-preference-row {
+  position: relative;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 13px;
+  border-bottom: 1px solid #252c37;
+  cursor: pointer;
+}
+
+.notification-preference-row:last-child {
+  border-bottom: 0;
+}
+
+.notification-preference-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.notification-preference-copy small {
+  color: #8792a6;
+}
+
+.notification-preference-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.notification-preference-switch {
+  width: 40px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #4b5668;
+  border-radius: 999px;
+  padding: 2px;
+  background: #252c37;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.notification-preference-switch > span {
+  width: 18px;
+  height: 18px;
+  display: block;
+  border-radius: 50%;
+  background: #bac4d6;
+  transform: translateX(0);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.notification-preference-input:checked + .notification-preference-switch {
+  border-color: #7394d5;
+  background: #3b5d99;
+}
+
+.notification-preference-input:checked + .notification-preference-switch > span {
+  background: #f4f7ff;
+  transform: translateX(16px);
+}
+
+.notification-preference-input:focus-visible + .notification-preference-switch {
+  outline: 2px solid #9cbaff;
+  outline-offset: 3px;
+}
+
+.notification-preference-input:disabled + .notification-preference-switch {
+  opacity: 0.48;
+}
+
+.notification-preference-row:has(.notification-preference-input:disabled) {
+  cursor: default;
+}
+
+.notification-settings-error {
+  border-top: 1px solid #4c3339;
+  padding-top: 12px;
+  color: #ffb6b6;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 @media (max-width: 700px) {
   .topbar-actions {
     gap: 6px;
@@ -353,14 +524,24 @@
 
   .notification-popover {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 72px);
+    top: 72px;
     right: 12px;
     left: 12px;
+
     width: auto;
     max-width: none;
-    max-height: calc(100dvh - 96px);
-    overflow-y: auto;
+    height: min(560px, calc(100dvh - 160px));
+    max-height: none;
+
+    overflow: hidden;
     z-index: 1000;
+  }
+
+  .notification-popover-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .notification-popover-header,
@@ -374,5 +555,137 @@
   .notification-item-copy span {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+}
+.notification-item-icon .app-icon { width: 20px; height: 20px; }
+
+
+/* First-use web-push permission explainer. The browser permission popup is only
+   triggered after an explicit tap, never on page load. */
+.push-permission-prompt {
+  position: fixed;
+  z-index: calc(var(--z-global-chrome) + 8);
+  top: calc(var(--app-topbar-height, 60px) + 12px);
+  right: 16px;
+  width: min(390px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid #3e4e6c;
+  border-radius: 18px;
+  padding: 15px;
+  background: rgba(19, 25, 36, 0.98);
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(16px);
+  animation: push-permission-prompt-in 180ms ease-out;
+}
+
+.push-permission-prompt-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #4c6190;
+  border-radius: 14px;
+  background: #25324a;
+}
+
+.push-permission-prompt-icon .app-icon {
+  width: 23px;
+  height: 23px;
+}
+
+.push-permission-prompt-copy {
+  min-width: 0;
+}
+
+.push-permission-prompt-copy .eyebrow {
+  margin: 1px 0 5px;
+  font-size: 10px;
+}
+
+.push-permission-prompt-copy h2,
+.push-permission-prompt-copy p {
+  margin: 0;
+}
+
+.push-permission-prompt-copy h2 {
+  color: #f4f7ff;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.push-permission-prompt-copy > p:not(.eyebrow):not(.push-permission-prompt-feedback) {
+  margin-top: 5px;
+  color: #b8c3d8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.push-permission-prompt-feedback {
+  margin-top: 8px !important;
+  color: #ffd1d1;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.push-permission-prompt-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 9px;
+  margin-top: 1px;
+}
+
+.push-permission-prompt-actions button {
+  min-height: 38px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.push-permission-prompt-later {
+  border: 1px solid #3b465a;
+  background: transparent;
+  color: #c4cede;
+}
+
+.push-permission-prompt-later:hover:not(:disabled) {
+  border-color: #66758f;
+  color: #fff;
+}
+
+.push-permission-prompt-enable {
+  border: 0;
+  background: #eaf0ff;
+  color: #121722;
+}
+
+.push-permission-prompt-enable:hover:not(:disabled) {
+  background: #fff;
+}
+
+.push-permission-prompt-actions button:disabled {
+  opacity: 0.62;
+}
+
+@keyframes push-permission-prompt-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 700px) {
+  .push-permission-prompt {
+    top: 72px;
+    right: 10px;
+    width: calc(100vw - 20px);
   }
 }

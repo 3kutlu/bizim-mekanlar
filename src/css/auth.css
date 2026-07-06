@@ -252,3 +252,12 @@
     letter-spacing: 0.31em;
   }
 }
+
+/* v2.2.1 — auth SVG primitives */
+.auth-back-button .app-icon,
+.auth-otp-note .app-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  vertical-align: -0.16em;
+}

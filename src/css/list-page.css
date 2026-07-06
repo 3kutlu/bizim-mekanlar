@@ -792,7 +792,7 @@
 
 .note-delete-modal-backdrop {
   position: fixed;
-  z-index: 1300;
+  z-index: var(--z-confirmation-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -1106,7 +1106,7 @@
 
 .note-edit-modal-backdrop {
   position: fixed;
-  z-index: 1300;
+  z-index: var(--z-action-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -1678,7 +1678,7 @@
 
 .note-photo-lightbox {
   position: fixed;
-  z-index: 1500;
+  z-index: var(--z-photo-lightbox);
   inset: 0;
   display: grid;
   place-items: center;
@@ -1821,4 +1821,85 @@
   .note-photo-lightbox {
     padding: 12px;
   }
+}
+.note-detail-star .app-icon { width: 1em; height: 1em; }
+.note-reaction-button .app-icon, .note-reaction-static .app-icon { width: 15px; height: 15px; }
+
+.venue-category-app-icon {
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: -0.15em;
+}
+
+.place-list-detail-title-icon .app-icon,
+.place-list-item-icon .app-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.place-list-item-arrow .app-icon,
+.place-list-item-more-button .app-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Photo picker icon can be span or AppIcon img. */
+.note-photo-picker > .app-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  grid-row: span 2;
+  align-self: center;
+  justify-self: center;
+  border: 1px solid #52627d;
+  border-radius: 10px;
+  padding: 6px;
+  object-fit: contain;
+  box-sizing: border-box;
+}
+
+.note-photo-picker > strong,
+.note-photo-picker > small {
+  grid-column: 2;
+}
+
+.connection-meta,
+.connection-meta .zodiac-inline {
+  display: inline-flex;
+  align-items: center;
+}
+
+.connection-meta .zodiac-inline {
+  gap: 4px;
+}
+
+.connection-meta .zodiac-inline .app-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+
+/* Akış geri bildirim notu */
+.list-page-feedback-note {
+  margin: 10px 0 0;
+  color: #8e97a8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.list-page-feedback-note a {
+  color: #cbd8f4;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: rgba(203, 216, 244, 0.5);
+  text-underline-offset: 3px;
+}
+
+.list-page-feedback-note a:hover,
+.list-page-feedback-note a:focus-visible {
+  color: #ffffff;
+  text-decoration-color: currentColor;
 }

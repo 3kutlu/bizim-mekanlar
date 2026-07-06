@@ -104,6 +104,21 @@
   text-align: right;
 }
 
+/* Routed screens use browser/app history instead of a duplicate in-page back button. */
+.discovery-page-header-no-back > div:first-child {
+  margin-left: 0;
+  text-align: left;
+}
+
+.discovery-page-header-no-back.place-detail-page-header {
+  align-items: center;
+}
+
+.discovery-page-header-no-back .place-detail-header-actions {
+  margin-left: 0;
+  text-align: left;
+}
+
 .discovery-page-header .eyebrow {
   margin-bottom: 7px;
 }
@@ -115,37 +130,6 @@
   line-height: 1.15;
 }
 
-.discovery-back-button {
-  order: -1;
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-  border: 1px solid #353d4c;
-  border-radius: 11px;
-  padding: 7px 11px 7px 8px;
-  background: #171b23;
-  color: #e3e8f4;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.discovery-back-button:first-letter {
-  font-size: 24px;
-  font-weight: 400;
-}
-
-.discovery-back-button:hover:not(:disabled),
-.discovery-back-button:focus-visible {
-  border-color: #697fba;
-  background: #202735;
-}
-
-.discovery-back-button:disabled {
-  opacity: 0.55;
-}
 
 .discovery-page-body {
   width: 100%;
@@ -574,15 +558,6 @@ button.foreign-profile-stat:focus-visible {
     height: 42px;
   }
 
-  .discovery-back-button span {
-    display: none;
-  }
-
-  .discovery-back-button {
-    width: 38px;
-    justify-content: center;
-    padding: 6px;
-  }
 }
 
 /* EXTERNAL PROFILE TABS — v1.7.0 */
@@ -1395,4 +1370,305 @@ button.foreign-profile-saved-card-button:focus-visible {
   font-size: 0.86em;
   line-height: 1;
   vertical-align: 0.02em;
+}
+
+/* v2.2.0 — public collection cards and collection detail cover */
+.foreign-profile-saved-cover {
+  width: 42px;
+  height: 42px;
+  display: block;
+  border: 1px solid #3a465b;
+  border-radius: 13px;
+  object-fit: cover;
+}
+
+.foreign-profile-saved-copy em {
+  overflow: hidden;
+  color: #aab3c3;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-list-detail-heading {
+  min-width: 0;
+}
+
+.place-list-detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.place-list-detail-title-row > div {
+  min-width: 0;
+}
+
+.place-list-detail-title-row h1 {
+  display: block;
+  margin: 0;
+}
+
+.place-list-detail-cover {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid #3a465b;
+  border-radius: 13px;
+  object-fit: cover;
+}
+
+.place-list-detail-description {
+  max-width: 480px;
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: #9ea7b9;
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .foreign-profile-saved-cover,
+  .place-list-detail-cover {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+}
+.user-search-input-wrap > .app-icon { width: 21px; height: 21px; flex: 0 0 auto; opacity: .78; }
+
+
+/* Gizli hesap göstergeleri: emoji yerine AppIcon kullanılır. */
+.username-private-lock {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  vertical-align: -0.12em;
+}
+
+.username-private-lock .app-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.foreign-profile-identity-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.foreign-profile-name-row {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.foreign-profile-private-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #3d475a;
+  border-radius: 8px;
+  color: #dce6f8;
+}
+
+.foreign-profile-private-icon .app-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+
+/* v2.4.0 — External profile parity pass */
+.foreign-profile-summary {
+  padding: 4px 0 2px;
+}
+
+.foreign-profile-identity-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.foreign-profile-name-block {
+  min-width: 0;
+}
+
+.foreign-profile-username {
+  margin: 0 0 5px;
+  overflow: hidden;
+  color: #9ea7b9;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foreign-profile-identity-heading .share-icon-button {
+  margin-top: 1px;
+  flex: 0 0 auto;
+}
+
+.foreign-profile-name-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.foreign-profile-name-row h2 {
+  white-space: normal;
+}
+
+.foreign-profile-public-details {
+  margin-top: 15px;
+}
+
+.foreign-profile-public-details span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+}
+
+.foreign-profile-detail-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.foreign-profile-follow-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  margin-top: 20px;
+}
+
+.foreign-profile-tab-bar {
+  position: sticky;
+  z-index: 3;
+  top: -24px;
+  display: flex;
+  gap: 2px;
+  margin-top: 28px;
+  padding-top: 8px;
+  border-bottom: 1px solid #2a303b;
+  background: #0d0f13;
+}
+
+.foreign-profile-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1 1 0;
+  min-height: 50px;
+  border-radius: 12px 12px 0 0;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.foreign-profile-tab:hover,
+.foreign-profile-tab:focus-visible {
+  background: rgba(255,255,255,.035);
+}
+
+.foreign-profile-tab-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  opacity: .82;
+}
+
+.foreign-profile-tab-active .foreign-profile-tab-icon {
+  opacity: 1;
+}
+
+.foreign-profile-tab-panel {
+  padding-top: 18px;
+}
+
+.foreign-profile-photo-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.foreign-profile-photo-tile {
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.18);
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.foreign-profile-photo-tile:hover,
+.foreign-profile-photo-tile:focus-visible {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+@media (max-width: 700px) {
+  .foreign-profile-tab-bar {
+    top: -20px;
+  }
+}
+
+@media (max-width: 390px) {
+  .foreign-profile-tab {
+    gap: 4px;
+    padding-inline: 5px;
+    font-size: 11px;
+  }
+
+  .foreign-profile-tab-icon {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+
+/* v2.4.2 — External profile content rail: all three panels stay mounted. */
+.foreign-profile-tab-viewport {
+  width: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.foreign-profile-tab-track {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  will-change: transform;
+  transition: transform 220ms cubic-bezier(0.22, 0.8, 0.26, 1);
+}
+
+.foreign-profile-tab-track-dragging {
+  transition: none;
+}
+
+.foreign-profile-tab-track > .foreign-profile-tab-panel {
+  width: 100%;
+  min-width: 100%;
+  flex: 0 0 100%;
+}
+
+.foreign-profile-tab-panel { min-width: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .foreign-profile-tab-track { transition: none; }
 }

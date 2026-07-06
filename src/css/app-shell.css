@@ -52,7 +52,8 @@ button:disabled {
 
 .topbar {
   position: relative;
-  z-index: 10;
+  z-index: var(--z-global-chrome);
+  isolation: isolate;
   flex: 0 0 68px;
   height: 68px;
   display: flex;
@@ -109,16 +110,70 @@ button:disabled {
 }
 
 .app-message {
-  position: relative;
-  z-index: 9;
-  flex: 0 0 auto;
-  padding: 10px 24px;
-  border-bottom: 1px solid #3a3434;
-  background: #2b1f22;
+  position: absolute;
+  z-index: calc(var(--z-global-chrome) - 1);
+  top: 68px;
+  right: 16px;
+  left: 16px;
+
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  border: 1px solid #5c3b41;
+  border-radius: 0 0 14px 14px;
+  padding: 10px 14px;
+
+  background: rgba(43, 31, 34, 0.97);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
   color: #ffc9c9;
-  font-size: 14px;
+
+  font-size: 13px;
+  line-height: 1.4;
   text-align: center;
+
+  animation: app-message-in 180ms ease-out;
 }
+
+.app-message span {
+  min-width: 0;
+}
+
+.app-message button {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: #ffd5d5;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.app-message button:hover,
+.app-message button:focus-visible {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+@keyframes app-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 
 /*
   Tüm sekmeler aynı anda mounted kalır.
@@ -126,6 +181,8 @@ button:disabled {
 */
 .page-content {
   position: relative;
+  z-index: var(--z-page-content);
+  isolation: isolate;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
@@ -318,7 +375,7 @@ button:disabled {
   /* Varsayılan alt menü: Android ve masaüstü mobil görünümü. */
   .bottom-nav {
     position: fixed;
-    z-index: 100;
+    z-index: var(--z-global-chrome);
     right: 10px;
     bottom: max(10px, env(safe-area-inset-bottom));
     left: 10px;
@@ -499,7 +556,10 @@ button:disabled {
   }
 
   .app-message {
-    padding: 10px 16px;
+    top: 60px;
+    right: 10px;
+    left: 10px;
+    padding: 10px 14px;
   }
 }
 
@@ -511,22 +571,34 @@ button:disabled {
   }
 }
 
-/* v2.0.1.2 — persistent navigation layer (current-file safe patch)
-   Detail/discovery screens live inside .page-content, so containing that stack
-   at z-index:0 keeps global chrome above it. Note-photo lightbox remains above
-   this layer at its existing z-index:1500. */
-.topbar {
-  z-index: 1400;
-  isolation: isolate;
+/* v2.1.0 — Phosphor SVG icon system */
+.app-icon { width: 1em; height: 1em; display: block; object-fit: contain; }
+.bottom-nav .app-icon { width: 22px; height: 22px; }
+.settings-trigger .app-icon, .notification-trigger .app-icon, .user-search-trigger .app-icon, .share-icon-button .app-icon { width: 21px; height: 21px; }
+
+
+/* v2.4.1 — topbar context actions */
+.topbar-title {
+  min-width: 0;
+  border-radius: 8px;
+  padding: 6px 0;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.page-content {
-  z-index: 0;
-  isolation: isolate;
+.topbar-share-button {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 700px) {
-  .bottom-nav {
-    z-index: 1400;
+  .topbar-share-button {
+    width: 38px;
+    height: 38px;
   }
 }

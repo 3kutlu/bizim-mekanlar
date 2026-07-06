@@ -194,7 +194,7 @@
 
 .note-modal-backdrop {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-action-modal);
   inset: 0;
 
   display: grid;
@@ -760,7 +760,7 @@
 
 .place-save-backdrop {
   position: fixed;
-  z-index: 1100;
+  z-index: var(--z-action-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -1061,4 +1061,98 @@
 /* v1.8.5.1.1 — yeni not formunda ziyaret tarihi */
 .note-modal-date-input {
   color-scheme: dark;
+}
+
+.selected-place-marker .app-icon {
+  width: 25px;
+  height: 25px;
+}
+
+.social-map-venue-marker-icon .venue-category-app-icon,
+.selected-place-card .venue-category-icon-map .venue-category-app-icon {
+  width: 1em;
+  height: 1em;
+}
+
+.selected-place-close .app-icon,
+.place-save-sheet-close .app-icon,
+.note-photo-draft button .app-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.selected-place-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.selected-place-rating-star {
+  width: 15px;
+  height: 15px;
+}
+
+.place-save-list-icon .app-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.place-save-list-spinner {
+  animation: list-spin 0.8s linear infinite;
+}
+
+.note-rating-star .app-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.note-photo-picker-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.location-button .app-icon {
+  width: 25px;
+  height: 25px;
+}
+
+
+/* Açık renkli harita kartı içindeki SVG ikonlar */
+.map-page .location-button .app-icon,
+.map-page .selected-place-card .app-icon,
+.map-page .selected-place-card .venue-category-icon .app-icon {
+  filter: brightness(0) saturate(100%);
+}
+
+/* GPS */
+.map-page .location-button .app-icon {
+  width: 23px;
+  height: 23px;
+}
+
+/* Karttaki X */
+.map-page .selected-place-close .app-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Başlıktaki kategori ikonu */
+.map-page .venue-category-icon-map .app-icon {
+  width: 18px;
+  height: 18px;
+  vertical-align: -0.18em;
+}
+
+/* Puan etiketi içindeki yıldız varsa */
+.map-page .selected-place-rating .app-icon {
+  width: 14px;
+  height: 14px;
+  vertical-align: -0.12em;
+}
+
+.selected-place-rating-icon {
+  width: 14px;
+  height: 14px;
+  vertical-align: -0.14em;
+  filter: brightness(0) saturate(100%);
 }
