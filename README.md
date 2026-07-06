@@ -1,4 +1,5 @@
-#Google Maps Artık Sosyal Bir Platform Oldu
+# Google Maps Artık Sosyal Bir Platform Oldu
+
 # Bizim Mekanlar 
 
 
@@ -10,7 +11,7 @@
 
 ---
 
-## Uygulamayı Kullanmak
+## Uygulamayı Nasıl Kullanırım
 
 Uygulama yayınlandığında tarayıcıdan açılabilir ve telefon ana ekranına eklenebilir.
 
@@ -69,8 +70,6 @@ Ana ekrana eklendikten sonra uygulama normal bir mobil uygulama gibi açılır.
 
 ## Platform ve Entegrasyon Diyagramı
 
-> Diyagramı repository içinde `docs/bizim_mekanlar_platform_mimarisi.png` konumuna koyduktan sonra aşağıdaki görsel otomatik görünür.
-
 ![Bizim Mekanlar - Platform ve Entegrasyon Diyagramı](./docs/bizim_mekanlar_platform_mimarisi.png)
 
 Diyagramın kısa özeti:
@@ -118,8 +117,6 @@ VITE_GOOGLE_MAPS_API_KEY=...
 VITE_GOOGLE_MAP_ID=...
 VITE_VAPID_PUBLIC_KEY=...
 ```
-
-> `.env.local` dosyasını GitHub'a yükleme. Özellikle private key, service role key, SMTP şifresi veya VAPID private key gibi gizli değerler asla frontend repository içinde tutulmamalıdır.
 
 ### Güvenlik Notu
 
@@ -195,4 +192,4 @@ Bir hata, öneri veya fikir için:
 
 ## Lisans
 
-Bu repository şu an kişisel proje / geliştirme deposu olarak tutulmaktadır. Lisans koşulları ayrıca belirtilmedikçe tüm hakları saklıdır.
+Bu repository şu an kişisel proje / geliştirme deposu olarak tutulmaktadır. Tüm hakları saklıdır.
