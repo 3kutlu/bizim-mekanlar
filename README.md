@@ -1,71 +1,196 @@
-# Bizim Mekanlar — v3.1.0 Deep Links + Native Back
+# Bizim Mekanlar
 
-Bu paket, mevcut v3.0.0 çalışan projeye gerçek URL tabanlı navigasyon ekler. Arayüz ve mevcut özellikler korunur; detay ekranlarındaki sayfa içi `Geri` düğmeleri kaldırılır.
+> Mekanları keşfetmek, not almak, fotoğraf eklemek ve arkadaşlarınla paylaşmak için geliştirilen sosyal mekan günlüğü.
 
-## Eklenen URL yapısı
+**Bizim Mekanlar**, kafe, restoran, bar ve benzeri mekanları kişisel notlarınla kaydedebileceğin; takip ettiklerinin deneyimlerini görebileceğin mobil öncelikli bir web uygulamasıdır.
 
-```text
-/user/:username?profile=:publicId
-/place/:publicId
-/note/:publicId
-/collection/:publicId
+> Bu proje aktif olarak geliştirilmektedir. Hata, öneri veya fikirler için: [3kutlu@gmail.com](mailto:3kutlu@gmail.com?subject=Bizim%20Mekanlar%20Geri%20Bildirim)
+
+---
+
+## Uygulamayı Kullanmak
+
+Uygulama yayınlandığında tarayıcıdan açılabilir ve telefon ana ekranına eklenebilir.
+
+### iPhone / Safari
+
+1. Uygulama linkini **Safari** ile aç.
+2. Alt menüdeki **Paylaş** simgesine dokun.
+3. **Ana Ekrana Ekle** seçeneğine bas.
+4. **Ekle** diyerek tamamla.
+
+### Android / Chrome
+
+1. Uygulama linkini **Chrome** ile aç.
+2. Sağ üstteki **üç nokta** menüsüne dokun.
+3. **Ana ekrana ekle** veya **Uygulamayı yükle** seçeneğini seç.
+4. Onayla.
+
+Ana ekrana eklendikten sonra uygulama normal bir mobil uygulama gibi açılır.
+
+---
+
+## Neler Yapılabilir?
+
+- Google Maps üzerinde mekan aramak ve seçmek
+- Mekanlara puan, başlık, detay ve fotoğraf içeren notlar eklemek
+- Aynı mekana tekrar ziyaret notları bırakmak
+- Mekanları kişisel listelere/koleksiyonlara kaydetmek
+- Profil, fotoğraf galerisi ve mekan listelerini görüntülemek
+- Kullanıcıları takip etmek ve gizli hesaplar için takip isteği göndermek
+- Takip edilen kişilerin son notlarını akışta görmek
+- Not tepkileri, takip istekleri ve takip aktiviteleri için uygulama içi bildirim almak
+- Uygun cihazlarda web push bildirimlerini açmak
+- Profil, mekan, not ve koleksiyon bağlantılarını paylaşmak
+
+---
+
+## Teknoloji Yığını
+
+| Alan | Kullanılan Teknolojiler |
+| --- | --- |
+| Frontend | React, Vite, JavaScript |
+| Stil | Plain CSS |
+| Hosting | Vercel |
+| Backend | Supabase |
+| Kimlik doğrulama | Supabase Auth + Email OTP |
+| Veritabanı | Supabase Postgres |
+| Dosya depolama | Supabase Storage |
+| Gerçek zamanlı veri | Supabase Realtime |
+| Sunucu tarafı akışlar | Supabase Edge Functions |
+| Harita / mekan arama | Google Maps JavaScript API + Places API |
+| PWA | Web App Manifest + Service Worker |
+| Bildirim | Web Push + tarayıcı izinleri |
+| E-posta | Custom SMTP / transactional email altyapısı |
+
+---
+
+## Platform ve Entegrasyon Diyagramı
+
+> Diyagramı repository içinde `docs/bizim_mekanlar_platform_mimarisi.png` konumuna koyduktan sonra aşağıdaki görsel otomatik görünür.
+
+![Bizim Mekanlar - Platform ve Entegrasyon Diyagramı](./docs/bizim_mekanlar_platform_mimarisi.png)
+
+Diyagramın kısa özeti:
+
+1. Kullanıcılar uygulamayı iPhone/Safari, Android/Chrome veya masaüstü tarayıcı üzerinden açar.
+2. React + Vite ile geliştirilen frontend Vercel üzerinde yayınlanır.
+3. Oturum, kullanıcı profilleri, notlar, koleksiyonlar, takip ilişkileri ve bildirim verileri Supabase üzerinden yönetilir.
+4. Profil ve not fotoğrafları Supabase Storage içinde saklanır.
+5. Harita, mekan arama ve mekan seçimi Google Maps Platform ile sağlanır.
+6. Push bildirimleri, OTP e-postaları ve bazı sunucu tarafı akışlar Edge Functions ve bildirim/e-posta entegrasyonları üzerinden ilerler.
+7. Uygulama PWA olarak çalışır; desteklenen cihazlarda ana ekrana eklenebilir.
+
+---
+
+## Yerel Geliştirme
+
+### Gereksinimler
+
+- Node.js 20+ önerilir
+- npm
+- Supabase projesi
+- Google Cloud projesi ve Maps / Places API erişimi
+
+### Kurulum
+
+```bash
+git clone <REPOSITORY_URL>
+cd bizim-mekanlar
+npm install
+npm run dev
 ```
 
-Örnek:
+Uygulama varsayılan olarak Vite tarafından verilen yerel adreste açılır.
 
-```text
-/user/smoke?profile=4f729b66-5b2a-4e84-9580-61b5c78e7e79
-/place/4f729b66-5b2a-4e84-9580-61b5c78e7e79
-/note/4f729b66-5b2a-4e84-9580-61b5c78e7e79
-/collection/4f729b66-5b2a-4e84-9580-61b5c78e7e79
+---
+
+## Ortam Değişkenleri
+
+Proje kökünde `.env.local` dosyası oluştur:
+
+```env
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+VITE_GOOGLE_MAPS_API_KEY=...
+VITE_GOOGLE_MAP_ID=...
+VITE_VAPID_PUBLIC_KEY=...
 ```
 
-`PublicId` değerleri UUID'dir; sıralı veritabanı ID'leri URL'lere çıkmaz.
+> `.env.local` dosyasını GitHub'a yükleme. Özellikle private key, service role key, SMTP şifresi veya VAPID private key gibi gizli değerler asla frontend repository içinde tutulmamalıdır.
 
-Profil URL'sindeki `profile` query parametresi özellikle önemlidir:
+### Güvenlik Notu
 
-- Kullanıcının görünen adresi hâlâ `/user/kullaniciadi` şeklindedir.
-- Paylaşılan link, hesap sahibini gizli UUID ile doğrular.
-- Kullanıcı adını değiştiren kişi eski adı yeniden boşa çıkarabilir.
-- Eski adı daha sonra başka biri alsa bile eski paylaşılan link yeni kişiyi açmaz; standart “sayfa bulunamadı” ekranına gider.
+Frontend tarafında kullanılan Google Maps API key'i mutlaka:
 
-## Uygulama adımları
+- yalnızca izin verilen domainlerle,
+- yalnızca kullanılan Maps API'leriyle,
+- localhost geliştirme adresleriyle
 
-1. Supabase SQL Editor'da şu migration'ı **bir kez** çalıştır:
+kısıtlanmalıdır.
 
-   ```text
-   supabase/migrations/20260703_v3_1_0_deep_links.sql
-   ```
+Supabase tarafında da RLS, RPC yetkileri, Storage policy'leri ve Edge Function secret'ları dikkatle yapılandırılmalıdır.
 
-   `v2.1.1.2` soft-delete migration'ını daha önce çalıştırmadıysan onu önce çalıştır:
+---
 
-   ```text
-   supabase/migrations/20260703_v2_1_1_2_note_photo_soft_delete.sql
-   ```
+## Supabase Tarafında Kullanılan Başlıca Alanlar
 
-2. Paket dosyalarını proje köküne taşı. `.env.local` dosyanı koru.
-3. `vercel.json` proje kökünde kalmalı. Bu dosya, doğrudan açılan `/user/...`, `/place/...`, `/note/...` ve `/collection/...` adreslerini Vite uygulamasına yönlendirir.
-4. Kontrol et:
+- **Auth:** Passwordless email OTP oturum akışı
+- **Postgres:** Kullanıcılar, mekanlar, notlar, takip ilişkileri, koleksiyonlar ve bildirimler
+- **Storage:** Profil fotoğrafları ve not fotoğrafları
+- **Realtime:** Takip ve bildirim değişikliklerini uygulama içinde güncellemek
+- **Edge Functions:** Web push gönderimi, güvenli sunucu tarafı işlemler ve entegrasyon akışları
 
-   ```bash
-   npm ci
-   npm run check
-   npm run dev
-   ```
+---
 
-## Davranış
+## Google Maps Kullanımı
 
-- Android sistem geri tuşu ve tarayıcı geri hareketi, önce uygulama içindeki geçmiş ekranına döner.
-- Safari/iOS tarafında tarayıcının sol kenardan geri hareketi aynı geçmiş kaydını kullanır.
-- Doğrudan paylaşılan detay linki açıldığında uygulama önce bir iç harita geçmişi oluşturur; ilk geri hareketinde siteyi kapatmak yerine haritaya döner.
-- Kendi profilinde **Profilini paylaş**, mekan detayında **Paylaş** düğmesi vardır. Destekleyen cihazlarda native share sheet, diğerlerinde link kopyalama çalışır.
-- Not ve koleksiyon URL'leri de doğrudan açılabilir; mevcut gizlilik kuralları korunur. Yetkisiz özel not/koleksiyon standart bulunamadı ekranına düşer.
+Uygulama şu Google Maps Platform servislerini kullanır:
 
-## Supabase değişikliği
+- **Maps JavaScript API:** Haritanın görüntülenmesi
+- **Places API:** Mekan arama, autocomplete ve mekan detayları
 
-Yeni bucket, Storage policy veya RLS policy yoktur. Migration yalnızca şu tablolara `PublicId` ekler ve güvenli hedef çözümleme RPC'lerini oluşturur:
+API key kısıtları yapılmadan üretim ortamında kullanılmamalıdır.
 
-- `Users`
-- `Places`
-- `PlaceNotes`
-- `UserPlaceLists`
+---
+
+## PWA ve Bildirimler
+
+Bizim Mekanlar PWA olarak çalışır:
+
+- Ana ekrana eklenebilir
+- Service worker kullanır
+- Desteklenen cihazlarda web push bildirimleri sunar
+- iPhone/iPad cihazlarda push bildirimleri için uygulamanın ana ekrandan açılması gerekebilir
+
+Bildirim izni kullanıcı deneyimini bozmamak için kontrollü bir akışla istenir. Kullanıcı izinleri daha sonra uygulama içindeki bildirim ayarlarından yönetebilir.
+
+---
+
+## Proje Durumu
+
+Bu proje aktif geliştirme aşamasındadır.
+
+Öncelikli geliştirme başlıkları:
+
+- Harita ve keşif filtreleri
+- Yakındaki mekanlar
+- Kişisel / sosyal marker ayrımları
+- Fotoğraf sıkıştırma ve optimizasyon
+- Mekan tekrar ziyaret geçmişi
+- Keşif ve rastgele mekan seçimi
+- Bundle optimizasyonu ve lazy loading
+
+---
+
+## Geri Bildirim
+
+Bir hata, öneri veya fikir için:
+
+[3kutlu@gmail.com](mailto:3kutlu@gmail.com?subject=Bizim%20Mekanlar%20Geri%20Bildirim)
+
+---
+
+## Lisans
+
+Bu repository şu an kişisel proje / geliştirme deposu olarak tutulmaktadır. Lisans koşulları ayrıca belirtilmedikçe tüm hakları saklıdır.
