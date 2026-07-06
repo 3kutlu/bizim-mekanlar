@@ -1,4 +1,6 @@
-# Bizim Mekanlar
+#Google Maps Artık Sosyal Bir Platform Oldu
+# Bizim Mekanlar 
+
 
 > Mekanları keşfetmek, not almak, fotoğraf eklemek ve arkadaşlarınla paylaşmak için geliştirilen sosyal mekan günlüğü.
 
