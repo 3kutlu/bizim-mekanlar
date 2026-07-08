@@ -10,6 +10,7 @@ export const DEFAULT_PUSH_NOTIFICATION_PREFERENCES = Object.freeze({
   followedEnabled: true,
   followingNoteEnabled: true,
   noteReactionEnabled: true,
+  collectionCollaboratorEnabled: true,
 });
 
 function normalizePushNotificationPreferences(value) {
@@ -30,6 +31,10 @@ function normalizePushNotificationPreferences(value) {
       value?.NoteReactionEnabled ??
       value?.noteReactionEnabled ??
       DEFAULT_PUSH_NOTIFICATION_PREFERENCES.noteReactionEnabled,
+    collectionCollaboratorEnabled:
+      value?.CollectionCollaboratorEnabled ??
+      value?.collectionCollaboratorEnabled ??
+      DEFAULT_PUSH_NOTIFICATION_PREFERENCES.collectionCollaboratorEnabled,
   };
 }
 
@@ -222,6 +227,7 @@ export async function updateMyPushNotificationPreferences(preferences) {
       p_followed_enabled: normalized.followedEnabled,
       p_following_note_enabled: normalized.followingNoteEnabled,
       p_note_reaction_enabled: normalized.noteReactionEnabled,
+      p_collection_collaborator_enabled: normalized.collectionCollaboratorEnabled,
     }
   );
 

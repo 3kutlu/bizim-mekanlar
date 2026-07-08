@@ -16,6 +16,42 @@ import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 
 export { PlaceListEditModal };
 
+
+function getCollectionMemberLetter(user) {
+  return String(user?.Username || user?.FirstName || "K").charAt(0).toUpperCase();
+}
+
+function CollectionMemberAvatarStack({ members = [] }) {
+  const visibleMembers = members.filter((member) => Number(member?.UserId) > 0);
+  const photoUrls = useProfilePhotoUrls(
+    visibleMembers.map((member) => Number(member?.UserId)),
+    visibleMembers.length
+  );
+
+  if (visibleMembers.length <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="place-list-collaborator-stack" aria-label="Koleksiyon ortakları">
+      {visibleMembers.slice(0, 4).map((member) => {
+        const userId = Number(member?.UserId);
+        const photoUrl = photoUrls[userId] || "";
+
+        return (
+          <span className="place-list-collaborator-avatar" key={`${member?.RoleCode}-${userId}`} title={`@${member?.Username || "kullanici"}`}>
+            {photoUrl ? <img src={photoUrl} alt="" /> : getCollectionMemberLetter(member)}
+          </span>
+        );
+      })}
+      {visibleMembers.length > 4 && (
+        <span className="place-list-collaborator-avatar place-list-collaborator-more">+{visibleMembers.length - 4}</span>
+      )}
+    </div>
+  );
+}
+
+
 export function PlaceListDetailPage({
   userPlaceListId,
   listName,
@@ -24,6 +60,7 @@ export function PlaceListDetailPage({
   listCoverUrl = "",
   profileUsername,
   isOwner = false,
+  canManageItems = false,
   isActive,
   onBack,
   onOpenPlace,
@@ -36,6 +73,7 @@ export function PlaceListDetailPage({
   const [sortBy, setSortBy] = useState("saved");
   const [savedDateDirection, setSavedDateDirection] = useState("desc");
   const [removalTarget, setRemovalTarget] = useState(null);
+  const [collaborators, setCollaborators] = useState([]);
 
   const loadItems = useCallback(async () => {
     const normalizedListId = Number(userPlaceListId);
@@ -67,9 +105,32 @@ export function PlaceListDetailPage({
     setIsLoading(false);
   }, [userPlaceListId]);
 
+
+  const loadCollaborators = useCallback(async () => {
+    const normalizedListId = Number(userPlaceListId);
+
+    if (!Number.isInteger(normalizedListId) || normalizedListId <= 0) {
+      setCollaborators([]);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("GetUserPlaceListCollaborators", {
+      p_user_place_list_id: normalizedListId,
+    });
+
+    if (error) {
+      console.warn("Koleksiyon ortakları alınamadı:", error);
+      setCollaborators([]);
+      return;
+    }
+
+    setCollaborators(data ?? []);
+  }, [userPlaceListId]);
+
   useEffect(() => {
     void loadItems();
-  }, [loadItems]);
+    void loadCollaborators();
+  }, [loadCollaborators, loadItems]);
 
   useEffect(() => {
     if (!isActive) {
@@ -171,6 +232,7 @@ export function PlaceListDetailPage({
                 {listDescription && (
                   <p className="place-list-detail-description">{listDescription}</p>
                 )}
+                <CollectionMemberAvatarStack members={collaborators} />
               </div>
             </div>
           </div>
@@ -191,7 +253,7 @@ export function PlaceListDetailPage({
             icon=<CollectionIcon value={listIcon} />
             title="Bu listede henüz mekan yok"
             message={
-              isOwner
+              canManageItems
                 ? "Haritadaki Kaydet alanından mekan eklediğinde burada görünür."
                 : "Bu koleksiyona henüz mekan eklenmemiş."
             }
@@ -301,7 +363,7 @@ export function PlaceListDetailPage({
                       <span className="place-list-item-arrow" aria-hidden="true"><AppIcon name="caret-right-fill" /></span>
                     </button>
 
-                    {isOwner && (
+                    {canManageItems && (
                       <button
                         className="place-list-item-more-button"
                         type="button"
@@ -320,13 +382,14 @@ export function PlaceListDetailPage({
         )}
       </div>
 
-      {isOwner && removalTarget &&
+      {canManageItems && removalTarget &&
         createPortal(
           <PlaceListItemRemoveModal
             item={removalTarget}
             listId={userPlaceListId}
             listName={normalizedListName}
             onClose={() => setRemovalTarget(null)}
+            isOwner={isOwner}
             onRemoved={handleRemoved}
           />,
           document.body
@@ -339,6 +402,7 @@ export function PlaceListItemRemoveModal({
   item,
   listId,
   listName,
+  isOwner = false,
   onClose,
   onRemoved,
 }) {
@@ -417,7 +481,7 @@ export function PlaceListItemRemoveModal({
         <p className="eyebrow">KOLEKSİYON</p>
         <h2 id="place-list-remove-title">{placeName}</h2>
         <p>
-          Bu mekan <strong>{listName}</strong> listende kayıtlı.
+          Bu mekan <strong>{listName}</strong> listesinde kayıtlı.
         </p>
 
         {errorMessage && (
@@ -445,6 +509,7 @@ export function PlaceListItemRemoveModal({
           </button>
         </div>
 
+        {isOwner && (
         <button
           className="place-list-remove-all"
           type="button"
@@ -453,6 +518,7 @@ export function PlaceListItemRemoveModal({
         >
           Tüm listelerden çıkar
         </button>
+        )}
       </section>
     </div>
   );
