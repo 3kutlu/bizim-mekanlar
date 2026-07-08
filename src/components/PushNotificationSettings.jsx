@@ -29,6 +29,11 @@ const PREFERENCE_OPTIONS = [
     title: "Notuna gelen tepkiler",
     description: "Birisi notunu beğendiğinde veya beğenmediğinde.",
   },
+  {
+    key: "collectionCollaboratorEnabled",
+    title: "Ortak koleksiyonlar",
+    description: "Birisi seni ortak koleksiyonuna eklediğinde.",
+  },
 ];
 
 function getCopyForState(state) {

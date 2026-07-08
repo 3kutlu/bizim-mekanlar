@@ -12,6 +12,26 @@ import { AdvancedMarker, Circle, useMap, useMapsLibrary } from "@vis.gl/react-go
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 
+const COLLECTION_COLOR_CODES = new Set([
+  "BURGUNDY",
+  "PURPLE",
+  "BLUE",
+  "GREEN",
+  "ORANGE",
+  "YELLOW",
+  "PINK",
+  "SLATE",
+]);
+
+function normalizeCollectionColorCode(value) {
+  const normalized = String(value ?? "BURGUNDY").trim().toUpperCase();
+  return COLLECTION_COLOR_CODES.has(normalized) ? normalized : "BURGUNDY";
+}
+
+function getCollectionColorClassName(value) {
+  return `collection-color-${normalizeCollectionColorCode(value).toLowerCase()}`;
+}
+
 export function MapReference({ mapRef }) {
   const map = useMap();
 
@@ -392,7 +412,7 @@ export function SocialVenueNotesLayer({ isActive, refreshKey, onPlaceSelected })
               anchorLeft="-50%"
               anchorTop="-50%"
               zIndex={70}
-              title={`${cluster.places.length} mekan notu`}
+              title={`${cluster.places.length} mekan`}
               onClick={() => openCluster(cluster)}
             >
               <div className="social-map-cluster-marker" aria-hidden="true">
@@ -405,6 +425,22 @@ export function SocialVenueNotesLayer({ isActive, refreshKey, onPlaceSelected })
         const place = cluster.places[0];
         const venueIcon = getVenueCategoryIcon(place?.VenueCategoryCode);
         const reviewCount = Math.max(0, Number(place?.VisibleNoteCount) || 0);
+        const savedListCount = Math.max(0, Number(place?.SavedListCount) || 0);
+        const hasSavedList = savedListCount > 0;
+        const colorClassName = getCollectionColorClassName(place?.PrimaryListColorCode);
+        const markerClassName = hasSavedList
+          ? `social-map-venue-marker social-map-venue-marker-saved ${colorClassName}`
+          : "social-map-venue-marker";
+        const markerTitleParts = [
+          place?.Name || "Mekan",
+          reviewCount > 0 ? `${reviewCount} yorum` : "",
+          savedListCount > 0 ? `${savedListCount} liste` : "",
+        ].filter(Boolean);
+        const badgeCount = reviewCount > 1
+          ? reviewCount
+          : savedListCount > 1
+            ? savedListCount
+            : 0;
 
         return (
           <AdvancedMarker
@@ -415,16 +451,22 @@ export function SocialVenueNotesLayer({ isActive, refreshKey, onPlaceSelected })
             }}
             anchorLeft="-50%"
             anchorTop="-100%"
-            zIndex={65}
-            title={`${place.Name} · ${reviewCount} yorum`}
+            zIndex={hasSavedList ? 68 : 65}
+            title={markerTitleParts.join(" · ")}
             onClick={() => {
               void openPlace(place);
             }}
           >
-            <div className="social-map-venue-marker" aria-hidden="true">
-              <span className="social-map-venue-marker-icon">{venueIcon}</span>
-              {reviewCount > 1 && (
-                <span className="social-map-venue-marker-count">{reviewCount > 9 ? "9+" : reviewCount}</span>
+            <div className={markerClassName} aria-hidden="true">
+              <span className="social-map-venue-marker-icon">
+                {hasSavedList ? (
+                  <CollectionIcon value={place?.PrimaryListIcon || "bookmark"} />
+                ) : (
+                  venueIcon
+                )}
+              </span>
+              {badgeCount > 0 && (
+                <span className="social-map-venue-marker-count">{badgeCount > 9 ? "9+" : badgeCount}</span>
               )}
             </div>
           </AdvancedMarker>
@@ -871,10 +913,11 @@ export function PlaceSaveSheet({
     const isSaved = Boolean(list?.IsSaved);
     const isSaving = savingListId === listId;
     const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
+    const colorClassName = getCollectionColorClassName(list?.ColorCode);
 
     return (
       <button
-        className={`place-save-list-row${
+        className={`place-save-list-row ${colorClassName}${
           isSaved ? " place-save-list-row-saved" : ""
         }`}
         type="button"
