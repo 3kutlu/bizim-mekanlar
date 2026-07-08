@@ -7,6 +7,7 @@ type NotificationRow = {
   ActorUserId: number;
   NotificationTypeCode: string;
   PlaceNoteId: number | null;
+  UserPlaceListId: number | null;
   IsActive: boolean;
 };
 
@@ -22,6 +23,7 @@ type PushPreferenceRow = {
   FollowedEnabled: boolean;
   FollowingNoteEnabled: boolean;
   NoteReactionEnabled: boolean;
+  CollectionCollaboratorEnabled: boolean;
 };
 
 function isNotificationTypeEnabled(
@@ -38,6 +40,8 @@ function isNotificationTypeEnabled(
     case "NOTE_REACTION_UP":
     case "NOTE_REACTION_DOWN":
       return preferences?.NoteReactionEnabled !== false;
+    case "COLLECTION_COLLABORATOR_ADDED":
+      return preferences?.CollectionCollaboratorEnabled !== false;
     default:
       return true;
   }
@@ -133,7 +137,9 @@ function getNotificationCopy(
   notification: NotificationRow,
   actorUsername: string,
   placeName: string | null,
-  notePublicId: string | null
+  notePublicId: string | null,
+  collectionName: string | null,
+  collectionPublicId: string | null
 ) {
   const actor = actorUsername || "Bir kullanıcı";
 
@@ -166,6 +172,14 @@ function getNotificationCopy(
           : "Notunu görmek için dokun.",
         url: notePublicId ? `/note/${notePublicId}` : `/user/${encodeURIComponent(actor)}`,
       };
+    case "COLLECTION_COLLABORATOR_ADDED":
+      return {
+        title: `${actor} seni bir listeye ekledi.`,
+        body: collectionName
+          ? `${collectionName} listesine artık birlikte mekan ekleyebilirsiniz.`
+          : "Ortak koleksiyonu görmek için dokun.",
+        url: collectionPublicId ? `/collection/${collectionPublicId}` : "/profile",
+      };
     case "NOTE_REACTION_DOWN":
       return {
         title: `${actor} notunu beğenmedi.`,
@@ -187,7 +201,7 @@ async function getNotificationContext(notificationId: number) {
   const { data: notification, error: notificationError } = await admin
     .from("Notifications")
     .select(
-      "NotificationId, RecipientUserId, ActorUserId, NotificationTypeCode, PlaceNoteId, IsActive"
+      "NotificationId, RecipientUserId, ActorUserId, NotificationTypeCode, PlaceNoteId, UserPlaceListId, IsActive"
     )
     .eq("NotificationId", notificationId)
     .maybeSingle<NotificationRow>();
@@ -240,6 +254,25 @@ async function getNotificationContext(notificationId: number) {
     placeName = String(place?.Name ?? "").trim() || null;
   }
 
+  let collectionName: string | null = null;
+  let collectionPublicId: string | null = null;
+
+  if (notification.UserPlaceListId) {
+    const { data: collection, error: collectionError } = await admin
+      .from("UserPlaceLists")
+      .select("Name, PublicId")
+      .eq("UserPlaceListId", notification.UserPlaceListId)
+      .eq("IsActive", true)
+      .maybeSingle();
+
+    if (collectionError) {
+      throw collectionError;
+    }
+
+    collectionName = String(collection?.Name ?? "").trim() || null;
+    collectionPublicId = collection?.PublicId ? String(collection.PublicId) : null;
+  }
+
   return {
     notification,
     actorUsername: String(actor?.Username ?? "").trim(),
@@ -247,6 +280,8 @@ async function getNotificationContext(notificationId: number) {
     notePublicId: noteContext.data?.PublicId
       ? String(noteContext.data.PublicId)
       : null,
+    collectionName,
+    collectionPublicId,
   };
 }
 
@@ -277,11 +312,11 @@ async function sendNotification(notificationId: number) {
     return { sent: 0, deactivated: 0, skipped: true };
   }
 
-  const { notification, actorUsername, placeName, notePublicId } = context;
+  const { notification, actorUsername, placeName, notePublicId, collectionName, collectionPublicId } = context;
   const { data: preferences, error: preferencesError } = await admin
     .from("UserWebPushPreferences")
     .select(
-      "FollowRequestEnabled, FollowedEnabled, FollowingNoteEnabled, NoteReactionEnabled"
+      "FollowRequestEnabled, FollowedEnabled, FollowingNoteEnabled, NoteReactionEnabled, CollectionCollaboratorEnabled"
     )
     .eq("UserId", notification.RecipientUserId)
     .maybeSingle<PushPreferenceRow>();
@@ -309,7 +344,9 @@ async function sendNotification(notificationId: number) {
     notification,
     actorUsername,
     placeName,
-    notePublicId
+    notePublicId,
+    collectionName,
+    collectionPublicId
   );
   const payload = JSON.stringify({
     ...copy,

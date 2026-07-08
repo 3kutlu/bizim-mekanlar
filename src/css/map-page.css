@@ -1156,3 +1156,102 @@
   vertical-align: -0.14em;
   filter: brightness(0) saturate(100%);
 }
+/* v2.5.0.2 — koleksiyon renkleriyle harita/listeme kaydet görseli */
+.collection-color-burgundy {
+  --collection-color: #8b1e35;
+  --collection-color-soft: rgba(139, 30, 53, 0.2);
+  --collection-color-border: #b65069;
+}
+
+.collection-color-purple {
+  --collection-color: #7c3aed;
+  --collection-color-soft: rgba(124, 58, 237, 0.2);
+  --collection-color-border: #a78bfa;
+}
+
+.collection-color-blue {
+  --collection-color: #2563eb;
+  --collection-color-soft: rgba(37, 99, 235, 0.2);
+  --collection-color-border: #8bb6ff;
+}
+
+.collection-color-green {
+  --collection-color: #16834f;
+  --collection-color-soft: rgba(22, 131, 79, 0.2);
+  --collection-color-border: #5fce94;
+}
+
+.collection-color-orange {
+  --collection-color: #c45a10;
+  --collection-color-soft: rgba(196, 90, 16, 0.22);
+  --collection-color-border: #f5a15a;
+}
+
+.collection-color-yellow {
+  --collection-color: #d6a30f;
+  --collection-color-soft: rgba(214, 163, 15, 0.2);
+  --collection-color-border: #efd36a;
+}
+
+.collection-color-pink {
+  --collection-color: #d9468f;
+  --collection-color-soft: rgba(217, 70, 143, 0.2);
+  --collection-color-border: #f0a0c8;
+}
+
+.collection-color-slate {
+  --collection-color: #64748b;
+  --collection-color-soft: rgba(100, 116, 139, 0.22);
+  --collection-color-border: #a7b2c2;
+}
+
+.social-map-venue-marker-saved {
+  border-color: #ffffff;
+  background: var(--collection-color, #8b1e35);
+}
+
+.social-map-venue-marker-saved .social-map-venue-marker-icon .app-icon {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
+}
+
+.social-map-venue-marker-saved .social-map-venue-marker-count {
+  border-color: #ffffff;
+  background: var(--collection-color-border, #b65069);
+}
+
+.place-save-list-row {
+  position: relative;
+}
+
+.place-save-list-row::before {
+  position: absolute;
+  top: 11px;
+  bottom: 11px;
+  left: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--collection-color, transparent);
+  opacity: 0.72;
+  content: "";
+}
+
+.place-save-list-row .place-save-list-icon {
+  border-color: var(--collection-color-border, #3b465a);
+  background: var(--collection-color-soft, #1b2230);
+}
+
+.place-save-list-row .place-save-list-icon .app-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.place-save-list-row-saved .place-save-list-icon {
+  border-color: var(--collection-color-border, #526077);
+  background: var(--collection-color, #273143);
+}
+
+.place-save-list-row-saved .place-save-list-icon .app-icon {
+  filter: brightness(0) invert(1);
+}

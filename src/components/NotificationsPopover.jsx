@@ -53,6 +53,7 @@ function isNoteNotificationType(typeCode) {
     "FOLLOWING_NOTE",
     "NOTE_REACTION_UP",
     "NOTE_REACTION_DOWN",
+    "COLLECTION_COLLABORATOR_ADDED",
   ].includes(typeCode);
 }
 
@@ -72,6 +73,13 @@ function getNoteNotificationCopy(notification) {
         icon: "thumbs-down-fill",
         title: `${actor} notunu beğenmedi.`,
         detail: notification?.PlaceName || "Notunu görmek için dokun.",
+      };
+
+    case "COLLECTION_COLLABORATOR_ADDED":
+      return {
+        icon: "bookmarks-fill",
+        title: `${actor} seni bir listeye ekledi.`,
+        detail: notification?.UserPlaceListName || "Ortak koleksiyonu görmek için dokun.",
       };
 
     case "FOLLOWING_NOTE":
@@ -396,16 +404,7 @@ export default function NotificationsPopover({
                               }`}
                               type="button"
                               onClick={() => {
-                                const notificationToOpen = isNoteNotificationType(
-                                  item?.NotificationTypeCode
-                                )
-                                  ? {
-                                      ...item,
-                                      NotificationTypeCode: "FOLLOWING_NOTE",
-                                    }
-                                  : item;
-
-                                onOpenNotification(notificationToOpen);
+                                onOpenNotification(item);
                               }}
                             >
                               <span

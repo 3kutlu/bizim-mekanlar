@@ -15,6 +15,26 @@ import { createPortal } from "react-dom";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 import { getZodiacIconName } from "../../utils/zodiac.js";
 
+const COLLECTION_COLOR_CODES = new Set([
+  "BURGUNDY",
+  "PURPLE",
+  "BLUE",
+  "GREEN",
+  "ORANGE",
+  "YELLOW",
+  "PINK",
+  "SLATE",
+]);
+
+function normalizeCollectionColorCode(value) {
+  const normalized = String(value ?? "BURGUNDY").trim().toUpperCase();
+  return COLLECTION_COLOR_CODES.has(normalized) ? normalized : "BURGUNDY";
+}
+
+function getCollectionColorClassName(value) {
+  return `collection-color-${normalizeCollectionColorCode(value).toLowerCase()}`;
+}
+
 export function ProfilePage({
   profile,
   summary,
@@ -130,7 +150,10 @@ export function ProfilePage({
       return;
     }
 
-    const lists = data ?? [];
+    const lists = (data ?? []).map((list) => ({
+      ...list,
+      ColorCode: normalizeCollectionColorCode(list?.ColorCode),
+    }));
 
     try {
       const withSignedUrls = await createSignedNotePhotoUrls(
@@ -143,13 +166,19 @@ export function ProfilePage({
       setPlaceLists(
         withSignedUrls.map(({ SignedUrl, ...list }) => ({
           ...list,
+          ColorCode: normalizeCollectionColorCode(list?.ColorCode),
           CoverSignedUrl: SignedUrl,
         }))
       );
     } catch (signedUrlError) {
       // A cover is decorative. Keep the lists usable when just the signed URL fails.
       console.error("Koleksiyon kapak bağlantıları oluşturulamadı:", signedUrlError);
-      setPlaceLists(lists);
+      setPlaceLists(
+        lists.map((list) => ({
+          ...list,
+          ColorCode: normalizeCollectionColorCode(list?.ColorCode),
+        }))
+      );
     }
 
     setListsLoading(false);
@@ -624,9 +653,16 @@ export function ProfileSavedTab({
           .trim()
           .toUpperCase() === "PUBLIC";
         const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
+        const isOwner = Boolean(list?.IsOwner ?? true);
+        const canEditDetails = Boolean(list?.CanEditDetails ?? isOwner);
+        const collaboratorCount = Math.max(0, Number(list?.CollaboratorCount) || 0);
+        const colorClassName = getCollectionColorClassName(list?.ColorCode);
 
         return (
-          <article className="profile-saved-list-card" key={list.UserPlaceListId}>
+          <article
+            className={`profile-saved-list-card ${colorClassName}`}
+            key={list.UserPlaceListId}
+          >
             <button
               className="profile-saved-list-main"
               type="button"
@@ -649,6 +685,11 @@ export function ProfileSavedTab({
                 <strong>{list.Name}</strong>
                 {list.Description && <em>{list.Description}</em>}
                 <span>{placeCount} mekan</span>
+                {(!isOwner || collaboratorCount > 0) && (
+                  <small className="profile-saved-list-collab-badge">
+                    {!isOwner ? "Ortak liste" : `${collaboratorCount} ortak`}
+                  </small>
+                )}
               </span>
             </button>
 
@@ -660,6 +701,7 @@ export function ProfileSavedTab({
               {isPublic ? "Herkese açık" : "Gizli"}
             </span>
 
+            {canEditDetails && (
             <button
               className="profile-list-more-button"
               type="button"
@@ -669,6 +711,7 @@ export function ProfileSavedTab({
             >
               <AppIcon name="dots-three" className="profile-list-more-icon" />
             </button>
+            )}
           </article>
         );
       })}

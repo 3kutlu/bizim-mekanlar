@@ -1095,8 +1095,52 @@ export default function App() {
   );
 
   const handleOpenNotification = useCallback(
-    (notification) => {
+    async (notification) => {
       setIsNotificationsOpen(false);
+
+      const isCollectionNotification =
+        notification?.NotificationTypeCode === "COLLECTION_COLLABORATOR_ADDED";
+
+      if (isCollectionNotification) {
+        const listId = Number(notification?.UserPlaceListId ?? 0);
+
+        if (Number.isInteger(listId) && listId > 0) {
+          const { data: target, error } = await getCollectionDeepLinkTargetById(listId);
+
+          if (error || !target?.PublicId) {
+            setAppMessage(
+              getErrorMessageKey(error, MESSAGE_KEY.COLLECTION_NOT_FOUND)
+            );
+            return;
+          }
+
+          const publicId = String(target.PublicId);
+          const path = buildCollectionPath(publicId);
+          const userId = Number(target.UserId);
+          const isOwner =
+            Number.isInteger(userId) &&
+            Number.isInteger(Number(ownUserId)) &&
+            userId === Number(ownUserId);
+
+          pushDiscoveryScreen({
+            type: "place-list",
+            listId: Number(target.UserPlaceListId),
+            publicId,
+            listName: String(target.Name ?? "").trim() || "Mekan listesi",
+            listDescription: String(target.Description ?? "").trim(),
+            listCoverUrl: "",
+            listIcon: String(target.Icon ?? "bookmark").trim() || "bookmark",
+            userId,
+            username: String(target.Username ?? "").trim(),
+            isPrivate: isPrivateAccount(target.AccountVisibilityCode),
+            isOwner,
+            canEditDetails: isOwner,
+            canManageItems: true,
+            path,
+          });
+          return;
+        }
+      }
 
       const isNoteNotification = [
         "FOLLOWING_NOTE",
@@ -1122,7 +1166,7 @@ export default function App() {
         });
       }
     },
-    [handleOpenNote, handleOpenUserProfile]
+    [handleOpenNote, handleOpenUserProfile, ownUserId, pushDiscoveryScreen]
   );
 
   const handleFollowRequestResponse = useCallback(
@@ -1243,6 +1287,9 @@ export default function App() {
         username: String(target.Username ?? "").trim(),
         isPrivate: isPrivateAccount(target.AccountVisibilityCode),
         isOwner,
+        canEditDetails: Boolean(list?.CanEditDetails ?? isOwner),
+        canManageItems: Boolean(list?.CanManageItems ?? isOwner),
+        collaboratorCount: Number(list?.CollaboratorCount ?? 0),
         path,
       });
     },
@@ -2061,6 +2108,7 @@ export default function App() {
                       listCoverUrl={screen.listCoverUrl}
                       profileUsername={screen.username}
                       isOwner={Boolean(screen.isOwner)}
+                      canManageItems={Boolean(screen.canManageItems || screen.isOwner)}
                       isActive={isActive}
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceDetail}

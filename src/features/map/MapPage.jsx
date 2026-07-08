@@ -56,6 +56,7 @@ export default function MapPage({
   const [placeSaveNotice, setPlaceSaveNotice] = useState("");
   const [savingPlaceListId, setSavingPlaceListId] = useState(null);
   const [pendingExternalPlaceAction, setPendingExternalPlaceAction] = useState(null);
+  const [mapPlacesRefreshKey, setMapPlacesRefreshKey] = useState(0);
 
   const locationMessageTimerRef = useRef(null);
   const hasShownLocationIssueRef = useRef(false);
@@ -514,6 +515,18 @@ export default function MapPage({
       const saved =
         typeof result?.IsSaved === "boolean" ? result.IsSaved : shouldSave;
       const nextPlaceCount = Number(result?.PlaceCount);
+      const returnedPlaceId = Number(result?.PlaceId);
+
+      if (Number.isInteger(returnedPlaceId) && returnedPlaceId > 0) {
+        setSelectedPlace((currentPlace) =>
+          currentPlace
+            ? {
+                ...currentPlace,
+                placeId: currentPlace.placeId || returnedPlaceId,
+              }
+            : currentPlace
+        );
+      }
 
       setPlaceLists((currentLists) =>
         currentLists.map((currentList) =>
@@ -534,6 +547,7 @@ export default function MapPage({
         saved ? "Mekan listene kaydedildi." : "Mekan listeden kaldırıldı."
       );
       setSavingPlaceListId(null);
+      setMapPlacesRefreshKey((currentKey) => currentKey + 1);
       onPlaceSaved?.();
     },
     [onPlaceSaved, savingPlaceListId, selectedPlace]
@@ -678,7 +692,7 @@ export default function MapPage({
             <PlaceSearch onPlaceSelected={handlePlaceSelected} />
             <SocialVenueNotesLayer
               isActive={isActive}
-              refreshKey={notesRefreshKey}
+              refreshKey={`${notesRefreshKey}:${mapPlacesRefreshKey}`}
               onPlaceSelected={handlePlaceSelected}
             />
             <UserLocationMarker userLocation={userLocation} />
