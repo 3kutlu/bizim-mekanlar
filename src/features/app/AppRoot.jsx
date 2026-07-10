@@ -22,6 +22,7 @@ import UserProfilePage from "../discovery/UserProfilePage.jsx";
 import UserSearchPage from "../discovery/UserSearchPage.jsx";
 import { supabase } from "../../supabase.js";
 import { shareOrCopyLink } from "../../utils/share.js";
+import { touchLastSeenIfNeeded } from "../../utils/lastSeen.js";
 import { detachCurrentPushSubscription, enablePushNotifications, getPushNotificationStatus, syncExistingPushSubscription } from "../../utils/pushNotifications.js";
 import { PlaceListDetailPage, ProfileCollectionPage } from "../collections/CollectionPages.jsx";
 import DeepLinkNotFoundPage from "../routing/DeepLinkNotFoundPage.jsx";
@@ -33,6 +34,50 @@ import { PlaceDetailPage } from "../places/PlaceDetailPage.jsx";
 import { ProfileEditModal, ProfilePage } from "../profile/MyProfilePage.jsx";
 import { BottomNavigation, EMPTY_SUMMARY, PROFILE_COLLECTIONS, SILENT_NOTIFICATION_REFRESH_INTERVAL_MS, SearchIcon, SettingsIcon, createDiscoveryScreenId, isIOSDevice, isPrivateAccount, renderUsernameWithLock } from "./appShared.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+
+function DesktopInstallPanel() {
+  return (
+    <aside className="desktop-install-panel" aria-label="Mobil kullanım önerisi">
+      <div className="desktop-install-card">
+        <p className="eyebrow">MOBİL DENEYİM</p>
+        <h2>Bizim Mekanlar telefon için tasarlandı.</h2>
+        <p>
+          En iyi deneyim için uygulamayı telefonda açıp ana ekrana ekleyebilirsin.
+        </p>
+
+        <div className="desktop-install-steps" aria-label="Ana ekrana ekleme adımları">
+          <div>
+            <strong>iPhone</strong>
+            <span>Safari → Paylaş → Ana Ekrana Ekle</span>
+          </div>
+          <div>
+            <strong>Android</strong>
+            <span>Chrome → Menü → Ana ekrana ekle</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="desktop-feedback-panel" aria-label="Geri bildirim notu">
+        <p>
+          Bizim Mekanlar henüz gelişmeye devam ediyor. Her türlü hata, öneri ya da fikir için{" "}
+          <a href="mailto:3kutlu@gmail.com?subject=Bizim%20Mekanlar%20Geri%20Bildirim">
+            bizimle iletişime geçebilirsiniz.
+          </a>
+        </p>
+      </div>
+    </aside>
+  );
+}
+
+function DesktopMobileShell({ children }) {
+  return (
+    <div className="desktop-mobile-shell">
+      <DesktopInstallPanel />
+      {children}
+    </div>
+  );
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -744,6 +789,14 @@ export default function App() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!profile?.UserId) {
+      return;
+    }
+
+    void touchLastSeenIfNeeded(profile.UserId);
+  }, [profile?.UserId]);
 
   const loadCities = async () => {
     if (cities.length > 0 || citiesLoading) {
@@ -1740,16 +1793,25 @@ export default function App() {
   }, [applyNavigationSnapshot, hydrateRouteFromLocation, profile?.UserId]);
 
   if (loading || (session?.user && profileLoading)) {
-    return <main className="loading-screen">Yükleniyor...</main>;
+    return (
+      <DesktopMobileShell>
+        <main className="loading-screen">Yükleniyor...</main>
+      </DesktopMobileShell>
+    );
   }
 
   if (!session?.user) {
-    return <AuthPage />;
+    return (
+      <DesktopMobileShell>
+        <AuthPage />
+      </DesktopMobileShell>
+    );
   }
 
   if (profileError || !profile) {
     return (
-      <main className="loading-screen">
+      <DesktopMobileShell>
+        <main className="loading-screen">
         <section className="page-section">
           <div className="empty-state">
             <div className="empty-icon">!</div>
@@ -1764,7 +1826,8 @@ export default function App() {
             </button>
           </div>
         </section>
-      </main>
+        </main>
+      </DesktopMobileShell>
     );
   }
 
@@ -1844,11 +1907,12 @@ export default function App() {
   })();
 
   return (
-    <div
-      className={`app-shell${
-        discoveryStack.length > 0 ? " app-shell-with-discovery" : ""
-      }`}
-    >
+    <DesktopMobileShell>
+      <div
+        className={`app-shell app-shell-phone-frame${
+          discoveryStack.length > 0 ? " app-shell-with-discovery" : ""
+        }`}
+      >
       <header
         className={`topbar${
           isNotificationsOpen ? " topbar-notifications-open" : ""
@@ -2143,6 +2207,7 @@ export default function App() {
           onLogout={handleLogout}
         />
       )}
-    </div>
+      </div>
+    </DesktopMobileShell>
   );
 }

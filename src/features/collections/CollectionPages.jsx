@@ -187,6 +187,12 @@ export function PlaceListDetailPage({
   }, [items, savedDateDirection, sortBy]);
 
   const normalizedListName = String(listName ?? "").trim() || "Mekan listesi";
+  const isCollaborativeList = collaborators.filter((member) => Number(member?.UserId) > 0).length > 1;
+  const emptyListMessage = canManageItems
+    ? isCollaborativeList
+      ? "Sen veya listedeki diğer kişiler haritadaki Kaydet alanından mekan eklediğinde burada görünür."
+      : "Haritada bir mekan seçip Kaydet alanından bu listeye ekleyebilirsin."
+    : "Bu koleksiyona henüz mekan eklenmemiş.";
 
   const handleRemoved = useCallback(
     ({ placeId, removeFromAll }) => {
@@ -250,13 +256,9 @@ export function PlaceListDetailPage({
         {!isLoading && !errorMessage && items.length === 0 && (
           <EmptyCollectionState
             compact
-            icon=<CollectionIcon value={listIcon} />
-            title="Bu listede henüz mekan yok"
-            message={
-              canManageItems
-                ? "Haritadaki Kaydet alanından mekan eklediğinde burada görünür."
-                : "Bu koleksiyona henüz mekan eklenmemiş."
-            }
+            icon={<CollectionIcon value={listIcon} />}
+            title={isCollaborativeList ? "Ortak liste hazır" : "Bu listede henüz mekan yok"}
+            message={emptyListMessage}
           />
         )}
 
@@ -614,7 +616,13 @@ export function ProfileCollectionPage({
             compact
             icon={type === "notes" ? "✦" : "◉"}
             title={config?.emptyMessage || "Liste boş"}
-            message=""
+            message={
+              type === "notes"
+                ? "Görünür notlar burada listelenecek."
+                : type === "followers"
+                  ? "Takipçiler burada görünecek."
+                  : "Takip edilen kullanıcılar burada görünecek."
+            }
           />
         )}
 

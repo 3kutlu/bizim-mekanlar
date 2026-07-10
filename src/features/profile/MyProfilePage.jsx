@@ -541,9 +541,9 @@ export function ProfileNotesTab({
   if (notes.length === 0) {
     return (
       <div className="profile-tab-empty-state">
-        <span className="profile-tab-empty-icon" aria-hidden="true"><AppIcon name="bookmark" /></span>
-        <h2>Henüz not yok</h2>
-        <p>İlk mekan notunu eklediğinde burada görünecek.</p>
+        <span className="profile-tab-empty-icon" aria-hidden="true"><AppIcon name="pencil-simple-line" /></span>
+        <h2>İlk notunu bekliyoruz</h2>
+        <p>Haritada bir mekan ara, puanını ver ve kısa bir not bırak. Paylaştığın notlar burada birikmeye başlayacak.</p>
       </div>
     );
   }
@@ -580,7 +580,7 @@ export function ProfilePhotosTab({ photos, loading, errorMessage, onRetry, onOpe
       <div className="profile-tab-empty-state profile-photo-empty-state">
         <span className="profile-tab-empty-icon" aria-hidden="true"><AppIcon name="images" /></span>
         <h2>Henüz fotoğraf yok</h2>
-        <p>Notlarına fotoğraf eklediğinde burada bir galeri olarak göreceksin.</p>
+        <p>Bir mekana not eklerken fotoğraf da eklersen, profilinde küçük bir mekan galerisi oluşur.</p>
       </div>
     );
   }
@@ -633,10 +633,10 @@ export function ProfileSavedTab({
     return (
       <div className="profile-tab-empty-state">
         <span className="profile-tab-empty-icon" aria-hidden="true"><AppIcon name="bookmarks" /></span>
-        <h2>Henüz mekan listen yok</h2>
-        <p>Hazır listelerine mekan kaydedebilir veya kendi koleksiyonunu oluşturabilirsin.</p>
+        <h2>Listelerini hazırlayalım</h2>
+        <p>Sevdiğin, merak ettiğin ya da tekrar gitmek istediğin mekanları koleksiyonlarda toplayabilirsin.</p>
         <button className="profile-new-collection-button" type="button" onClick={onCreateList}>
-          Yeni koleksiyon
+          İlk koleksiyonunu oluştur
         </button>
       </div>
     );

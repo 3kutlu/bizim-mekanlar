@@ -118,12 +118,12 @@ export function ListPage({
           title={
             isPlaceReviewMode
               ? "Bu mekanda sana görünür yorum yok"
-              : "Akışta henüz not yok"
+              : "Akış sessiz görünüyor"
           }
           message={
             isPlaceReviewMode
-              ? "İlk yorumu sen ekleyebilirsin."
-              : "Sen veya takip ettiğin kişiler not eklediğinde burada göreceksin."
+              ? "Bu mekan için ilk görünür notu sen ekleyebilir veya takip ettiğin kişilerin yorumlarını burada görebilirsin."
+              : "Sen not ekledikçe ve takip ettiğin kişiler mekan deneyimlerini paylaştıkça burası canlanacak."
           }
         />
       )}

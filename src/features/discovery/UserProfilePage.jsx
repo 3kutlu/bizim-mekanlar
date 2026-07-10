@@ -198,10 +198,10 @@ function ExternalNoteCard({ note, onOpenNote, onOpenPlace }) {
 function LockedProfileTab({ type }) {
   const copy =
     type === PROFILE_TABS.SAVED
-      ? "Kaydedilen listeler bu hesabı takip ettiğinde görünür."
+      ? "Kaydedilen listeler bu hesap takip isteğini kabul ettiğinde görünür."
       : type === PROFILE_TABS.PHOTOS
-        ? "Fotoğraflar bu hesabı takip ettiğinde görünür."
-        : "Notlar bu hesabı takip ettiğinde görünür.";
+        ? "Fotoğraflar bu hesap takip isteğini kabul ettiğinde görünür."
+        : "Notlar bu hesap takip isteğini kabul ettiğinde görünür.";
 
   return (
     <div className="foreign-profile-tab-state foreign-profile-tab-state-locked">
@@ -219,19 +219,19 @@ function EmptyProfileTab({ type }) {
           icon: "images",
           title: "Henüz fotoğraf paylaşılmadı",
           message:
-            "Fotoğraflar yakında notlara bağlanarak burada görünecek.",
+            "Bu kullanıcı notlarına fotoğraf eklediğinde burada küçük bir mekan galerisi oluşacak.",
         }
       : type === PROFILE_TABS.SAVED
         ? {
             icon: "bookmarks",
             title: "Görünür liste yok",
             message:
-              "Bu kullanıcının herkese açık bir mekan listesi bulunmuyor.",
+              "Bu kullanıcının sana açık veya herkese açık bir mekan listesi henüz bulunmuyor.",
           }
         : {
             icon: "bookmarks",
             title: "Henüz not yok",
-            message: "Bu kullanıcı henüz görünür bir not paylaşmadı.",
+            message: "Bu kullanıcı henüz sana görünür bir mekan notu paylaşmadı.",
           };
 
   return (
