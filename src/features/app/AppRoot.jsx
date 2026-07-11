@@ -37,6 +37,7 @@ import { PlaceDetailPage } from "../places/PlaceDetailPage.jsx";
 import { ProfileEditModal, ProfilePage } from "../profile/MyProfilePage.jsx";
 import { BottomNavigation, EMPTY_SUMMARY, PROFILE_COLLECTIONS, SILENT_NOTIFICATION_REFRESH_INTERVAL_MS, SearchIcon, SettingsIcon, createDiscoveryScreenId, isIOSDevice, isPrivateAccount, renderUsernameWithLock } from "./appShared.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Analytics } from '@vercel/analytics/react';
 
 
 export default function App() {
@@ -2179,6 +2180,7 @@ export default function App() {
         />
       )}
       </div>
+      <Analytics />
     </DesktopMobileShell>
   );
 }
