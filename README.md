@@ -13,7 +13,7 @@
 
 ## Uygulamayı Nasıl Kullanırım
 
-[Bizim Mekanlar](https://bizim-mekanlar-iota.vercel.app/) tarayıcıdan açılabilir ve telefon ana ekranına eklenebilir.
+[Bizim Mekanlar](https://bizimmekanlar.com/) tarayıcıdan açılabilir ve telefon ana ekranına eklenebilir.
 
 ### iPhone / Safari
 
