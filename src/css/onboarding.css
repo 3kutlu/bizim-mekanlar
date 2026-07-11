@@ -1,0 +1,302 @@
+.onboarding-coach,
+.onboarding-pill,
+.onboarding-reopen-tab {
+  position: fixed;
+  z-index: 190;
+}
+
+.onboarding-coach {
+  left: max(18px, env(safe-area-inset-left));
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  margin: 0 auto;
+  max-width: 420px;
+  border: 1px solid rgba(127, 29, 29, 0.12);
+  border-radius: 24px;
+  padding: 16px;
+  color: #2b1717;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(253, 186, 116, 0.32), transparent 34%),
+    linear-gradient(145deg, rgba(255, 251, 246, 0.96), rgba(255, 241, 232, 0.94));
+  box-shadow: 0 22px 60px rgba(68, 24, 24, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.onboarding-coach-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.onboarding-eyebrow {
+  margin: 0 0 4px;
+  color: rgba(127, 29, 29, 0.72);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.onboarding-coach h2 {
+  margin: 0;
+  color: #391818;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.onboarding-progress {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 52px;
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: rgba(127, 29, 29, 0.08);
+  color: #7f1d1d;
+  font-weight: 900;
+}
+
+.onboarding-progress span {
+  font-size: 1rem;
+}
+
+.onboarding-progress small {
+  font-size: 0.78rem;
+  opacity: 0.72;
+}
+
+.onboarding-copy {
+  margin: 10px 0 12px;
+  color: rgba(43, 23, 23, 0.78);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.onboarding-complete-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  border: 1px solid rgba(22, 101, 52, 0.14);
+  border-radius: 16px;
+  padding: 10px 12px;
+  color: #14532d;
+  background: rgba(220, 252, 231, 0.72);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.onboarding-complete-banner svg {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
+.onboarding-step-list {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.onboarding-step-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(127, 29, 29, 0.1);
+  border-radius: 999px;
+  color: rgba(127, 29, 29, 0.54);
+  background: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+}
+
+.onboarding-step-chip svg {
+  width: 16px;
+  height: 16px;
+}
+
+.onboarding-step-chip-current {
+  border-color: rgba(127, 29, 29, 0.34);
+  color: #7f1d1d;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 18px rgba(127, 29, 29, 0.12);
+}
+
+.onboarding-step-chip-done {
+  border-color: rgba(22, 101, 52, 0.16);
+  color: #166534;
+  background: rgba(220, 252, 231, 0.92);
+}
+
+.onboarding-step-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 14px;
+  color: rgba(43, 23, 23, 0.58);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.onboarding-step-controls button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: rgba(127, 29, 29, 0.82);
+  background: rgba(127, 29, 29, 0.08);
+  font: inherit;
+  cursor: pointer;
+}
+
+.onboarding-step-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.onboarding-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.onboarding-primary-action,
+.onboarding-secondary-action {
+  flex: 1;
+  min-height: 42px;
+}
+
+.onboarding-secondary-action:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.onboarding-footer-actions {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.onboarding-footer-actions button {
+  border: 0;
+  padding: 4px 8px;
+  color: rgba(43, 23, 23, 0.58);
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.onboarding-footer-actions .onboarding-finish-action {
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: #fff7ed;
+  background: #7f1d1d;
+  box-shadow: 0 8px 18px rgba(127, 29, 29, 0.18);
+}
+
+.onboarding-pill {
+  left: max(14px, env(safe-area-inset-left));
+  right: auto;
+  bottom: calc(98px + env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: calc(100vw - 28px);
+  gap: 8px;
+  margin: 0;
+  border: 1px solid rgba(127, 29, 29, 0.14);
+  border-radius: 999px;
+  padding: 10px 14px;
+  color: #5f1f1f;
+  background: rgba(255, 251, 246, 0.95);
+  box-shadow: 0 16px 42px rgba(68, 24, 24, 0.16);
+  backdrop-filter: blur(16px);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.onboarding-pill:active {
+  cursor: grabbing;
+}
+
+.onboarding-reopen-tab {
+  left: max(12px, env(safe-area-inset-left));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(127, 29, 29, 0.12);
+  border-radius: 999px;
+  padding: 8px 10px;
+  color: rgba(95, 31, 31, 0.82);
+  background: rgba(255, 251, 246, 0.82);
+  box-shadow: 0 10px 28px rgba(68, 24, 24, 0.12);
+  backdrop-filter: blur(14px);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.onboarding-reopen-tab svg {
+  width: 14px;
+  height: 14px;
+}
+
+.onboarding-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: #7f1d1d;
+  background: rgba(127, 29, 29, 0.08);
+}
+
+.onboarding-pill svg {
+  width: 15px;
+  height: 15px;
+}
+
+.onboarding-pill strong {
+  color: #7f1d1d;
+}
+
+@media (min-width: 768px) {
+  .onboarding-coach {
+    left: calc(50% - 210px);
+    right: auto;
+    width: 420px;
+  }
+
+  .onboarding-pill {
+    left: calc(50% - 210px);
+  }
+
+  .onboarding-reopen-tab {
+    left: calc(50% - 210px);
+  }
+}
+
+@media (max-width: 380px) {
+  .onboarding-coach {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .onboarding-actions {
+    flex-direction: column;
+  }
+}

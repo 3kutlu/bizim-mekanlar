@@ -1,9 +1,0 @@
-node_modules/
-dist/
-coverage/
-.vite/
-.vercel/
-.env
-.env.local
-.env.*.local
-!.env.example

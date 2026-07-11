@@ -6,6 +6,7 @@ import "../../css/user-discovery.css";
 import "../../css/place-detail.css";
 import "../../css/profile-photo.css";
 import "../../css/deep-links.css";
+import "../../css/onboarding.css";
 
 /*
  * Refactored from the application root.
@@ -16,6 +17,7 @@ import NotificationsPopover from "../../components/NotificationsPopover.jsx";
 import DesktopMobileShell from "./DesktopMobileShell.jsx";
 import PushNotificationPrompt from "../../components/PushNotificationPrompt.jsx";
 import ShareIconButton from "../../components/ShareIconButton.jsx";
+import OnboardingCoach from "../../components/OnboardingCoach.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import AuthPage from "../auth/AuthPage.jsx";
 import MapPage from "../map/MapPage.jsx";
@@ -1978,6 +1980,17 @@ export default function App() {
           onLater={dismissPushPermissionPrompt}
         />
       )}
+
+      <OnboardingCoach
+        profile={profile}
+        summary={summary}
+        activePage={activePage}
+        hasDiscoveryScreen={discoveryStack.length > 0}
+        placeSavedSignal={placeListsRefreshKey}
+        onEditProfile={openProfileEditor}
+        onNavigate={handleTabNavigation}
+        onOpenUserSearch={openUserSearch}
+      />
 
       <main className="page-content">
         <section

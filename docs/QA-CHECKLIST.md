@@ -6,10 +6,22 @@
 - Kullanıcı adı ile OTP giriş.
 - Kayıt, gizli hesap seçimi ve 6 haneli kod doğrulama.
 
+## Onboarding
+
+- Yeni kullanıcıda başlangıç rehberi görünür.
+- Profil düzenle, haritada başla, akışa git ve kullanıcı ara aksiyonları doğru ekrana yönlendirir.
+- Rehber küçültme, kapatma ve "Bunu yaptım" durumları sayfa yenileyince korunur.
+- Küçültülen rehber balonu sürüklenebilir ve tıklayınca rehberi yeniden açar.
+- Kapatılan rehber küçük Rehber kısayoluyla yeniden açılır; küçültülmüş balonla aynı görünmez.
+- Kullanıcı 5 onboarding adımı arasında chip, önceki ve sonraki kontrolleriyle geçiş yapabilir.
+- Tamamlanan manuel adımlar için işareti kaldırma çalışır.
+- 5 adım tamamlanınca rehber tamamlandı mesajı ve "Rehberi bitir" aksiyonu görünür.
+- Discovery/detail ekranı açıkken rehber araya girmez.
+
 ## Harita ve not
 
 - Mekan arama, Google sonucu seçme, POI tıklama ve sosyal marker tıklama.
-- Not başlığı, puan, ziyaret tarihi ve en fazla 5 fotoğrafla kayıt.
+- Not başlığı, puan, ziyaret tarihi ve en fazla 3 fotoğrafla kayıt.
 - Mekanı listeye kaydetme modalı.
 - Konum izni reddedildiğinde mesaj ve yeniden merkezleme.
 

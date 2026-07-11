@@ -1,9 +1,6 @@
-# Google Maps Artık Sosyal Bir Platform Oldu
+# Bizim Mekanlar
 
-# Bizim Mekanlar 
-
-
-> Mekanları keşfetmek, not almak, fotoğraf eklemek ve arkadaşlarınla paylaşmak için geliştirilen sosyal mekan günlüğü.
+> Google Maps deneyimini kişisel notlar, fotoğraflar, koleksiyonlar ve sosyal keşifle birleştiren mobil öncelikli mekan günlüğü.
 
 **Bizim Mekanlar**, kafe, restoran, bar ve benzeri mekanları kişisel notlarınla kaydedebileceğin; takip ettiklerinin deneyimlerini görebileceğin mobil öncelikli bir web uygulamasıdır.
 
@@ -40,6 +37,7 @@ Ana ekrana eklendikten sonra uygulama normal bir mobil uygulama gibi açılır.
 - Aynı mekana tekrar ziyaret notları bırakmak
 - Mekanları kişisel listelere/koleksiyonlara kaydetmek
 - Profil, fotoğraf galerisi ve mekan listelerini görüntülemek
+- Yeni kullanıcılar için taşınabilir, kapatılıp tekrar açılabilir başlangıç rehberiyle ilk not, liste ve sosyal keşif adımlarını tamamlamak
 - Kullanıcıları takip etmek ve gizli hesaplar için takip isteği göndermek
 - Takip edilen kişilerin son notlarını akışta görmek
 - Not tepkileri, takip istekleri ve takip aktiviteleri için uygulama içi bildirim almak
@@ -108,7 +106,11 @@ Uygulama varsayılan olarak Vite tarafından verilen yerel adreste açılır.
 
 ## Ortam Değişkenleri
 
-Proje kökünde `.env.local` dosyası oluştur:
+Proje kökünde `.env.example` dosyasını `.env.local` olarak kopyala ve değerleri doldur:
+
+```bash
+cp .env.example .env.local
+```
 
 ```env
 VITE_SUPABASE_URL=...
@@ -172,10 +174,10 @@ Bu proje aktif geliştirme aşamasındadır.
 
 Öncelikli geliştirme başlıkları:
 
+- Keşif/onboarding metriklerinin iyileştirilmesi
 - Harita ve keşif filtreleri
 - Yakındaki mekanlar
 - Kişisel / sosyal marker ayrımları
-- Fotoğraf sıkıştırma ve optimizasyon
 - Mekan tekrar ziyaret geçmişi
 - Keşif ve rastgele mekan seçimi
 - Bundle optimizasyonu ve lazy loading

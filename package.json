@@ -1,7 +1,7 @@
 {
   "name": "bizim-mekanlar",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.6.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -27,5 +27,6 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "vite": "^8.0.12"
-  }
+  },
+  "description": "Mobile-first social venue journal built with React, Supabase, Vercel, and Google Maps."
 }
