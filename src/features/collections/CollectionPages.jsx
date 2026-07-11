@@ -65,7 +65,7 @@ export function PlaceListDetailPage({
   onBack,
   onOpenPlace,
   onListChanged,
-  onShare,
+  onShare: _onShare,
 }) {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

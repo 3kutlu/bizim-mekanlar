@@ -21,7 +21,7 @@ export function PlaceDetailPage({
   onOpenPlaceOnMap,
   onOpenUser,
   onOpenNote,
-  onShare,
+  onShare: _onShare,
 }) {
   const [place, setPlace] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -364,26 +364,26 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
   const previewPhotos = photos.slice(0, 3);
   const activePhoto = photos[activePhotoIndex] ?? null;
 
-  const openGallery = (index = 0) => {
+  const openGallery = useCallback((index = 0) => {
     setActivePhotoIndex(Math.min(Math.max(index, 0), Math.max(photos.length - 1, 0)));
     setIsGalleryOpen(true);
-  };
+  }, [photos.length]);
 
-  const closeGallery = () => {
+  const closeGallery = useCallback(() => {
     setIsGalleryOpen(false);
-  };
+  }, []);
 
-  const showPreviousPhoto = () => {
+  const showPreviousPhoto = useCallback(() => {
     setActivePhotoIndex((currentIndex) =>
       currentIndex === 0 ? photos.length - 1 : currentIndex - 1
     );
-  };
+  }, [photos.length]);
 
-  const showNextPhoto = () => {
+  const showNextPhoto = useCallback(() => {
     setActivePhotoIndex((currentIndex) =>
       currentIndex === photos.length - 1 ? 0 : currentIndex + 1
     );
-  };
+  }, [photos.length]);
 
   useEffect(() => {
     if (!isGalleryOpen) {
@@ -406,7 +406,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isGalleryOpen, photos.length]);
+  }, [closeGallery, isGalleryOpen, showNextPhoto, showPreviousPhoto]);
 
   if (loading) {
     return (

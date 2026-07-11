@@ -262,7 +262,7 @@ export function PlaceListEditModal({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [canManageCollaborators, collaboratorSearch, listId]);
+  }, [canManageCollaborators, collaboratorSearch, isCreate, listId]);
 
   const addCollaborator = async (user) => {
     const userId = Number(user?.UserId);

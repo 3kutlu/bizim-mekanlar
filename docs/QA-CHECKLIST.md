@@ -4,7 +4,7 @@
 
 - E-posta ile OTP giriş.
 - Kullanıcı adı ile OTP giriş.
-- Kayıt, gizli hesap seçimi ve 8 haneli kod doğrulama.
+- Kayıt, gizli hesap seçimi ve 6 haneli kod doğrulama.
 
 ## Harita ve not
 

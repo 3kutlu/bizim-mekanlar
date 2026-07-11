@@ -1,4 +1,3 @@
-/* global process, Buffer, console */
 import { generateKeyPairSync, randomBytes } from "node:crypto";
 
 function toBase64Url(value) {

@@ -1,0 +1,138 @@
+/* Deep-link entry states and share affordances. */
+
+.deep-link-not-found-page {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding-bottom: calc(82px + env(safe-area-inset-bottom));
+}
+
+.deep-link-not-found-card {
+  width: min(100%, 420px);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  border: 1px solid #2a303b;
+  border-radius: 20px;
+  padding: 30px 24px;
+  background: #15181f;
+  color: #aeb6c5;
+  text-align: center;
+}
+
+.deep-link-not-found-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #272e3c;
+  color: #dbe4ff;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.deep-link-not-found-card .eyebrow {
+  margin: 3px 0 0;
+}
+
+.deep-link-not-found-card h1,
+.deep-link-not-found-card p {
+  margin: 0;
+}
+
+.deep-link-not-found-card h1 {
+  color: #f4f6fb;
+  font-size: 21px;
+}
+
+.deep-link-not-found-card p {
+  max-width: 320px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.deep-link-not-found-card code {
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid #2f3745;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #8f9ab0;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact share controls keep PWA users one tap away from a real URL. */
+.share-icon-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #3a4558;
+  border-radius: 11px;
+  padding: 0;
+  background: #171d27;
+  color: #e2e8f4;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.share-icon-button:hover:not(:disabled),
+.share-icon-button:focus-visible {
+  border-color: #7084b1;
+  background: #202938;
+  color: #fff;
+}
+
+.share-icon-button:disabled {
+  opacity: 0.5;
+}
+
+.profile-identity-heading,
+.foreign-profile-identity-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-identity-heading h1,
+.foreign-profile-identity-heading h2 {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.place-list-detail-heading {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.place-list-detail-heading-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.place-list-detail-share-button {
+  margin-top: 1px;
+}
+
+.note-detail-header-actions .share-icon-button {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 10px;
+  font-size: 18px;
+}
+
+@media (max-width: 700px) {
+  .deep-link-not-found-page {
+    padding-bottom: calc(102px + env(safe-area-inset-bottom));
+  }
+}

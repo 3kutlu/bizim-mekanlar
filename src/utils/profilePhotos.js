@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase.js";
+import { compressProfilePhotoFile } from "./imageCompression.js";
 
 export const PROFILE_PHOTO_BUCKET = "profile-photos";
 export const MAX_PROFILE_PHOTO_BYTES = 5 * 1024 * 1024;
+export const PROFILE_PHOTO_UPLOAD_COPY = "5 MB’a kadar, yüklerken küçültülür";
 
 const ALLOWED_PROFILE_PHOTO_TYPES = new Set([
   "image/jpeg",
@@ -107,7 +109,8 @@ export async function uploadMyProfilePhotoDraft(draft) {
     throw userError || new Error("Oturum doğrulanamadı.");
   }
 
-  const extension = getExtension(draft.file);
+  const uploadFile = await compressProfilePhotoFile(draft.file);
+  const extension = getExtension(uploadFile);
 
   if (!extension || !["jpg", "png", "webp"].includes(extension)) {
     throw new Error("Fotoğraf dosya uzantısı geçersiz.");
@@ -116,9 +119,9 @@ export async function uploadMyProfilePhotoDraft(draft) {
   const storagePath = `${user.id}/${createRandomFileToken()}.${extension}`;
   const { error: uploadError } = await supabase.storage
     .from(PROFILE_PHOTO_BUCKET)
-    .upload(storagePath, draft.file, {
+    .upload(storagePath, uploadFile, {
       cacheControl: "31536000",
-      contentType: draft.file.type,
+      contentType: uploadFile.type,
       upsert: false,
     });
 
@@ -129,8 +132,8 @@ export async function uploadMyProfilePhotoDraft(draft) {
   return {
     storagePath,
     fileName: draft.fileName,
-    mimeType: draft.mimeType,
-    byteSize: draft.byteSize,
+    mimeType: uploadFile.type,
+    byteSize: uploadFile.size,
   };
 }
 

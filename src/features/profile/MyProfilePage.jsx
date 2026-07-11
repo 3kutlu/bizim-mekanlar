@@ -6,34 +6,15 @@
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
-import { createProfilePhotoDraft, deleteMyProfilePhotoObject, removeMyProfilePhotoPath, revokeProfilePhotoDraft, setMyProfilePhotoPath, uploadMyProfilePhotoDraft, useProfilePhotoUrls } from "../../utils/profilePhotos.js";
+import { PROFILE_PHOTO_UPLOAD_COPY, createProfilePhotoDraft, deleteMyProfilePhotoObject, removeMyProfilePhotoPath, revokeProfilePhotoDraft, setMyProfilePhotoPath, uploadMyProfilePhotoDraft, useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { PROFILE_TAB_IDS, getFullName } from "../app/appShared.jsx";
 import { PlaceListEditModal } from "../collections/CollectionEditorModal.jsx";
 import { LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
+import { getCollectionColorClassName, normalizeCollectionColorCode } from "../../utils/collectionColors.js";
 import { getZodiacIconName } from "../../utils/zodiac.js";
-
-const COLLECTION_COLOR_CODES = new Set([
-  "BURGUNDY",
-  "PURPLE",
-  "BLUE",
-  "GREEN",
-  "ORANGE",
-  "YELLOW",
-  "PINK",
-  "SLATE",
-]);
-
-function normalizeCollectionColorCode(value) {
-  const normalized = String(value ?? "BURGUNDY").trim().toUpperCase();
-  return COLLECTION_COLOR_CODES.has(normalized) ? normalized : "BURGUNDY";
-}
-
-function getCollectionColorClassName(value) {
-  return `collection-color-${normalizeCollectionColorCode(value).toLowerCase()}`;
-}
 
 export function ProfilePage({
   profile,
@@ -1028,7 +1009,7 @@ export function ProfileEditModal({
 
             <div className="profile-photo-editor-copy">
               <strong>Profil fotoğrafı</strong>
-              <span>JPG, PNG veya WEBP · en fazla 5 MB</span>
+              <span>JPG, PNG veya WEBP · {PROFILE_PHOTO_UPLOAD_COPY}</span>
 
               <div className="profile-photo-editor-actions">
                 <button

@@ -5,32 +5,13 @@
 
 import { MESSAGE_KEY, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
-import { MAX_NOTE_PHOTOS } from "../../utils/notePhotos.js";
+import { MAX_NOTE_PHOTOS, NOTE_PHOTO_UPLOAD_COPY } from "../../utils/notePhotos.js";
 import { getVenueCategoryFromGooglePlace, getVenueCategoryIcon, getVenueCategoryLabel, isSupportedVenueCategory } from "../../utils/venueCategory.js";
 import { MAP_NOTE_LIMIT, buildMapClusters, cleanText, formatAverageRating, formatReviewLinkLabel, getLocalDateInputValue, getPlaceEligibility, getSelectedPlaceFromGooglePlace, getSelectedPlaceFromMapRow, isMessageKey } from "./mapUtils.js";
 import { AdvancedMarker, Circle, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
-
-const COLLECTION_COLOR_CODES = new Set([
-  "BURGUNDY",
-  "PURPLE",
-  "BLUE",
-  "GREEN",
-  "ORANGE",
-  "YELLOW",
-  "PINK",
-  "SLATE",
-]);
-
-function normalizeCollectionColorCode(value) {
-  const normalized = String(value ?? "BURGUNDY").trim().toUpperCase();
-  return COLLECTION_COLOR_CODES.has(normalized) ? normalized : "BURGUNDY";
-}
-
-function getCollectionColorClassName(value) {
-  return `collection-color-${normalizeCollectionColorCode(value).toLowerCase()}`;
-}
+import { getCollectionColorClassName } from "../../utils/collectionColors.js";
 
 export function MapReference({ mapRef }) {
   const map = useMap();
@@ -1274,7 +1255,7 @@ export function AddNoteModal({
               />
               <AppIcon name="camera-plus" className="note-photo-picker-icon" />
               <strong>Fotoğraf ekle</strong>
-              <small>JPG, PNG veya WEBP · fotoğraf başına en fazla 8 MB</small>
+              <small>JPG, PNG veya WEBP · {NOTE_PHOTO_UPLOAD_COPY}</small>
             </label>
           )}
 

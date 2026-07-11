@@ -6,7 +6,7 @@
 import AppIcon from "../../components/AppIcon.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
-import { MAX_NOTE_PHOTOS, createNotePhotoDrafts, createSignedNotePhotoUrls, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
+import { MAX_NOTE_PHOTOS, NOTE_PHOTO_UPLOAD_COPY, createNotePhotoDrafts, createSignedNotePhotoUrls, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { getIstanbulDateInputValue } from "../../utils/dates.js";
 import { getVenueCategoryIcon, getVenueCategoryLabel } from "../../utils/venueCategory.js";
@@ -319,7 +319,7 @@ export function NoteDetailPage({
   onOpenUser,
   onNoteDeleted,
   onNoteUpdated,
-  onShare,
+  onShare: _onShare,
 }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1042,7 +1042,7 @@ export function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChang
             />
             <AppIcon name="plus" />
             <strong>Fotoğraf ekle</strong>
-            <small>{totalCount} / {MAX_NOTE_PHOTOS} · Fotoğraf başına en fazla 8 MB</small>
+            <small>{totalCount} / {MAX_NOTE_PHOTOS} · {NOTE_PHOTO_UPLOAD_COPY}</small>
           </label>
         )}
 
@@ -1434,7 +1434,7 @@ export function NoteEditModal({
                 />
                 <AppIcon name="plus" />
                 <strong>Fotoğraf ekle</strong>
-                <small>JPG, PNG veya WEBP · Fotoğraf başına en fazla 8 MB</small>
+                <small>JPG, PNG veya WEBP · {NOTE_PHOTO_UPLOAD_COPY}</small>
               </label>
             )}
 

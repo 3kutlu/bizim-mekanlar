@@ -4,6 +4,8 @@ type Payload = Record<string, unknown>;
 
 const usernamePattern = /^[a-z0-9._]{3,30}$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const OTP_LENGTH = 6;
+const OTP_PATTERN = new RegExp(`^\\d{${OTP_LENGTH}}$`);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,7 +116,7 @@ function genericLoginReply() {
   return json({
     ok: true,
     message:
-      "Eşleşen aktif hesabın varsa giriş kodu e-posta adresine gönderildi.",
+      "Eşleşen aktif hesabın varsa 6 haneli giriş kodu e-posta adresine gönderildi.",
   });
 }
 
@@ -335,13 +337,13 @@ async function requestSignupOtp(payload: Payload) {
 
   return json({
     ok: true,
-    message: "8 haneli kod e-posta adresine gönderildi.",
+    message: "6 haneli kod e-posta adresine gönderildi.",
   });
 }
 
 async function verifyOtp(identifier: string, token: string) {
-  if (!/^\d{8}$/.test(token)) {
-    return json({ message: "8 haneli kodu yaz." }, 400);
+  if (!OTP_PATTERN.test(token)) {
+    return json({ message: "6 haneli kodu yaz." }, 400);
   }
 
   const email = await resolveLoginEmail(identifier);

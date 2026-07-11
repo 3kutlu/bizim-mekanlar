@@ -7,6 +7,9 @@ import "../../css/auth.css";
 
 const usernamePattern = /^[a-z0-9._]{3,30}$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const OTP_LENGTH = 6;
+const OTP_PATTERN = new RegExp(`^\\d{${OTP_LENGTH}}$`);
+const OTP_PLACEHOLDER = "0".repeat(OTP_LENGTH);
 
 function normalizeEmail(value) {
   return String(value ?? "").trim().toLowerCase();
@@ -263,8 +266,8 @@ export default function AuthPage() {
       setStep("otp");
       setMessage(
         mode === "signup"
-          ? "8 haneli kod e-posta adresine gönderildi."
-          : "Eşleşen aktif hesabın varsa 8 haneli kod e-posta adresine gönderildi."
+          ? "6 haneli kod e-posta adresine gönderildi."
+          : "Eşleşen aktif hesabın varsa 6 haneli kod e-posta adresine gönderildi."
       );
     } catch (error) {
       console.error("OTP gönderilemedi:", error);
@@ -281,8 +284,8 @@ export default function AuthPage() {
     event.preventDefault();
     setMessage("");
 
-    if (!/^\d{8}$/.test(otp)) {
-      setMessage("E-postana gelen 8 haneli kodu yaz.");
+    if (!OTP_PATTERN.test(otp)) {
+      setMessage("E-postana gelen 6 haneli kodu yaz.");
       return;
     }
 
@@ -397,7 +400,7 @@ export default function AuthPage() {
   };
 
   const handleOtpChange = (event) => {
-    setOtp(event.target.value.replace(/\D/g, "").slice(0, 8));
+    setOtp(event.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH));
   };
 
   return (
@@ -564,7 +567,7 @@ export default function AuthPage() {
                 <p className="auth-passwordless-note">
                   <span aria-hidden="true"><AppIcon name="star" /></span>
                   Şifre oluşturman gerekmiyor. Girişte e-posta adresine tek
-                  kullanımlık 8 haneli kod göndeririz.
+                  kullanımlık 6 haneli kod göndeririz.
                 </p>
               )}
 
@@ -612,7 +615,7 @@ export default function AuthPage() {
 
             <h1>E-postandaki kodu gir.</h1>
             <p className="auth-description">
-              Sana gönderdiğimiz 8 haneli tek kullanımlık kodla güvenle giriş
+              Sana gönderdiğimiz 6 haneli tek kullanımlık kodla güvenle giriş
               yapabilirsin.
             </p>
 
@@ -627,8 +630,8 @@ export default function AuthPage() {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   pattern="[0-9]*"
-                  maxLength="8"
-                  placeholder="00000000"
+                  maxLength={OTP_LENGTH}
+                  placeholder={OTP_PLACEHOLDER}
                   disabled={submitting}
                   onChange={handleOtpChange}
                 />
@@ -637,7 +640,7 @@ export default function AuthPage() {
               <button
                 className="primary-button"
                 type="submit"
-                disabled={submitting || otp.length !== 8}
+                disabled={submitting || otp.length !== OTP_LENGTH}
               >
                 {submitting ? "Doğrulanıyor..." : "Giriş yap"}
               </button>

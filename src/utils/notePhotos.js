@@ -1,8 +1,10 @@
 import { supabase } from "../supabase.js";
+import { compressNotePhotoFile } from "./imageCompression.js";
 
 export const NOTE_PHOTO_BUCKET = "note-photos";
 export const MAX_NOTE_PHOTOS = 3;
 export const MAX_NOTE_PHOTO_BYTES = 8 * 1024 * 1024;
+export const NOTE_PHOTO_UPLOAD_COPY = "8 MB’a kadar, yüklerken küçültülür";
 export const ALLOWED_NOTE_PHOTO_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -174,14 +176,15 @@ export async function uploadMyNotePhotoDrafts(placeNoteId, drafts) {
         throw new Error("Seçilen fotoğraf okunamadı.");
       }
 
-      const extension = getSafeExtension(file);
+      const uploadFile = await compressNotePhotoFile(file);
+      const extension = getSafeExtension(uploadFile);
       const objectPath = `${user.id}/${normalizedNoteId}/${makeDraftId()}.${extension}`;
 
       const { error: uploadError } = await supabase.storage
         .from(NOTE_PHOTO_BUCKET)
-        .upload(objectPath, file, {
+        .upload(objectPath, uploadFile, {
           cacheControl: "31536000",
-          contentType: file.type,
+          contentType: uploadFile.type,
           upsert: false,
         });
 
@@ -196,9 +199,9 @@ export async function uploadMyNotePhotoDrafts(placeNoteId, drafts) {
       uploadedPaths.push(objectPath);
       metadata.push({
         storagePath: objectPath,
-        fileName: normalizeFileName(file),
-        mimeType: file.type,
-        byteSize: Number(file.size) || 0,
+        fileName: normalizeFileName(uploadFile),
+        mimeType: uploadFile.type,
+        byteSize: Number(uploadFile.size) || 0,
         sortOrder: index,
       });
     }
