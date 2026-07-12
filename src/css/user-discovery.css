@@ -1672,3 +1672,362 @@ button.foreign-profile-saved-card-button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .foreign-profile-tab-track { transition: none; }
 }
+
+.foreign-profile-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.foreign-profile-action-row .foreign-profile-follow-button {
+  margin-top: 0;
+}
+
+.foreign-profile-more-button {
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #3b4556;
+  border-radius: 14px;
+  background: #1a202a;
+  color: #f7f8fc;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.foreign-profile-more-button:hover,
+.foreign-profile-more-button:focus-visible {
+  border-color: #58657a;
+  background: #222a36;
+}
+
+.foreign-profile-more-button:active {
+  transform: scale(0.97);
+}
+
+.foreign-profile-more-button img,
+.foreign-profile-more-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.foreign-profile-action-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-action-modal, 1600);
+  display: grid;
+  align-items: end;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  background: rgba(4, 6, 10, 0.74);
+  backdrop-filter: blur(10px);
+}
+
+.foreign-profile-action-sheet {
+  width: min(100%, 500px);
+  max-height: calc(100dvh - 32px - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  margin: 0 auto;
+  padding: 20px;
+  border: 1px solid #303846;
+  border-radius: 24px;
+  background: #15181f;
+  color: #f7f8fc;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.54);
+  color-scheme: dark;
+}
+
+.foreign-profile-action-sheet .eyebrow {
+  margin: 0;
+  color: #929caf;
+}
+
+.foreign-profile-action-sheet h2 {
+  margin: 5px 0 15px;
+  color: #f7f8fc;
+}
+
+.foreign-profile-action-sheet > button:not(.foreign-profile-action-cancel) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #2d3542;
+  border-radius: 16px;
+  background: #1b2029;
+  color: #f7f8fc;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.foreign-profile-action-sheet > button:not(.foreign-profile-action-cancel):hover:not(:disabled),
+.foreign-profile-action-sheet > button:not(.foreign-profile-action-cancel):focus-visible:not(:disabled) {
+  border-color: #465369;
+  background: #222934;
+}
+
+.foreign-profile-action-sheet > button:not(.foreign-profile-action-cancel):active:not(:disabled) {
+  transform: scale(0.988);
+}
+
+.foreign-profile-action-sheet > button + button:not(.foreign-profile-action-cancel) {
+  margin-top: 9px;
+}
+
+.foreign-profile-action-sheet > button img,
+.foreign-profile-action-sheet > button svg {
+  width: 23px;
+  height: 23px;
+}
+
+.foreign-profile-action-sheet > button span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.foreign-profile-action-sheet > button strong {
+  color: #f7f8fc;
+}
+
+.foreign-profile-action-sheet > button small {
+  color: #9ea7b9;
+  line-height: 1.35;
+}
+
+.foreign-profile-action-sheet .foreign-profile-action-danger {
+  border-color: rgba(239, 111, 115, 0.22);
+  background: rgba(185, 66, 73, 0.15);
+  color: #ff858a;
+}
+
+.foreign-profile-action-sheet .foreign-profile-action-danger strong {
+  color: #ff858a;
+}
+
+.foreign-profile-action-sheet .foreign-profile-action-danger:hover:not(:disabled),
+.foreign-profile-action-sheet .foreign-profile-action-danger:focus-visible:not(:disabled) {
+  border-color: rgba(239, 111, 115, 0.42);
+  background: rgba(185, 66, 73, 0.23);
+}
+
+.foreign-profile-action-cancel {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 14px;
+  border: 1px solid #333c4a;
+  border-radius: 14px;
+  background: #202630;
+  color: #f7f8fc;
+  font-weight: 800;
+}
+
+.foreign-profile-action-cancel:hover:not(:disabled),
+.foreign-profile-action-cancel:focus-visible:not(:disabled) {
+  border-color: #4d5a6e;
+  background: #282f3b;
+}
+
+.foreign-profile-action-sheet button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.foreign-profile-action-sheet button:focus-visible {
+  outline: 2px solid #91a9dd;
+  outline-offset: 2px;
+}
+
+.foreign-profile-action-sheet-error {
+  margin: 12px 0 0;
+  border: 1px solid rgba(239, 111, 115, 0.22);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(185, 66, 73, 0.15);
+  color: #ff9a9e;
+  font-weight: 650;
+}
+
+@media (min-width: 700px) {
+  .foreign-profile-action-backdrop {
+    align-items: center;
+  }
+}
+
+.connection-list-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.connection-list-main {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.connection-list-more {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  margin-right: 10px;
+  border: 0;
+  border-radius: 13px;
+  background: rgba(119, 43, 49, 0.08);
+}
+
+.connection-list-more img,
+.connection-list-more svg {
+  width: 20px;
+  height: 20px;
+}
+
+.connection-action-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-action-modal, 1600);
+  display: grid;
+  align-items: end;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  background: rgba(4, 6, 10, 0.74);
+  backdrop-filter: blur(10px);
+}
+
+.connection-action-sheet {
+  width: min(100%, 500px);
+  max-height: calc(100dvh - 32px - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  margin: 0 auto;
+  padding: 20px;
+  border: 1px solid #303846;
+  border-radius: 24px;
+  background: #15181f;
+  color: #f7f8fc;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.54);
+  color-scheme: dark;
+}
+
+.connection-action-sheet .eyebrow {
+  margin: 0;
+  color: #929caf;
+}
+
+.connection-action-sheet h2 {
+  margin: 5px 0 15px;
+  color: #f7f8fc;
+}
+
+.connection-action-sheet > button:not(.connection-action-cancel) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #2d3542;
+  border-radius: 16px;
+  background: #1b2029;
+  color: #f7f8fc;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.connection-action-sheet > button:not(.connection-action-cancel):hover:not(:disabled),
+.connection-action-sheet > button:not(.connection-action-cancel):focus-visible:not(:disabled) {
+  border-color: #465369;
+  background: #222934;
+}
+
+.connection-action-sheet > button:not(.connection-action-cancel):active:not(:disabled) {
+  transform: scale(0.988);
+}
+
+.connection-action-sheet > button + button:not(.connection-action-cancel) {
+  margin-top: 9px;
+}
+
+.connection-action-sheet > button img,
+.connection-action-sheet > button svg {
+  width: 23px;
+  height: 23px;
+}
+
+.connection-action-sheet > button span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.connection-action-sheet > button strong {
+  color: #f7f8fc;
+}
+
+.connection-action-sheet > button small {
+  color: #9ea7b9;
+  line-height: 1.35;
+}
+
+.connection-action-sheet .connection-action-danger {
+  border-color: rgba(239, 111, 115, 0.22);
+  background: rgba(185, 66, 73, 0.15);
+  color: #ff858a;
+}
+
+.connection-action-sheet .connection-action-danger strong {
+  color: #ff858a;
+}
+
+.connection-action-sheet .connection-action-danger:hover:not(:disabled),
+.connection-action-sheet .connection-action-danger:focus-visible:not(:disabled) {
+  border-color: rgba(239, 111, 115, 0.42);
+  background: rgba(185, 66, 73, 0.23);
+}
+
+.connection-action-cancel {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 14px;
+  border: 1px solid #333c4a;
+  border-radius: 14px;
+  background: #202630;
+  color: #f7f8fc;
+  font-weight: 800;
+}
+
+.connection-action-cancel:hover:not(:disabled),
+.connection-action-cancel:focus-visible:not(:disabled) {
+  border-color: #4d5a6e;
+  background: #282f3b;
+}
+
+.connection-action-sheet button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.connection-action-sheet button:focus-visible {
+  outline: 2px solid #91a9dd;
+  outline-offset: 2px;
+}
+
+.connection-action-error {
+  margin: 12px 0 0;
+  border: 1px solid rgba(239, 111, 115, 0.22);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(185, 66, 73, 0.15);
+  color: #ff9a9e;
+  font-weight: 650;
+}
+
