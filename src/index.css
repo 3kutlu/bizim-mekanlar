@@ -28,3 +28,13 @@ input {
 button {
   cursor: pointer;
 }
+
+
+/* iOS Safari/PWA, 16px altındaki form alanlarına odaklanınca sayfayı otomatik yakınlaştırır. */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

@@ -332,3 +332,25 @@ export function getPlaceSavePayload(selectedPlace) {
     p_venue_category_code: cleanText(selectedPlace?.venueCategoryCode) || null,
   };
 }
+
+export async function ensurePlaceForContentShare(selectedPlace) {
+  const payload = getPlaceSavePayload(selectedPlace);
+
+  const { data, error } = await supabase.rpc("EnsurePlaceForContentShare", {
+    ...payload,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  const placeId = Number(result?.PlaceId);
+  const publicId = cleanText(result?.PublicId);
+
+  if (!Number.isInteger(placeId) || placeId <= 0 || !publicId) {
+    throw new Error("Mekan paylaşım için hazırlanamadı.");
+  }
+
+  return { placeId, publicId };
+}

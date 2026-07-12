@@ -681,7 +681,7 @@
 
 /* v1.5.3 — seçili mekan kartını kapat */
 .selected-place-copy {
-  padding-right: 38px;
+  padding-right: 78px;
 }
 
 .selected-place-card .selected-place-close {
@@ -710,6 +710,36 @@
   border-color: #8d99ad;
   background: #e8ecf3;
   color: #111827;
+}
+
+.selected-place-card .selected-place-share-icon {
+  position: absolute;
+  top: 10px;
+  right: 50px;
+  z-index: 1;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c7ced9;
+  border-radius: 50%;
+  padding: 0;
+  background: #f7f8fb;
+  color: #3d4553;
+}
+
+.selected-place-card .selected-place-share-icon:hover,
+.selected-place-card .selected-place-share-icon:focus-visible {
+  border-color: #8d99ad;
+  background: #e8ecf3;
+  color: #111827;
+}
+
+.selected-place-card .selected-place-share-icon .app-icon {
+  width: 17px;
+  height: 17px;
 }
 
 
@@ -1254,4 +1284,17 @@
 
 .place-save-list-row-saved .place-save-list-icon .app-icon {
   filter: brightness(0) invert(1);
+}
+
+/* v2.8.2 — harita kartından doğrudan mekan paylaşımı */
+.selected-place-actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.selected-place-actions-with-reviews {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selected-place-card .selected-place-add-note {
+  grid-column: 1 / -1;
 }

@@ -9,7 +9,7 @@ import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { getNoteCreateErrorMessage, getPlaceSaveErrorMessage } from "../../utils/actionErrors.js";
 import { supabase } from "../../supabase.js";
 import { createNotePhotoDrafts, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
-import { ankaraCenter, cleanText, createPlaceNote, getLocalDateInputValue, getPartialPhotoUploadErrorMessage, getPlaceEligibility, getPlaceSavePayload } from "./mapUtils.js";
+import { ankaraCenter, cleanText, createPlaceNote, getLocalDateInputValue, getPartialPhotoUploadErrorMessage, getPlaceEligibility, getPlaceSavePayload, ensurePlaceForContentShare } from "./mapUtils.js";
 import { AddNoteModal, ExternalPlaceFocus, InitialLocationFocus, MapBottomControls, MapReference, PlaceSaveSheet, PlaceSearch, PoiPlaceClickHandler, SelectedPlaceCard, SelectedPlaceMarker, SocialVenueNotesLayer, UserLocationMarker } from "./MapWidgets.jsx";
 import { APIProvider, Map } from "@vis.gl/react-google-maps";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -23,6 +23,7 @@ export default function MapPage({
   isActive,
   onOpenPlaceDetail,
   onPlaceSaved,
+  onSharePlace,
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
@@ -553,6 +554,45 @@ export default function MapPage({
     [onPlaceSaved, savingPlaceListId, selectedPlace]
   );
 
+
+  const handleShareSelectedPlace = useCallback(() => {
+    if (!selectedPlace || !onSharePlace) {
+      return;
+    }
+
+    const knownPlaceId =
+      Number(selectedPlaceReviewSummary.placeId) ||
+      Number(selectedPlace?.placeId) ||
+      null;
+
+    onSharePlace({
+      selectedPlace,
+      knownPlaceId,
+      prepareInternalShare: async () => {
+        const prepared = await ensurePlaceForContentShare({
+          ...selectedPlace,
+          placeId: knownPlaceId || selectedPlace?.placeId || null,
+        });
+
+        setSelectedPlace((currentPlace) =>
+          currentPlace
+            ? {
+                ...currentPlace,
+                placeId: prepared.placeId,
+                publicId: prepared.publicId,
+              }
+            : currentPlace
+        );
+        setSelectedPlaceReviewSummary((currentSummary) => ({
+          ...currentSummary,
+          placeId: prepared.placeId,
+        }));
+
+        return prepared;
+      },
+    });
+  }, [onSharePlace, selectedPlace, selectedPlaceReviewSummary.placeId]);
+
   const handleOpenPlaceDetail = useCallback(() => {
     const placeId =
       Number(selectedPlaceReviewSummary.placeId) ||
@@ -714,6 +754,7 @@ export default function MapPage({
               onAddNote={openNoteModal}
               onOpenSave={openPlaceSaveSheet}
               onOpenDetail={handleOpenPlaceDetail}
+              onShare={handleShareSelectedPlace}
               onClose={clearSelectedPlace}
             />
           )}

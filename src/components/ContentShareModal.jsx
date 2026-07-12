@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppIcon from "./AppIcon.jsx";
 import { supabase } from "../supabase.js";
 import { useProfilePhotoUrls } from "../utils/profilePhotos.js";
@@ -32,6 +32,7 @@ export default function ContentShareModal({
   onSent,
 }) {
   const [mode, setMode] = useState("recipients");
+  const [preparedShare, setPreparedShare] = useState(share);
   const [recipients, setRecipients] = useState([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
   const [recipientsError, setRecipientsError] = useState("");
@@ -41,12 +42,15 @@ export default function ContentShareModal({
   const [sendingUserId, setSendingUserId] = useState(null);
   const [sentUserIds, setSentUserIds] = useState(() => new Set());
   const [sendError, setSendError] = useState("");
-  const searchInputRef = useRef(null);
   const profilePhotoUrls = useProfilePhotoUrls(
     recipients.map((user) => user?.UserId)
   );
 
   const shareTypeCopy = SHARE_TYPE_COPY[share?.typeCode] ?? SHARE_TYPE_COPY.PLACE;
+
+  useEffect(() => {
+    setPreparedShare(share);
+  }, [share]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -69,7 +73,6 @@ export default function ContentShareModal({
       return undefined;
     }
 
-    searchInputRef.current?.focus();
     let isCurrent = true;
 
     const loadRecipients = async () => {
@@ -233,13 +236,42 @@ export default function ContentShareModal({
     setSendingUserId(recipientUserId);
     setSendError("");
 
+    let shareToSend = preparedShare ?? share;
+
+    if (
+      shareToSend?.typeCode === "PLACE" &&
+      (!Number.isInteger(Number(shareToSend?.placeId)) || Number(shareToSend?.placeId) <= 0)
+    ) {
+      try {
+        if (typeof share?.prepareInternalShare !== "function") {
+          throw new Error("Mekan paylaşım için hazırlanamadı.");
+        }
+
+        const prepared = await share.prepareInternalShare();
+        shareToSend = { ...shareToSend, ...prepared };
+
+        if (!Number.isInteger(Number(shareToSend?.placeId)) || Number(shareToSend?.placeId) <= 0) {
+          throw new Error("Mekan paylaşım için hazırlanamadı.");
+        }
+
+        setPreparedShare(shareToSend);
+      } catch (prepareError) {
+        console.error("Mekan paylaşım için hazırlanamadı:", prepareError);
+        setSendError(
+          prepareError?.message || "Mekan şu an paylaşım için hazırlanamadı. Tekrar dene."
+        );
+        setSendingUserId(null);
+        return;
+      }
+    }
+
     const { data, error } = await supabase.rpc("SendContentShare", {
       p_recipient_user_id: recipientUserId,
-      p_share_type_code: share.typeCode,
-      p_place_id: share.placeId ?? null,
-      p_place_note_id: share.placeNoteId ?? null,
-      p_user_place_list_id: share.userPlaceListId ?? null,
-      p_profile_user_id: share.profileUserId ?? null,
+      p_share_type_code: shareToSend.typeCode,
+      p_place_id: shareToSend.placeId ?? null,
+      p_place_note_id: shareToSend.placeNoteId ?? null,
+      p_user_place_list_id: shareToSend.userPlaceListId ?? null,
+      p_profile_user_id: shareToSend.profileUserId ?? null,
       p_message: message.trim() || null,
     });
 
@@ -398,7 +430,6 @@ export default function ContentShareModal({
             <div className="content-share-search">
               <AppIcon name="magnifying-glass" />
               <input
-                ref={searchInputRef}
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}

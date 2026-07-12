@@ -1,26 +1,13 @@
-# Bizim Mekanlar v2.8.1
+# v2.8.2 — Harita kartından mekan paylaşımı
 
-Bu paket yalnızca değişen dosyaları içerir.
+Bu patch yalnızca paylaşım akışını değiştirir. Ülke/Türkiye kısıtı eklenmemiştir.
 
-## Değişiklikler
+## Kurulum
 
-- Paylaşımlar sekmesindeki 100 karakterlik kısa not artık kırpılmadan, çok satırlı gösterilir.
-- Uygulama içi içerik paylaşımı Web Push bildirimi olarak gönderilir.
-- Ayarlar > Bildirim ayarları bölümüne "Uygulama içi paylaşımlar" tercihi eklenir.
-- Tercih kapalıysa paylaşım uygulama içinde görünür, yalnızca telefon push bildirimi gönderilmez.
+1. Dosyaları proje köküne kopyala.
+2. `npx.cmd supabase db push --dry-run`
+3. Yalnız `20260712030000_v2_8_2_map_place_sharing.sql` görünüyorsa `npx.cmd supabase db push`
+4. `npm run check`
+5. `vercel --prod`
 
-## Uygulama sırası
-
-```cmd
-npx.cmd supabase db push --dry-run
-npx.cmd supabase db push
-npx.cmd supabase functions deploy send-content-share-push
-npm run check
-vercel --prod
-```
-
-Dry-run çıktısında yalnızca şu yeni migration görünmelidir:
-
-```text
-20260712020000_v2_8_1_content_share_push_preferences.sql
-```
+Yeni Edge Function yoktur.

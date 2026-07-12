@@ -740,6 +740,7 @@ export function SelectedPlaceCard({
   onAddNote,
   onOpenSave,
   onOpenDetail,
+  onShare,
   onClose,
 }) {
   const canAddNote = getPlaceEligibility(selectedPlace);
@@ -763,6 +764,16 @@ export function SelectedPlaceCard({
 
   return (
     <div ref={cardRef} className="selected-place-card">
+      <button
+        type="button"
+        className="selected-place-share-icon"
+        onClick={onShare}
+        aria-label="Mekanı paylaş"
+        title="Mekanı paylaş"
+      >
+        <AppIcon name="share-fat" />
+      </button>
+
       <button
         type="button"
         className="selected-place-close"

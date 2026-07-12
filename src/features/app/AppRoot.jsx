@@ -1655,6 +1655,45 @@ export default function App() {
     handleShareProfile(profile);
   }, [handleShareProfile, profile]);
 
+  const handleShareMapPlace = useCallback(
+    ({ selectedPlace, knownPlaceId, prepareInternalShare }) => {
+      const googlePlaceId = String(selectedPlace?.id ?? "").trim();
+      const placeName = String(selectedPlace?.name ?? "Mekan").trim() || "Mekan";
+      const address = String(selectedPlace?.address ?? "").trim();
+
+      if (!googlePlaceId || typeof prepareInternalShare !== "function") {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+        return;
+      }
+
+      const mapsUrl = new URL("https://www.google.com/maps/search/");
+      mapsUrl.searchParams.set("api", "1");
+      mapsUrl.searchParams.set("query", [placeName, address].filter(Boolean).join(" "));
+      mapsUrl.searchParams.set("query_place_id", googlePlaceId);
+
+      openShareModal({
+        typeCode: "PLACE",
+        placeId:
+          Number.isInteger(Number(knownPlaceId)) && Number(knownPlaceId) > 0
+            ? Number(knownPlaceId)
+            : null,
+        title: placeName,
+        subtitle: address || "Mekan",
+        externalTitle: `${placeName} | Bizim Mekanlar`,
+        externalText: `${placeName} mekanını incele`,
+        path: mapsUrl.toString(),
+        prepareInternalShare: async () => {
+          const prepared = await prepareInternalShare();
+          return {
+            ...prepared,
+            path: buildPlacePath(prepared.publicId),
+          };
+        },
+      });
+    },
+    [openShareModal, showTemporaryAppMessage]
+  );
+
   const handleSharePlace = useCallback(
     (screen) => {
       const publicId = String(screen?.publicId ?? screen?.PublicId ?? "").trim();
@@ -2321,6 +2360,7 @@ export default function App() {
             isActive={activePage === "map"}
             onOpenPlaceDetail={handleOpenPlaceDetail}
             onPlaceSaved={handlePlaceSaved}
+            onSharePlace={handleShareMapPlace}
           />
         </section>
 
