@@ -10,6 +10,7 @@ export const ROUTE_PATHS = Object.freeze({
   FEED: "/feed",
   PROFILE: "/profile",
   SEARCH: "/search",
+  SETTINGS: "/settings",
 });
 
 function decodeSegment(segment) {
@@ -117,6 +118,10 @@ export function parseRoutePath(value) {
 
   if (segments.length === 1 && segments[0] === "search") {
     return { kind: "search", path: ROUTE_PATHS.SEARCH };
+  }
+
+  if (segments.length === 1 && segments[0] === "settings") {
+    return { kind: "settings", path: ROUTE_PATHS.SETTINGS };
   }
 
   if (segments[0] === "user" && segments.length === 2) {

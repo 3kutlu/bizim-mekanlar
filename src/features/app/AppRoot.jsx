@@ -7,6 +7,7 @@ import "../../css/place-detail.css";
 import "../../css/profile-photo.css";
 import "../../css/deep-links.css";
 import "../../css/onboarding.css";
+import "../../css/settings-page.css";
 
 /*
  * Refactored from the application root.
@@ -26,6 +27,7 @@ import UserSearchPage from "../discovery/UserSearchPage.jsx";
 import { supabase } from "../../supabase.js";
 import { shareOrCopyLink } from "../../utils/share.js";
 import { touchLastSeenIfNeeded } from "../../utils/lastSeen.js";
+import { filterMutedNotifications, filterUnavailableUsers, getMyMutedUserIds, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 import { detachCurrentPushSubscription, enablePushNotifications, getPushNotificationStatus, syncExistingPushSubscription } from "../../utils/pushNotifications.js";
 import { PlaceListDetailPage, ProfileCollectionPage } from "../collections/CollectionPages.jsx";
 import DeepLinkNotFoundPage from "../routing/DeepLinkNotFoundPage.jsx";
@@ -35,9 +37,19 @@ import { ListPage } from "../feed/FeedPage.jsx";
 import { NoteDetailPage } from "../notes/NoteComponents.jsx";
 import { PlaceDetailPage } from "../places/PlaceDetailPage.jsx";
 import { ProfileEditModal, ProfilePage } from "../profile/MyProfilePage.jsx";
+import SettingsPage, { AccountRecoveryPage } from "../settings/SettingsPage.jsx";
 import { BottomNavigation, EMPTY_SUMMARY, PROFILE_COLLECTIONS, SILENT_NOTIFICATION_REFRESH_INTERVAL_MS, SearchIcon, SettingsIcon, createDiscoveryScreenId, isIOSDevice, isPrivateAccount, renderUsernameWithLock } from "./appShared.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+
+function withVisibleUnreadCount(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const unreadCount = safeRows.filter((row) => !row?.IsRead).length;
+
+  return safeRows.map((row, index) =>
+    index === 0 ? { ...row, UnreadCount: unreadCount } : row
+  );
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -300,7 +312,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!profile?.UserId) {
+    if (
+      !profile?.UserId ||
+      String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE"
+    ) {
       return undefined;
     }
 
@@ -325,7 +340,7 @@ export default function App() {
         handleServiceWorkerMessage
       );
     };
-  }, [profile?.UserId]);
+  }, [profile?.AccountStatus, profile?.UserId]);
 
   const unreadNoteCount = Number(notifications[0]?.UnreadCount ?? 0);
   const unreadFollowActivityCount = Number(
@@ -334,7 +349,12 @@ export default function App() {
   const unreadNotificationCount = unreadNoteCount + unreadFollowActivityCount;
 
   useEffect(() => {
-    if (!profile?.UserId || activePage !== "map" || discoveryStack.length > 0) {
+    if (
+      !profile?.UserId ||
+      String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE" ||
+      activePage !== "map" ||
+      discoveryStack.length > 0
+    ) {
       return undefined;
     }
 
@@ -391,6 +411,7 @@ export default function App() {
     discoveryStack.length,
     followActivity.length,
     notesRefreshKey,
+    profile?.AccountStatus,
     profile?.UserId,
     readPushPermissionPromptState,
     unreadNotificationCount,
@@ -512,10 +533,9 @@ export default function App() {
     const { data: profileData, error: profileQueryError } = await supabase
       .from("Users")
       .select(
-        "UserId, PublicId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, AccountVisibilityStatusId, ProfilePhotoPath, IsActive"
+        "UserId, PublicId, Username, FirstName, LastName, BirthDate, ZodiacSign, Email, CityId, AccountVisibilityStatusId, ProfilePhotoPath, IsActive, AccountStatus, FrozenDate, DeletionRequestedDate, ScheduledDeletionDate"
       )
       .eq("AuthUserId", session.user.id)
-      .eq("IsActive", true)
       .maybeSingle();
 
     if (profileQueryError) {
@@ -536,7 +556,13 @@ export default function App() {
     }
 
     setProfile(profileData);
-    await loadSummary(profileData.UserId);
+
+    if (String(profileData.AccountStatus ?? "ACTIVE").toUpperCase() === "ACTIVE") {
+      await loadSummary(profileData.UserId);
+    } else {
+      setSummary(EMPTY_SUMMARY);
+    }
+
     setProfileLoading(false);
   }, [loadSummary, session?.user?.id]);
 
@@ -546,7 +572,7 @@ export default function App() {
 
   const loadNotifications = useCallback(
     async ({ silent = false } = {}) => {
-      if (!profile?.UserId) {
+      if (!profile?.UserId || String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE") {
         setNotifications([]);
         setNotificationsError("");
         setNotificationsLoading(false);
@@ -571,7 +597,25 @@ export default function App() {
           setNotificationsError(MESSAGE_KEY.NOTIFICATIONS_LOAD_FAILED);
         }
       } else {
-        setNotifications(data ?? []);
+        try {
+          const [unavailableUserIds, mutedUserIds] = await Promise.all([
+            getMyUnavailableUserIds(),
+            getMyMutedUserIds(),
+          ]);
+          const visibleNotifications = filterUnavailableUsers(
+            data ?? [],
+            unavailableUserIds,
+            ["ActorUserId"]
+          );
+          setNotifications(
+            withVisibleUnreadCount(
+              filterMutedNotifications(visibleNotifications, mutedUserIds)
+            )
+          );
+        } catch (relationshipError) {
+          console.error("Bildirim ilişki filtreleri uygulanamadı:", relationshipError);
+          setNotifications(data ?? []);
+        }
         setNotificationsError("");
       }
 
@@ -579,12 +623,12 @@ export default function App() {
         setNotificationsLoading(false);
       }
     },
-    [profile?.UserId]
+    [profile?.AccountStatus, profile?.UserId]
   );
 
   const loadFollowActivity = useCallback(
     async ({ silent = false } = {}) => {
-      if (!profile?.UserId) {
+      if (!profile?.UserId || String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE") {
         setFollowActivity([]);
         setFollowActivityError("");
         setFollowActivityLoading(false);
@@ -609,7 +653,17 @@ export default function App() {
           setFollowActivityError(MESSAGE_KEY.FOLLOW_ACTIVITY_LOAD_FAILED);
         }
       } else {
-        setFollowActivity(data ?? []);
+        try {
+          const unavailableUserIds = await getMyUnavailableUserIds();
+          setFollowActivity(
+            withVisibleUnreadCount(
+              filterUnavailableUsers(data ?? [], unavailableUserIds, ["ActorUserId"])
+            )
+          );
+        } catch (relationshipError) {
+          console.error("Takip hareketi ilişki filtreleri uygulanamadı:", relationshipError);
+          setFollowActivity(data ?? []);
+        }
         setFollowActivityError("");
       }
 
@@ -617,7 +671,7 @@ export default function App() {
         setFollowActivityLoading(false);
       }
     },
-    [profile?.UserId]
+    [profile?.AccountStatus, profile?.UserId]
   );
 
   const refreshNotificationCenter = useCallback(async () => {
@@ -636,7 +690,10 @@ export default function App() {
   }, [loadFollowActivity]);
 
   useEffect(() => {
-    if (!profile?.UserId) {
+    if (
+      !profile?.UserId ||
+      String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE"
+    ) {
       return undefined;
     }
 
@@ -679,10 +736,13 @@ export default function App() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [profile?.UserId, refreshNotificationCenter]);
+  }, [profile?.AccountStatus, profile?.UserId, refreshNotificationCenter]);
 
   useEffect(() => {
-    if (!profile?.UserId) {
+    if (
+      !profile?.UserId ||
+      String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE"
+    ) {
       return undefined;
     }
 
@@ -708,7 +768,7 @@ export default function App() {
       window.removeEventListener("online", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [profile?.UserId, refreshNotificationCenter]);
+  }, [profile?.AccountStatus, profile?.UserId, refreshNotificationCenter]);
 
   const handleNotificationToggle = useCallback(async () => {
     const willOpen = !isNotificationsOpen;
@@ -751,14 +811,14 @@ export default function App() {
   }, [loadProfile]);
 
   useEffect(() => {
-    if (!profile?.UserId) {
+    if (!profile?.UserId || String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE") {
       return;
     }
 
     void touchLastSeenIfNeeded(profile.UserId);
-  }, [profile?.UserId]);
+  }, [profile?.AccountStatus, profile?.UserId]);
 
-  const loadCities = async () => {
+  const loadCities = useCallback(async () => {
     if (cities.length > 0 || citiesLoading) {
       return;
     }
@@ -780,7 +840,7 @@ export default function App() {
     }
 
     setCitiesLoading(false);
-  };
+  }, [cities.length, citiesLoading]);
 
   const openProfileEditor = () => {
     setIsProfileEditOpen(true);
@@ -973,6 +1033,14 @@ export default function App() {
       path: ROUTE_PATHS.SEARCH,
     });
   }, [pushDiscoveryScreen]);
+
+  const openSettings = useCallback(() => {
+    loadCities();
+    pushDiscoveryScreen({
+      type: "settings",
+      path: ROUTE_PATHS.SETTINGS,
+    });
+  }, [loadCities, pushDiscoveryScreen]);
 
   const handleOpenUserProfile = useCallback(
     async (userOrId) => {
@@ -1339,7 +1407,11 @@ export default function App() {
   const handleLogout = async () => {
     setAppMessage("");
 
-    await detachCurrentPushSubscription();
+    try {
+      await detachCurrentPushSubscription();
+    } catch (pushDetachError) {
+      console.error("Push aboneliği çıkış sırasında ayrılamadı:", pushDetachError);
+    }
 
     const { error } = await supabase.auth.signOut();
 
@@ -1572,6 +1644,21 @@ export default function App() {
         });
       }
 
+      if (route.kind === "settings") {
+        nextNavigation = createNavigationSnapshot({
+          activePage: "profile",
+          discoveryStack: [
+            createRouteScreen({
+              type: "settings",
+              path: route.path,
+            }),
+          ],
+          mapTarget: null,
+          placeReviewFilter: null,
+          path: route.path,
+        });
+      }
+
       if (route.kind === "user" || route.kind === "profile-collection") {
         const { data: target } = await getUserDeepLinkTargetByUsername(
           route.username
@@ -1727,7 +1814,11 @@ export default function App() {
   }, [session?.user?.id]);
 
   useEffect(() => {
-    if (!profile?.UserId || typeof window === "undefined") {
+    if (
+      !profile?.UserId ||
+      String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE" ||
+      typeof window === "undefined"
+    ) {
       return undefined;
     }
 
@@ -1750,7 +1841,12 @@ export default function App() {
     }
 
     return () => window.removeEventListener("popstate", onPopState);
-  }, [applyNavigationSnapshot, hydrateRouteFromLocation, profile?.UserId]);
+  }, [
+    applyNavigationSnapshot,
+    hydrateRouteFromLocation,
+    profile?.AccountStatus,
+    profile?.UserId,
+  ]);
 
   if (loading || (session?.user && profileLoading)) {
     return (
@@ -1764,6 +1860,18 @@ export default function App() {
     return (
       <DesktopMobileShell>
         <AuthPage />
+      </DesktopMobileShell>
+    );
+  }
+
+  if (profile && String(profile.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE") {
+    return (
+      <DesktopMobileShell>
+        <AccountRecoveryPage
+          profile={profile}
+          onRecovered={loadProfile}
+          onLogout={handleLogout}
+        />
       </DesktopMobileShell>
     );
   }
@@ -1800,7 +1908,9 @@ export default function App() {
     activePage === "profile" && !activeDiscoveryScreen;
   const isDiscoveryTopbar = Boolean(activeDiscoveryScreen);
   const discoveryTopbarTitle =
-    activeDiscoveryScreen?.type === "place-list"
+    activeDiscoveryScreen?.type === "settings"
+      ? "Ayarlar"
+      : activeDiscoveryScreen?.type === "place-list"
       ? String(activeDiscoveryScreen?.listName ?? "").trim()
       : activeDiscoveryScreen?.type === "place"
         ? String(activeDiscoveryScreen?.placeName ?? "").trim()
@@ -1921,40 +2031,44 @@ export default function App() {
             <button
               className="settings-trigger"
               type="button"
-              onClick={openProfileEditor}
-              aria-label="Profil ayarları"
-              title="Profil ayarları"
+              onClick={openSettings}
+              aria-label="Ayarlar"
+              title="Ayarlar"
             >
               <SettingsIcon />
             </button>
           )}
 
-          <NotificationsPopover
-            isOpen={isNotificationsOpen}
-            notifications={notifications}
-            followActivity={followActivity}
-            isLoading={notificationsLoading}
-            followActivityLoading={followActivityLoading}
-            errorMessage={notificationsError}
-            followActivityError={followActivityError}
-            unreadCount={unreadNotificationCount}
-            onToggle={handleNotificationToggle}
-            onRetryNotifications={loadNotifications}
-            onRetryFollowActivity={loadFollowActivity}
-            onFollowActivityViewed={handleFollowActivityViewed}
-            onOpenNotification={handleOpenNotification}
-            onRespondToRequest={handleFollowRequestResponse}
-          />
+          {activeDiscoveryScreen?.type !== "settings" && (
+            <>
+              <NotificationsPopover
+                isOpen={isNotificationsOpen}
+                notifications={notifications}
+                followActivity={followActivity}
+                isLoading={notificationsLoading}
+                followActivityLoading={followActivityLoading}
+                errorMessage={notificationsError}
+                followActivityError={followActivityError}
+                unreadCount={unreadNotificationCount}
+                onToggle={handleNotificationToggle}
+                onRetryNotifications={loadNotifications}
+                onRetryFollowActivity={loadFollowActivity}
+                onFollowActivityViewed={handleFollowActivityViewed}
+                onOpenNotification={handleOpenNotification}
+                onRespondToRequest={handleFollowRequestResponse}
+              />
 
-          <button
-            className="user-search-trigger"
-            type="button"
-            onClick={openUserSearch}
-            aria-label="Kullanıcı ara"
-            title="Kullanıcı ara"
-          >
-            <SearchIcon />
-          </button>
+              <button
+                className="user-search-trigger"
+                type="button"
+                onClick={openUserSearch}
+                aria-label="Kullanıcı ara"
+                title="Kullanıcı ara"
+              >
+                <SearchIcon />
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -2127,6 +2241,23 @@ export default function App() {
                       onOpenPlace={handleOpenPlaceDetail}
                       onOpenUser={handleOpenUserProfile}
                       onOpenNote={handleOpenNote}
+                      onRelationshipChanged={handleFollowChanged}
+                    />
+                  )}
+
+                  {screen.type === "settings" && (
+                    <SettingsPage
+                      profile={profile}
+                      cities={cities}
+                      citiesLoading={citiesLoading}
+                      citiesError={citiesError}
+                      isActive={isActive}
+                      onBack={popDiscoveryScreen}
+                      onProfileSaved={loadProfile}
+                      onLogout={handleLogout}
+                      onAccountStatusChanged={async () => {
+                        await handleLogout();
+                      }}
                     />
                   )}
 
@@ -2142,6 +2273,7 @@ export default function App() {
                       listDescription={screen.listDescription}
                       listCoverUrl={screen.listCoverUrl}
                       profileUsername={screen.username}
+                      ownerUserId={screen.userId}
                       isOwner={Boolean(screen.isOwner)}
                       canManageItems={Boolean(screen.canManageItems || screen.isOwner)}
                       isActive={isActive}
@@ -2175,7 +2307,6 @@ export default function App() {
             await loadProfile();
             setIsProfileEditOpen(false);
           }}
-          onLogout={handleLogout}
         />
       )}
       </div>

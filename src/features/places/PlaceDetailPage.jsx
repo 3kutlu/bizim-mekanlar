@@ -10,6 +10,7 @@ import { getVenueCategoryIcon, getVenueCategoryLabel } from "../../utils/venueCa
 import { ErrorState, LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import AppIcon from "../../components/AppIcon.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { filterUnavailableUsers, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 
 export function PlaceDetailPage({
   placeId,
@@ -57,7 +58,7 @@ export function PlaceDetailPage({
     setNotesError("");
     setPhotosError("");
 
-    const [placeResult, notesResult, photosResult] = await Promise.all([
+    const [placeResult, notesResult, photosResult, relationshipResult] = await Promise.all([
       supabase.rpc("GetPlaceMapTargetV2", {
         p_place_id: normalizedPlaceId,
       }),
@@ -68,7 +69,16 @@ export function PlaceDetailPage({
         p_place_id: normalizedPlaceId,
         p_limit: 120,
       }),
+      getMyUnavailableUserIds()
+        .then((data) => ({ data, error: null }))
+        .catch((error) => ({ data: new Set(), error })),
     ]);
+
+    if (relationshipResult.error) {
+      console.error("Mekan ilişki filtresi alınamadı:", relationshipResult.error);
+    }
+
+    const unavailableUserIds = relationshipResult.data;
 
     if (placeResult.error) {
       console.error("Mekan detayı alınamadı:", placeResult.error);
@@ -109,7 +119,9 @@ export function PlaceDetailPage({
         getErrorMessageKey(notesResult.error, MESSAGE_KEY.PLACE_REVIEWS_LOAD_FAILED)
       );
     } else {
-      setNotes(notesResult.data ?? []);
+      setNotes(
+        filterUnavailableUsers(notesResult.data ?? [], unavailableUserIds, ["UserId"])
+      );
     }
 
     setNotesLoading(false);
@@ -120,7 +132,12 @@ export function PlaceDetailPage({
       setPhotosError("Mekan fotoğrafları şu an yüklenemedi. Tekrar dene.");
     } else {
       try {
-        const signedPhotos = await createSignedNotePhotoUrls(photosResult.data ?? []);
+        const visiblePhotos = filterUnavailableUsers(
+          photosResult.data ?? [],
+          unavailableUserIds,
+          ["UserId", "NoteUserId"]
+        );
+        const signedPhotos = await createSignedNotePhotoUrls(visiblePhotos);
         setPlacePhotos(signedPhotos);
       } catch (error) {
         console.error("Mekan fotoğraf bağlantıları oluşturulamadı:", error);

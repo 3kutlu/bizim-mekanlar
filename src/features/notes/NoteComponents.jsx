@@ -6,6 +6,7 @@
 import AppIcon from "../../components/AppIcon.jsx";
 import { MESSAGE_KEY, getErrorMessageKey, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
+import { getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 import { MAX_NOTE_PHOTOS, NOTE_PHOTO_UPLOAD_COPY, createNotePhotoDrafts, createSignedNotePhotoUrls, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { getIstanbulDateInputValue } from "../../utils/dates.js";
@@ -370,6 +371,19 @@ export function NoteDetailPage({
       setReactionSummaryLoading(false);
       setLoading(false);
       return;
+    }
+
+    try {
+      const unavailableUserIds = await getMyUnavailableUserIds();
+      if (unavailableUserIds.has(Number(detail.UserId))) {
+        setNote(null);
+        setErrorMessage(MESSAGE_KEY.NOTE_NOT_FOUND_OR_RESTRICTED);
+        setReactionSummaryLoading(false);
+        setLoading(false);
+        return;
+      }
+    } catch (relationshipError) {
+      console.error("Not ilişki filtresi uygulanamadı:", relationshipError);
     }
 
     setNote(detail);

@@ -714,7 +714,6 @@ export function ProfileEditModal({
   citiesError,
   onClose,
   onSaved,
-  onLogout,
 }) {
   const [form, setForm] = useState({
     username: profile.Username ?? "",
@@ -731,8 +730,6 @@ export function ProfileEditModal({
   const [photoDraft, setPhotoDraft] = useState(null);
   const [removeCurrentPhoto, setRemoveCurrentPhoto] = useState(false);
   const [photoError, setPhotoError] = useState("");
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [logoutError, setLogoutError] = useState("");
   const photoInputRef = useRef(null);
   const profilePhotoUrls = useProfilePhotoUrls(
     [profile?.UserId],
@@ -749,7 +746,7 @@ export function ProfileEditModal({
 
   useEffect(() => {
     const handleEscape = (event) => {
-      if (event.key === "Escape" && !saving && !loggingOut) {
+      if (event.key === "Escape" && !saving) {
         onClose();
       }
     };
@@ -762,7 +759,7 @@ export function ProfileEditModal({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [loggingOut, onClose, saving]);
+  }, [onClose, saving]);
 
   useEffect(() => {
     return () => revokeProfilePhotoDraft(photoDraft);
@@ -816,7 +813,7 @@ export function ProfileEditModal({
     const file = event.target.files?.[0];
     event.target.value = "";
 
-    if (!file || saving || loggingOut) {
+    if (!file || saving) {
       return;
     }
 
@@ -833,7 +830,7 @@ export function ProfileEditModal({
   };
 
   const markProfilePhotoForRemoval = () => {
-    if (saving || loggingOut) {
+    if (saving) {
       return;
     }
 
@@ -941,30 +938,8 @@ export function ProfileEditModal({
     await onSaved();
   };
 
-  const handleLogout = async () => {
-    if (saving || loggingOut || !onLogout) {
-      return;
-    }
-
-    setLogoutError("");
-    setLoggingOut(true);
-
-    try {
-      const didSignOut = await onLogout();
-
-      if (!didSignOut) {
-        setLogoutError(MESSAGE_KEY.SIGN_OUT_FAILED);
-      }
-    } catch (error) {
-      console.error("Çıkış yapılamadı:", error);
-      setLogoutError(MESSAGE_KEY.SIGN_OUT_FAILED);
-    } finally {
-      setLoggingOut(false);
-    }
-  };
-
   const handleBackdropMouseDown = (event) => {
-    if (!saving && !loggingOut && event.target === event.currentTarget) {
+    if (!saving && event.target === event.currentTarget) {
       onClose();
     }
   };
@@ -990,7 +965,7 @@ export function ProfileEditModal({
             className="profile-modal-close"
             type="button"
             onClick={onClose}
-            disabled={saving || loggingOut}
+            disabled={saving}
             aria-label="Kapat"
           >
             <AppIcon name="x" />
@@ -1015,7 +990,7 @@ export function ProfileEditModal({
                 <button
                   className="profile-photo-editor-select"
                   type="button"
-                  disabled={saving || loggingOut}
+                  disabled={saving}
                   onClick={() => photoInputRef.current?.click()}
                 >
                   {displayedProfilePhotoUrl ? "Fotoğrafı değiştir" : "Fotoğraf ekle"}
@@ -1025,7 +1000,7 @@ export function ProfileEditModal({
                   <button
                     className="profile-photo-editor-remove"
                     type="button"
-                    disabled={saving || loggingOut}
+                    disabled={saving}
                     onClick={markProfilePhotoForRemoval}
                   >
                     Fotoğrafı kaldır
@@ -1039,7 +1014,7 @@ export function ProfileEditModal({
               className="profile-photo-editor-input"
               type="file"
               accept="image/jpeg,image/png,image/webp"
-              disabled={saving || loggingOut}
+              disabled={saving}
               onChange={handleProfilePhotoSelected}
             />
 
@@ -1143,32 +1118,6 @@ export function ProfileEditModal({
           </label>
 
 
-          <label className="profile-privacy-toggle">
-            <input
-              type="checkbox"
-              checked={form.isPrivateAccount}
-              disabled={saving}
-              onChange={(event) =>
-                updateField("isPrivateAccount", event.target.checked)
-              }
-            />
-
-            <span className="profile-privacy-copy">
-              <strong>Gizli hesap</strong>
-              <small>
-                {form.isPrivateAccount
-                  ? "Notların ve takip listelerin yalnızca kabul ettiğin takipçilere görünür."
-                  : profile.AccountVisibilityStatusId === 2
-                    ? "Hesabını herkese açık yaptığında bekleyen takip istekleri de kabul edilir."
-                    : "Profilin, notların ve takip listelerin herkese açık olur."}
-              </small>
-            </span>
-
-            <span className="profile-privacy-switch" aria-hidden="true">
-              <span />
-            </span>
-          </label>
-
           {citiesError && (
             <p className="profile-save-error">{t(citiesError)}</p>
           )}
@@ -1181,35 +1130,19 @@ export function ProfileEditModal({
               className="profile-modal-cancel"
               type="button"
               onClick={onClose}
-              disabled={saving || loggingOut}
+              disabled={saving}
             >
               Vazgeç
             </button>
             <button
               className="profile-modal-save"
               type="submit"
-              disabled={saving || loggingOut || citiesLoading}
+              disabled={saving || citiesLoading}
             >
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </button>
           </div>
 
-          <div className="profile-modal-logout-section">
-            <button
-              className="profile-modal-logout"
-              type="button"
-              onClick={handleLogout}
-              disabled={saving || loggingOut}
-            >
-              {loggingOut ? "Çıkış yapılıyor..." : "Çıkış yap"}
-            </button>
-
-            {logoutError && (
-              <p className="profile-modal-logout-error" role="alert">
-                {t(logoutError)}
-              </p>
-            )}
-          </div>
         </form>
       </section>
     </div>

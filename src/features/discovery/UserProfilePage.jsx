@@ -1,6 +1,7 @@
 /* Feature module: extracted without changing UI behavior. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
 import { supabase } from "../../supabase.js";
 import { getErrorMessageKey, MESSAGE_KEY, t } from "../../i18n/messages.js";
@@ -11,6 +12,7 @@ import {
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { getZodiacIconName } from "../../utils/zodiac.js";
+import { getMyUserRelationshipState } from "../../utils/userRelationships.js";
 import "../../css/user-discovery.css";
 
 const PROFILE_TABS = Object.freeze({
@@ -259,6 +261,14 @@ export default function UserProfilePage({
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [relationshipState, setRelationshipState] = useState({
+    IsBlockedByMe: false,
+    IsBlockedByThem: false,
+    IsMutedByMe: false,
+  });
+  const [isRelationshipMenuOpen, setIsRelationshipMenuOpen] = useState(false);
+  const [relationshipAction, setRelationshipAction] = useState("");
+  const [relationshipError, setRelationshipError] = useState("");
 
   const [activeTab, setActiveTab] = useState(PROFILE_TABS.NOTES);
   const [notes, setNotes] = useState([]);
@@ -287,9 +297,33 @@ export default function UserProfilePage({
         setErrorMessage("");
       }
 
-      const { data, error } = await supabase.rpc("GetExternalUserProfile", {
-        p_profile_user_id: userId,
-      });
+      const [profileResult, relationshipResult] = await Promise.all([
+        supabase.rpc("GetExternalUserProfile", {
+          p_profile_user_id: userId,
+        }),
+        getMyUserRelationshipState(userId)
+          .then((data) => ({ data, error: null }))
+          .catch((error) => ({ data: null, error })),
+      ]);
+      const { data, error } = profileResult;
+
+      if (relationshipResult.error) {
+        console.error("Kullanıcı ilişki durumu alınamadı:", relationshipResult.error);
+      } else if (relationshipResult.data) {
+        setRelationshipState(relationshipResult.data);
+
+        if (
+          relationshipResult.data.IsBlockedByMe ||
+          relationshipResult.data.IsBlockedByThem
+        ) {
+          if (!silent) {
+            setProfile(null);
+            setErrorMessage(MESSAGE_KEY.USER_NOT_FOUND_OR_INACTIVE);
+            setIsLoading(false);
+          }
+          return;
+        }
+      }
 
       if (error) {
         console.error("Kullanıcı profili alınamadı:", error);
@@ -626,6 +660,21 @@ export default function UserProfilePage({
       return;
     }
 
+    if (shouldRemoveFollowRelation && relationshipState.IsMutedByMe) {
+      const { error: unmuteError } = await supabase.rpc("UnmuteUser", {
+        p_muted_user_id: profile.UserId,
+      });
+
+      if (unmuteError) {
+        console.warn("Takip bırakılırken sessize alma kaldırılamadı:", unmuteError);
+      } else {
+        setRelationshipState((currentState) => ({
+          ...currentState,
+          IsMutedByMe: false,
+        }));
+      }
+    }
+
     const nextFollowStatus = shouldRemoveFollowRelation
       ? "NONE"
       : profile.AccountVisibilityCode === "PRIVATE"
@@ -651,6 +700,54 @@ export default function UserProfilePage({
         refreshError
       );
     });
+  };
+
+  const handleRelationshipAction = async (action) => {
+    if (!profile?.UserId || relationshipAction) {
+      return;
+    }
+
+    setRelationshipAction(action);
+    setRelationshipError("");
+
+    const rpcConfig = {
+      mute: ["MuteUser", "p_muted_user_id"],
+      unmute: ["UnmuteUser", "p_muted_user_id"],
+      block: ["BlockUser", "p_blocked_user_id"],
+    }[action];
+
+    if (!rpcConfig) {
+      setRelationshipAction("");
+      return;
+    }
+
+    const [rpcName, parameterName] = rpcConfig;
+    const { error } = await supabase.rpc(rpcName, {
+      [parameterName]: Number(profile.UserId),
+    });
+
+    if (error) {
+      console.error("Kullanıcı ilişki işlemi başarısız:", error);
+      setRelationshipError(
+        error?.message || "İşlem şu an tamamlanamadı. Tekrar dene."
+      );
+      setRelationshipAction("");
+      return;
+    }
+
+    if (action === "block") {
+      setIsRelationshipMenuOpen(false);
+      await Promise.resolve(onFollowChanged?.());
+      onBack();
+      return;
+    }
+
+    setRelationshipState((current) => ({
+      ...current,
+      IsMutedByMe: action === "mute",
+    }));
+    setRelationshipAction("");
+    setIsRelationshipMenuOpen(false);
   };
 
   const visibilityIsPrivate = profile?.AccountVisibilityCode === "PRIVATE";
@@ -922,18 +1019,33 @@ export default function UserProfilePage({
                 </p>
               )}
 
-              <button
-                className={`foreign-profile-follow-button ${
-                  followStatus === "ACCEPTED" ? "foreign-profile-following" : ""
-                } ${
-                  followStatus === "PENDING" ? "foreign-profile-pending" : ""
-                }`}
-                type="button"
-                disabled={isActionLoading}
-                onClick={handleFollowAction}
-              >
-                {isActionLoading ? "İşleniyor..." : followButtonLabel}
-              </button>
+              <div className="foreign-profile-action-row">
+                <button
+                  className={`foreign-profile-follow-button ${
+                    followStatus === "ACCEPTED" ? "foreign-profile-following" : ""
+                  } ${
+                    followStatus === "PENDING" ? "foreign-profile-pending" : ""
+                  }`}
+                  type="button"
+                  disabled={isActionLoading || Boolean(relationshipAction)}
+                  onClick={handleFollowAction}
+                >
+                  {isActionLoading ? "İşleniyor..." : followButtonLabel}
+                </button>
+                <button
+                  className="foreign-profile-more-button"
+                  type="button"
+                  disabled={isActionLoading || Boolean(relationshipAction)}
+                  onClick={() => {
+                    setRelationshipError("");
+                    setIsRelationshipMenuOpen(true);
+                  }}
+                  aria-label="Kullanıcı seçenekleri"
+                  title="Kullanıcı seçenekleri"
+                >
+                  <AppIcon name="dots-three" />
+                </button>
+              </div>
             </section>
 
             <div className="foreign-profile-tab-bar" role="tablist" aria-label="Profil içeriği">
@@ -983,6 +1095,80 @@ export default function UserProfilePage({
           </div>
         )}
       </div>
+
+      {isRelationshipMenuOpen &&
+        createPortal(
+          <div
+            className="foreign-profile-action-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (!relationshipAction && event.target === event.currentTarget) {
+                setIsRelationshipMenuOpen(false);
+              }
+            }}
+          >
+            <section
+              className="foreign-profile-action-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="foreign-profile-action-title"
+            >
+              <p className="eyebrow">KULLANICI İŞLEMLERİ</p>
+              <h2 id="foreign-profile-action-title">@{profile?.Username}</h2>
+
+              {followStatus === "ACCEPTED" && (
+                <button
+                  type="button"
+                  disabled={Boolean(relationshipAction)}
+                  onClick={() =>
+                    void handleRelationshipAction(
+                      relationshipState.IsMutedByMe ? "unmute" : "mute"
+                    )
+                  }
+                >
+                  <AppIcon name={relationshipState.IsMutedByMe ? "bell-ringing" : "bell"} />
+                  <span>
+                    <strong>
+                      {relationshipState.IsMutedByMe
+                        ? "Bildirimlerin sesini aç"
+                        : "Bildirimleri sessize al"}
+                    </strong>
+                    <small>Not paylaşma ve not tepkisi bildirimleri</small>
+                  </span>
+                </button>
+              )}
+
+              <button
+                className="foreign-profile-action-danger"
+                type="button"
+                disabled={Boolean(relationshipAction)}
+                onClick={() => void handleRelationshipAction("block")}
+              >
+                <AppIcon name="x-circle" />
+                <span>
+                  <strong>Kullanıcıyı engelle</strong>
+                  <small>Takipler kaldırılır ve birbirinizi göremezsiniz</small>
+                </span>
+              </button>
+
+              {relationshipError && (
+                <p className="foreign-profile-action-sheet-error" role="alert">
+                  {relationshipError}
+                </p>
+              )}
+
+              <button
+                className="foreign-profile-action-cancel"
+                type="button"
+                disabled={Boolean(relationshipAction)}
+                onClick={() => setIsRelationshipMenuOpen(false)}
+              >
+                Vazgeç
+              </button>
+            </section>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

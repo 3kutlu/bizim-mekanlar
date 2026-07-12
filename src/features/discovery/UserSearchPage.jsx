@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import AppIcon from "../../components/AppIcon.jsx";
 import { supabase } from "../../supabase.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
+import { filterUnavailableUsers, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 import "../../css/user-discovery.css";
 
 function getFullName(user) {
@@ -70,7 +71,15 @@ export default function UserSearchPage({
         setUsers([]);
         setErrorMessage("Kullanıcılar şu an aranamadı. Tekrar dene.");
       } else {
-        setUsers(data ?? []);
+        try {
+          const unavailableUserIds = await getMyUnavailableUserIds();
+          setUsers(
+            filterUnavailableUsers(data ?? [], unavailableUserIds, ["UserId"])
+          );
+        } catch (relationshipError) {
+          console.error("Arama ilişki filtresi uygulanamadı:", relationshipError);
+          setUsers(data ?? []);
+        }
       }
 
       setIsLoading(false);

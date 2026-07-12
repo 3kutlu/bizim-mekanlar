@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppIcon from "./AppIcon.jsx";
-import PushNotificationSettings from "./PushNotificationSettings.jsx";
 import {
   getErrorMessageKey,
   MESSAGE_KEY,
@@ -238,7 +237,6 @@ export default function NotificationsPopover({
   };
 
   const isFollowTab = activeTab === "follow";
-  const isSettingsTab = activeTab === "settings";
   const visibleItems = isFollowTab ? safeFollowActivity : noteNotifications;
   const isCurrentTabLoading = isFollowTab
     ? followActivityLoading
@@ -286,11 +284,9 @@ export default function NotificationsPopover({
               <h2>Gelişmeler</h2>
             </div>
             <span className="notification-read-status">
-              {isSettingsTab
-                ? "Ayarlar"
-                : safeUnreadCount > 0
-                  ? `${safeUnreadCount > 9 ? "9+" : safeUnreadCount} yeni`
-                  : "Güncel"}
+              {safeUnreadCount > 0
+                ? `${safeUnreadCount > 9 ? "9+" : safeUnreadCount} yeni`
+                : "Güncel"}
             </span>
           </header>
 
@@ -327,21 +323,9 @@ export default function NotificationsPopover({
               )}
             </button>
 
-            <button
-              className={activeTab === "settings" ? "notification-tab-active" : ""}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "settings"}
-              onClick={() => handleTabChange("settings")}
-            >
-              Ayarlar
-            </button>
           </div>
 
           <div className="notification-popover-body" role="tabpanel">
-            {isSettingsTab ? (
-              <PushNotificationSettings />
-            ) : (
               <>
                 {isCurrentTabLoading && (
                   <p className="notification-state">Yükleniyor...</p>
@@ -457,7 +441,6 @@ export default function NotificationsPopover({
                   <p className="notification-action-error">{t(actionError)}</p>
                 )}
               </>
-            )}
           </div>
         </section>
       )}

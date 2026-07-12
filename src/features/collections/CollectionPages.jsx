@@ -7,6 +7,7 @@ import { MESSAGE_KEY } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { getVenueCategoryIcon } from "../../utils/venueCategory.js";
+import { filterUnavailableUsers, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 import { PROFILE_COLLECTIONS, formatRelativeNoteTime, getFullName, isPrivateAccount } from "../app/appShared.jsx";
 import { EmptyCollectionState, ErrorState, LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -59,6 +60,7 @@ export function PlaceListDetailPage({
   listDescription = "",
   listCoverUrl = "",
   profileUsername,
+  ownerUserId = null,
   isOwner = false,
   canManageItems = false,
   isActive,
@@ -88,6 +90,21 @@ export function PlaceListDetailPage({
     setIsLoading(true);
     setErrorMessage("");
 
+    const normalizedOwnerUserId = Number(ownerUserId);
+    if (Number.isInteger(normalizedOwnerUserId) && normalizedOwnerUserId > 0) {
+      try {
+        const unavailableUserIds = await getMyUnavailableUserIds();
+        if (unavailableUserIds.has(normalizedOwnerUserId)) {
+          setItems([]);
+          setErrorMessage("Bu koleksiyon bulunamadı.");
+          setIsLoading(false);
+          return;
+        }
+      } catch (relationshipError) {
+        console.warn("Koleksiyon sahibi kontrol edilemedi:", relationshipError);
+      }
+    }
+
     const { data, error } = await supabase.rpc("GetUserPlaceListItemsV3", {
       p_user_place_list_id: normalizedListId,
     });
@@ -103,7 +120,7 @@ export function PlaceListDetailPage({
     }
 
     setIsLoading(false);
-  }, [userPlaceListId]);
+  }, [ownerUserId, userPlaceListId]);
 
 
   const loadCollaborators = useCallback(async () => {
@@ -124,7 +141,15 @@ export function PlaceListDetailPage({
       return;
     }
 
-    setCollaborators(data ?? []);
+    try {
+      const unavailableUserIds = await getMyUnavailableUserIds();
+      setCollaborators(
+        filterUnavailableUsers(data ?? [], unavailableUserIds, ["UserId"])
+      );
+    } catch (relationshipError) {
+      console.warn("Koleksiyon ortakları filtrelenemedi:", relationshipError);
+      setCollaborators(data ?? []);
+    }
   }, [userPlaceListId]);
 
   useEffect(() => {
@@ -538,11 +563,15 @@ export function ProfileCollectionPage({
   onOpenPlace,
   onOpenUser,
   onOpenNote,
+  onRelationshipChanged,
 }) {
   const config = PROFILE_COLLECTIONS[type];
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [connectionActionTarget, setConnectionActionTarget] = useState(null);
+  const [connectionActionBusy, setConnectionActionBusy] = useState("");
+  const [connectionActionError, setConnectionActionError] = useState("");
 
   const loadCollection = useCallback(async () => {
     setLoading(true);
@@ -565,7 +594,27 @@ export function ProfileCollectionPage({
       setItems([]);
       setErrorMessage(MESSAGE_KEY.COLLECTION_LOAD_FAILED);
     } else {
-      setItems(data ?? []);
+      if (type === "notes") {
+        try {
+          const unavailableUserIds = await getMyUnavailableUserIds();
+          setItems(
+            filterUnavailableUsers(data ?? [], unavailableUserIds, ["UserId"])
+          );
+        } catch (relationshipError) {
+          console.error("Profil notları ilişki filtresi uygulanamadı:", relationshipError);
+          setItems(data ?? []);
+        }
+      } else {
+        try {
+          const unavailableUserIds = await getMyUnavailableUserIds();
+          setItems(
+            filterUnavailableUsers(data ?? [], unavailableUserIds, ["UserId"])
+          );
+        } catch (relationshipError) {
+          console.error("Profil bağlantıları ilişki filtresi uygulanamadı:", relationshipError);
+          setItems(data ?? []);
+        }
+      }
     }
 
     setLoading(false);
@@ -581,15 +630,61 @@ export function ProfileCollectionPage({
     }
 
     const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        onBack();
+      if (event.key !== "Escape") {
+        return;
       }
+
+      if (connectionActionTarget) {
+        setConnectionActionTarget(null);
+        setConnectionActionError("");
+        return;
+      }
+
+      onBack();
     };
 
     window.addEventListener("keydown", handleEscape);
 
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [isActive, onBack]);
+  }, [connectionActionTarget, isActive, onBack]);
+
+  const canManageFollowers =
+    type === "followers" && Number(profileUserId) === Number(currentUserId);
+
+  const handleConnectionAction = async (action) => {
+    const targetUserId = Number(connectionActionTarget?.UserId);
+
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0 || connectionActionBusy) {
+      return;
+    }
+
+    setConnectionActionBusy(action);
+    setConnectionActionError("");
+
+    const rpcName = action === "block" ? "BlockUser" : "RemoveFollower";
+    const parameterName = action === "block"
+      ? "p_blocked_user_id"
+      : "p_follower_user_id";
+    const { error } = await supabase.rpc(rpcName, {
+      [parameterName]: targetUserId,
+    });
+
+    if (error) {
+      console.error("Takipçi işlemi başarısız:", error);
+      setConnectionActionError(
+        error?.message || "İşlem şu an tamamlanamadı. Tekrar dene."
+      );
+      setConnectionActionBusy("");
+      return;
+    }
+
+    setItems((currentItems) =>
+      currentItems.filter((item) => Number(item?.UserId) !== targetUserId)
+    );
+    setConnectionActionBusy("");
+    setConnectionActionTarget(null);
+    await Promise.resolve(onRelationshipChanged?.());
+  };
 
   return (
     <div className="discovery-page-content collection-page">
@@ -638,14 +733,84 @@ export function ProfileCollectionPage({
         )}
 
         {!loading && !errorMessage && items.length > 0 && type !== "notes" && (
-          <ConnectionList users={items} onOpenUser={onOpenUser} />
+          <ConnectionList
+            users={items}
+            onOpenUser={onOpenUser}
+            canManageFollowers={canManageFollowers}
+            onOpenActions={setConnectionActionTarget}
+          />
         )}
       </div>
+
+      {connectionActionTarget &&
+        createPortal(
+          <div
+            className="connection-action-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (!connectionActionBusy && event.target === event.currentTarget) {
+                setConnectionActionTarget(null);
+              }
+            }}
+          >
+            <section
+              className="connection-action-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="connection-action-title"
+            >
+              <p className="eyebrow">TAKİPÇİ İŞLEMLERİ</p>
+              <h2 id="connection-action-title">@{connectionActionTarget.Username}</h2>
+              <button
+                type="button"
+                disabled={Boolean(connectionActionBusy)}
+                onClick={() => void handleConnectionAction("remove")}
+              >
+                <AppIcon name="user-circle-minus" />
+                <span>
+                  <strong>Takipçiden çıkar</strong>
+                  <small>Bu kullanıcı seni takip etmeyi bırakır.</small>
+                </span>
+              </button>
+              <button
+                className="connection-action-danger"
+                type="button"
+                disabled={Boolean(connectionActionBusy)}
+                onClick={() => void handleConnectionAction("block")}
+              >
+                <AppIcon name="x-circle" />
+                <span>
+                  <strong>Kullanıcıyı engelle</strong>
+                  <small>İki yönlü takipler kaldırılır.</small>
+                </span>
+              </button>
+              {connectionActionError && (
+                <p className="connection-action-error" role="alert">
+                  {connectionActionError}
+                </p>
+              )}
+              <button
+                className="connection-action-cancel"
+                type="button"
+                disabled={Boolean(connectionActionBusy)}
+                onClick={() => setConnectionActionTarget(null)}
+              >
+                Vazgeç
+              </button>
+            </section>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
 
-export function ConnectionList({ users, onOpenUser }) {
+export function ConnectionList({
+  users,
+  onOpenUser,
+  canManageFollowers = false,
+  onOpenActions,
+}) {
   const profilePhotoUrls = useProfilePhotoUrls(
     useMemo(() => users.map((user) => user?.UserId), [users])
   );
@@ -660,27 +825,40 @@ export function ConnectionList({ users, onOpenUser }) {
         const profilePhotoUrl = profilePhotoUrls[Number(user?.UserId)] || "";
 
         return (
-          <button
-            className="connection-list-item"
-            type="button"
-            key={user.UserId}
-            onClick={() => onOpenUser?.(user.UserId)}
-          >
-            <span className="connection-avatar" aria-hidden="true">
-              {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : avatarLetter}
-            </span>
+          <article className="connection-list-item" key={user.UserId}>
+            <button
+              className="connection-list-main"
+              type="button"
+              onClick={() => onOpenUser?.(user.UserId)}
+            >
+              <span className="connection-avatar" aria-hidden="true">
+                {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : avatarLetter}
+              </span>
 
-            <span className="connection-copy">
-              <strong>
-                {user.Username}
-                {isPrivateAccount(user.AccountVisibilityCode) ? " 🔒" : ""}
-              </strong>
-              <span>{fullName || user.Username}</span>
-              <small>
-                {[user.CityName, user.ZodiacSign].filter(Boolean).join(" · ")}
-              </small>
-            </span>
-          </button>
+              <span className="connection-copy">
+                <strong>
+                  {user.Username}
+                  {isPrivateAccount(user.AccountVisibilityCode) ? " 🔒" : ""}
+                </strong>
+                <span>{fullName || user.Username}</span>
+                <small>
+                  {[user.CityName, user.ZodiacSign].filter(Boolean).join(" · ")}
+                </small>
+              </span>
+            </button>
+
+            {canManageFollowers && (
+              <button
+                className="connection-list-more"
+                type="button"
+                onClick={() => onOpenActions?.(user)}
+                aria-label={`@${user.Username} için takipçi seçenekleri`}
+                title="Takipçi seçenekleri"
+              >
+                <AppIcon name="dots-three" />
+              </button>
+            )}
+          </article>
         );
       })}
     </div>

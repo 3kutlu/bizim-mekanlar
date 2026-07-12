@@ -47,6 +47,14 @@ function isNotificationTypeEnabled(
   }
 }
 
+function canBeMutedByUser(notificationTypeCode: string) {
+  return [
+    "FOLLOWING_NOTE",
+    "NOTE_REACTION_UP",
+    "NOTE_REACTION_DOWN",
+  ].includes(notificationTypeCode);
+}
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -327,6 +335,24 @@ async function sendNotification(notificationId: number) {
 
   if (!isNotificationTypeEnabled(notification.NotificationTypeCode, preferences)) {
     return { sent: 0, deactivated: 0, skipped: true, preferenceSkipped: true };
+  }
+
+  if (canBeMutedByUser(notification.NotificationTypeCode)) {
+    const { data: mute, error: muteError } = await admin
+      .from("UserMutes")
+      .select("UserMuteId")
+      .eq("MuterUserId", notification.RecipientUserId)
+      .eq("MutedUserId", notification.ActorUserId)
+      .eq("IsActive", true)
+      .maybeSingle();
+
+    if (muteError) {
+      throw muteError;
+    }
+
+    if (mute) {
+      return { sent: 0, deactivated: 0, skipped: true, userMuteSkipped: true };
+    }
   }
 
   const { data: subscriptions, error: subscriptionsError } = await admin

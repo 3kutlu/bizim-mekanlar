@@ -116,7 +116,7 @@ function genericLoginReply() {
   return json({
     ok: true,
     message:
-      "Eşleşen aktif hesabın varsa 6 haneli giriş kodu e-posta adresine gönderildi.",
+      "Eşleşen hesabın varsa 6 haneli giriş kodu e-posta adresine gönderildi.",
   });
 }
 
@@ -125,7 +125,7 @@ async function resolveUsernameEmail(username: string) {
     .from("Users")
     .select("Email")
     .ilike("Username", username)
-    .eq("IsActive", true)
+    .neq("AccountStatus", "DELETED")
     .limit(1);
 
   if (error) {

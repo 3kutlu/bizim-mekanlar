@@ -42,6 +42,10 @@ Ana ekrana eklendikten sonra uygulama normal bir mobil uygulama gibi açılır.
 - Takip edilen kişilerin son notlarını akışta görmek
 - Not tepkileri, takip istekleri ve takip aktiviteleri için uygulama içi bildirim almak
 - Uygun cihazlarda web push bildirimlerini açmak
+- Kullanıcı bazlı not ve tepki bildirimlerini sessize almak
+- Takipçileri kaldırmak, kullanıcıları engellemek ve engeli kaldırmak
+- Genel Ayarlar merkezinden profil, gizlilik ve bildirim tercihlerini yönetmek
+- Hesabı süresiz dondurmak veya 7 günlük geri dönüş süresiyle silmek
 - Profil, mekan, not ve koleksiyon bağlantılarını paylaşmak
 
 ---
@@ -140,7 +144,7 @@ Supabase tarafında da RLS, RPC yetkileri, Storage policy'leri ve Edge Function 
 - **Postgres:** Kullanıcılar, mekanlar, notlar, takip ilişkileri, koleksiyonlar ve bildirimler
 - **Storage:** Profil fotoğrafları ve not fotoğrafları
 - **Realtime:** Takip ve bildirim değişikliklerini uygulama içinde güncellemek
-- **Edge Functions:** Web push gönderimi, güvenli sunucu tarafı işlemler ve entegrasyon akışları
+- **Edge Functions:** Web push gönderimi, güvenli hesap işlemleri, süreli hesap temizliği ve entegrasyon akışları
 
 ---
 

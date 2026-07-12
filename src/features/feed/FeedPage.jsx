@@ -8,6 +8,7 @@ import { supabase } from "../../supabase.js";
 import { getVenueCategoryIcon, getVenueCategoryLabel } from "../../utils/venueCategory.js";
 import { EmptyCollectionState, ErrorState, LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import { useCallback, useEffect, useState } from "react";
+import { filterUnavailableUsers, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 
 export function ListPage({
   refreshKey,
@@ -51,7 +52,15 @@ export function ListPage({
           : MESSAGE_KEY.FEED_LOAD_FAILED
       );
     } else {
-      setNotes(data ?? []);
+      try {
+        const unavailableUserIds = await getMyUnavailableUserIds();
+        setNotes(
+          filterUnavailableUsers(data ?? [], unavailableUserIds, ["UserId"])
+        );
+      } catch (relationshipError) {
+        console.error("Akış ilişki filtresi uygulanamadı:", relationshipError);
+        setNotes(data ?? []);
+      }
     }
 
     setLoading(false);

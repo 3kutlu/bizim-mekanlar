@@ -267,7 +267,7 @@ export default function AuthPage() {
       setMessage(
         mode === "signup"
           ? "6 haneli kod e-posta adresine gönderildi."
-          : "Eşleşen aktif hesabın varsa 6 haneli kod e-posta adresine gönderildi."
+          : "Eşleşen hesabın varsa 6 haneli kod e-posta adresine gönderildi."
       );
     } catch (error) {
       console.error("OTP gönderilemedi:", error);
