@@ -98,7 +98,7 @@
 
 .notification-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
   padding: 0 16px 12px;
   border-bottom: 1px solid #2b323e;
@@ -233,6 +233,14 @@
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.notification-item-copy > .notification-item-detail-full {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .notification-item-copy time {
@@ -687,5 +695,27 @@
     top: 72px;
     right: 10px;
     width: calc(100vw - 20px);
+  }
+}
+
+.notification-tabs button:last-child {
+  font-size: 11px;
+}
+
+@media (max-width: 380px) {
+  .notification-tabs {
+    gap: 5px;
+    padding-inline: 10px;
+  }
+
+  .notification-tabs button {
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+
+  .notification-tab-count {
+    min-width: 16px;
+    height: 16px;
+    padding-inline: 4px;
   }
 }

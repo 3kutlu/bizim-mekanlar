@@ -16,13 +16,30 @@ function fallbackCopyText(value) {
   return copied;
 }
 
-async function copyText(value) {
+export async function copyText(value) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
     return true;
   }
 
   return fallbackCopyText(value);
+}
+
+
+export async function copyLink(url) {
+  const normalizedUrl = String(url ?? "").trim();
+
+  if (!normalizedUrl) {
+    return { status: "error" };
+  }
+
+  try {
+    const copied = await copyText(normalizedUrl);
+    return { status: copied ? "copied" : "error" };
+  } catch (error) {
+    console.error("Bağlantı kopyalanamadı:", error);
+    return { status: "error" };
+  }
 }
 
 export async function shareOrCopyLink({ title, text, url }) {

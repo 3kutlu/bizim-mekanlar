@@ -34,6 +34,11 @@ const PREFERENCE_OPTIONS = [
     title: "Ortak koleksiyonlar",
     description: "Birisi seni ortak koleksiyonuna eklediğinde.",
   },
+  {
+    key: "contentShareEnabled",
+    title: "Uygulama içi paylaşımlar",
+    description: "Birisi sana mekan, not, koleksiyon veya profil gönderdiğinde.",
+  },
 ];
 
 function getCopyForState(state) {

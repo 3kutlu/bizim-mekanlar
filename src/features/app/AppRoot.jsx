@@ -15,6 +15,7 @@ import "../../css/settings-page.css";
  */
 
 import NotificationsPopover from "../../components/NotificationsPopover.jsx";
+import ContentShareModal from "../../components/ContentShareModal.jsx";
 import DesktopMobileShell from "./DesktopMobileShell.jsx";
 import PushNotificationPrompt from "../../components/PushNotificationPrompt.jsx";
 import ShareIconButton from "../../components/ShareIconButton.jsx";
@@ -25,7 +26,7 @@ import MapPage from "../map/MapPage.jsx";
 import UserProfilePage from "../discovery/UserProfilePage.jsx";
 import UserSearchPage from "../discovery/UserSearchPage.jsx";
 import { supabase } from "../../supabase.js";
-import { shareOrCopyLink } from "../../utils/share.js";
+import { copyLink, shareOrCopyLink } from "../../utils/share.js";
 import { touchLastSeenIfNeeded } from "../../utils/lastSeen.js";
 import { filterMutedNotifications, filterUnavailableUsers, getMyMutedUserIds, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 import { detachCurrentPushSubscription, enablePushNotifications, getPushNotificationStatus, syncExistingPushSubscription } from "../../utils/pushNotifications.js";
@@ -78,7 +79,12 @@ export default function App() {
   const [followActivityLoading, setFollowActivityLoading] = useState(false);
   const [followActivityError, setFollowActivityError] = useState("");
 
+  const [contentShares, setContentShares] = useState([]);
+  const [contentSharesLoading, setContentSharesLoading] = useState(false);
+  const [contentSharesError, setContentSharesError] = useState("");
+
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [shareDraft, setShareDraft] = useState(null);
 
   const [isPushPermissionPromptOpen, setIsPushPermissionPromptOpen] = useState(false);
   const [isPushPermissionPromptBusy, setIsPushPermissionPromptBusy] = useState(false);
@@ -346,7 +352,11 @@ export default function App() {
   const unreadFollowActivityCount = Number(
     followActivity[0]?.UnreadCount ?? 0
   );
-  const unreadNotificationCount = unreadNoteCount + unreadFollowActivityCount;
+  const unreadContentShareCount = contentShares.filter(
+    (share) => !share?.IsRead
+  ).length;
+  const unreadNotificationCount =
+    unreadNoteCount + unreadFollowActivityCount + unreadContentShareCount;
 
   useEffect(() => {
     if (
@@ -674,12 +684,53 @@ export default function App() {
     [profile?.AccountStatus, profile?.UserId]
   );
 
+  const loadContentShares = useCallback(
+    async ({ silent = false } = {}) => {
+      if (
+        !profile?.UserId ||
+        String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE"
+      ) {
+        setContentShares([]);
+        setContentSharesError("");
+        setContentSharesLoading(false);
+        return;
+      }
+
+      if (!silent) {
+        setContentSharesLoading(true);
+        setContentSharesError("");
+      }
+
+      const { data, error } = await supabase.rpc("GetMyContentShares", {
+        p_limit: 40,
+      });
+
+      if (error) {
+        console.error("Uygulama içi paylaşımlar alınamadı:", error);
+
+        if (!silent) {
+          setContentShares([]);
+          setContentSharesError(MESSAGE_KEY.CONTENT_SHARES_LOAD_FAILED);
+        }
+      } else {
+        setContentShares(data ?? []);
+        setContentSharesError("");
+      }
+
+      if (!silent) {
+        setContentSharesLoading(false);
+      }
+    },
+    [profile?.AccountStatus, profile?.UserId]
+  );
+
   const refreshNotificationCenter = useCallback(async () => {
     await Promise.all([
       loadNotifications({ silent: true }),
       loadFollowActivity({ silent: true }),
+      loadContentShares({ silent: true }),
     ]);
-  }, [loadFollowActivity, loadNotifications]);
+  }, [loadContentShares, loadFollowActivity, loadNotifications]);
 
   useEffect(() => {
     loadNotifications();
@@ -688,6 +739,10 @@ export default function App() {
   useEffect(() => {
     loadFollowActivity();
   }, [loadFollowActivity]);
+
+  useEffect(() => {
+    loadContentShares();
+  }, [loadContentShares]);
 
   useEffect(() => {
     if (
@@ -721,6 +776,18 @@ export default function App() {
           void refreshNotificationCenter();
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ContentShares",
+          filter: `RecipientUserId=eq.${profile.UserId}`,
+        },
+        () => {
+          void loadContentShares({ silent: true });
+        }
+      )
       .subscribe((status, error) => {
         if (status === "SUBSCRIBED") {
           // Bağlantı tekrar kurulduğunda kaçan eventleri sessizce toparla.
@@ -736,7 +803,12 @@ export default function App() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [profile?.AccountStatus, profile?.UserId, refreshNotificationCenter]);
+  }, [
+    loadContentShares,
+    profile?.AccountStatus,
+    profile?.UserId,
+    refreshNotificationCenter,
+  ]);
 
   useEffect(() => {
     if (
@@ -805,6 +877,18 @@ export default function App() {
 
     await loadFollowActivity({ silent: true });
   }, [loadFollowActivity]);
+
+  const handleContentSharesViewed = useCallback(async () => {
+    const { error } = await supabase.rpc("MarkMyContentSharesRead");
+
+    if (error) {
+      console.error("Paylaşımlar okundu işaretlenemedi:", error);
+      setAppMessage(MESSAGE_KEY.CONTENT_SHARES_MARK_READ_FAILED);
+      return;
+    }
+
+    await loadContentShares({ silent: true });
+  }, [loadContentShares]);
 
   useEffect(() => {
     loadProfile();
@@ -1377,6 +1461,49 @@ export default function App() {
     [ownUserId, pushDiscoveryScreen]
   );
 
+  const handleOpenContentShare = useCallback(
+    async (contentShare) => {
+      setIsNotificationsOpen(false);
+
+      if (!contentShare?.CanOpen) {
+        setAppMessage(MESSAGE_KEY.CONTENT_SHARE_UNAVAILABLE);
+        return;
+      }
+
+      const shareType = String(contentShare?.ShareTypeCode ?? "").toUpperCase();
+
+      if (shareType === "PLACE") {
+        await handleOpenPlaceDetail(contentShare?.PlaceId);
+        return;
+      }
+
+      if (shareType === "NOTE") {
+        await handleOpenNote(contentShare?.PlaceNoteId);
+        return;
+      }
+
+      if (shareType === "COLLECTION") {
+        await handleOpenPlaceList({
+          listId: contentShare?.UserPlaceListId,
+        });
+        return;
+      }
+
+      if (shareType === "PROFILE") {
+        await handleOpenUserProfile(contentShare?.ProfileUserId);
+        return;
+      }
+
+      setAppMessage(MESSAGE_KEY.CONTENT_SHARE_UNAVAILABLE);
+    },
+    [
+      handleOpenNote,
+      handleOpenPlaceDetail,
+      handleOpenPlaceList,
+      handleOpenUserProfile,
+    ]
+  );
+
   const handleProfileCollectionClick = (type) => {
     const config = PROFILE_COLLECTIONS[type];
 
@@ -1439,6 +1566,9 @@ export default function App() {
     setNotificationsError("");
     setFollowActivity([]);
     setFollowActivityError("");
+    setContentShares([]);
+    setContentSharesError("");
+    setShareDraft(null);
     return true;
   };
 
@@ -1456,27 +1586,69 @@ export default function App() {
       } else if (result.status === "error") {
         showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
       }
+
+      return result;
+    },
+    [showTemporaryAppMessage]
+  );
+
+  const handleCopyShareLink = useCallback(
+    async ({ path }) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const url = new URL(path, window.location.origin).toString();
+      const result = await copyLink(url);
+
+      if (result.status === "copied") {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_COPIED);
+      } else {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+      }
+
+      return result;
+    },
+    [showTemporaryAppMessage]
+  );
+
+  const openShareModal = useCallback(
+    (draft) => {
+      if (!draft?.path || !draft?.typeCode) {
+        showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
+        return;
+      }
+
+      setIsNotificationsOpen(false);
+      setShareDraft(draft);
     },
     [showTemporaryAppMessage]
   );
 
   const handleShareProfile = useCallback(
     (profileToShare) => {
-      const username = String(profileToShare?.Username ?? "").trim();
+      const username = String(profileToShare?.Username ?? profileToShare?.username ?? "").trim();
+      const profileUserId = Number(
+        profileToShare?.UserId ?? profileToShare?.userId ?? 0
+      );
       const path = buildUserPath(username);
 
-      if (!path) {
+      if (!path || !Number.isInteger(profileUserId) || profileUserId <= 0) {
         showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
         return;
       }
 
-      void handleShareLink({
-        title: `${username} | Bizim Mekanlar`,
-        text: `${username} kullanıcısının Bizim Mekanlar profili`,
+      openShareModal({
+        typeCode: "PROFILE",
+        profileUserId,
+        title: `@${username}`,
+        subtitle: "Kullanıcı profili",
+        externalTitle: `${username} | Bizim Mekanlar`,
+        externalText: `${username} kullanıcısının Bizim Mekanlar profili`,
         path,
       });
     },
-    [handleShareLink, showTemporaryAppMessage]
+    [openShareModal, showTemporaryAppMessage]
   );
 
   const handleShareOwnProfile = useCallback(() => {
@@ -1485,65 +1657,88 @@ export default function App() {
 
   const handleSharePlace = useCallback(
     (screen) => {
-      const publicId = String(screen?.publicId ?? "").trim();
-      const placeName = String(screen?.placeName ?? "Mekan").trim() || "Mekan";
+      const publicId = String(screen?.publicId ?? screen?.PublicId ?? "").trim();
+      const placeId = Number(screen?.placeId ?? screen?.PlaceId ?? 0);
+      const placeName = String(
+        screen?.placeName ?? screen?.Name ?? "Mekan"
+      ).trim() || "Mekan";
       const path = buildPlacePath(publicId);
 
-      if (!path) {
+      if (!path || !Number.isInteger(placeId) || placeId <= 0) {
         showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
         return;
       }
 
-      void handleShareLink({
-        title: `${placeName} | Bizim Mekanlar`,
-        text: `${placeName} mekanını Bizim Mekanlar'da incele`,
+      openShareModal({
+        typeCode: "PLACE",
+        placeId,
+        title: placeName,
+        subtitle: "Mekan",
+        externalTitle: `${placeName} | Bizim Mekanlar`,
+        externalText: `${placeName} mekanını Bizim Mekanlar'da incele`,
         path,
       });
     },
-    [handleShareLink, showTemporaryAppMessage]
+    [openShareModal, showTemporaryAppMessage]
   );
 
   const handleShareNote = useCallback(
     (screen, note) => {
-      const publicId = String(screen?.publicId ?? "").trim();
+      const publicId = String(screen?.publicId ?? note?.PublicId ?? "").trim();
+      const placeNoteId = Number(
+        screen?.noteId ?? note?.PlaceNoteId ?? note?.NoteId ?? 0
+      );
       const path = buildNotePath(publicId);
 
-      if (!path) {
+      if (!path || !Number.isInteger(placeNoteId) || placeNoteId <= 0) {
         showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
         return;
       }
 
       const noteTitle = String(note?.Title ?? "").trim() || "Not";
       const placeName = String(note?.PlaceName ?? "").trim();
-      void handleShareLink({
-        title: `${noteTitle} | Bizim Mekanlar`,
-        text: placeName
+      openShareModal({
+        typeCode: "NOTE",
+        placeNoteId,
+        title: noteTitle,
+        subtitle: placeName || "Mekan notu",
+        externalTitle: `${noteTitle} | Bizim Mekanlar`,
+        externalText: placeName
           ? `${placeName} için bırakılan bir not`
           : "Bizim Mekanlar'da paylaşılan bir not",
         path,
       });
     },
-    [handleShareLink, showTemporaryAppMessage]
+    [openShareModal, showTemporaryAppMessage]
   );
 
   const handleShareCollection = useCallback(
     (screen) => {
-      const publicId = String(screen?.publicId ?? "").trim();
+      const publicId = String(screen?.publicId ?? screen?.PublicId ?? "").trim();
+      const userPlaceListId = Number(
+        screen?.listId ?? screen?.UserPlaceListId ?? 0
+      );
       const path = buildCollectionPath(publicId);
 
-      if (!path) {
+      if (!path || !Number.isInteger(userPlaceListId) || userPlaceListId <= 0) {
         showTemporaryAppMessage(MESSAGE_KEY.LINK_SHARE_FAILED);
         return;
       }
 
-      const listName = String(screen?.listName ?? "Koleksiyon").trim() || "Koleksiyon";
-      void handleShareLink({
-        title: `${listName} | Bizim Mekanlar`,
-        text: `${listName} koleksiyonunu Bizim Mekanlar'da incele`,
+      const listName = String(
+        screen?.listName ?? screen?.Name ?? "Koleksiyon"
+      ).trim() || "Koleksiyon";
+      openShareModal({
+        typeCode: "COLLECTION",
+        userPlaceListId,
+        title: listName,
+        subtitle: "Koleksiyon",
+        externalTitle: `${listName} | Bizim Mekanlar`,
+        externalText: `${listName} koleksiyonunu Bizim Mekanlar'da incele`,
         path,
       });
     },
-    [handleShareLink, showTemporaryAppMessage]
+    [openShareModal, showTemporaryAppMessage]
   );
 
   const createRouteScreen = useCallback((screen) => ({
@@ -1942,7 +2137,11 @@ export default function App() {
 
     if (activeDiscoveryScreen.type === "profile") {
       return {
-        onClick: () => handleShareProfile({ Username: activeDiscoveryScreen.username }),
+        onClick: () =>
+          handleShareProfile({
+            UserId: activeDiscoveryScreen.userId,
+            Username: activeDiscoveryScreen.username,
+          }),
         label: "Profili paylaş",
       };
     }
@@ -1956,12 +2155,7 @@ export default function App() {
 
     if (activeDiscoveryScreen.type === "note") {
       return {
-        onClick: () =>
-          handleShareLink({
-            title: "Not | Bizim Mekanlar",
-            text: "Bizim Mekanlar'da paylaşılan bir not",
-            path: buildNotePath(activeDiscoveryScreen.publicId),
-          }),
+        onClick: () => handleShareNote(activeDiscoveryScreen, null),
         label: "Notu paylaş",
       };
     }
@@ -2045,16 +2239,22 @@ export default function App() {
                 isOpen={isNotificationsOpen}
                 notifications={notifications}
                 followActivity={followActivity}
+                contentShares={contentShares}
                 isLoading={notificationsLoading}
                 followActivityLoading={followActivityLoading}
+                contentSharesLoading={contentSharesLoading}
                 errorMessage={notificationsError}
                 followActivityError={followActivityError}
+                contentSharesError={contentSharesError}
                 unreadCount={unreadNotificationCount}
                 onToggle={handleNotificationToggle}
                 onRetryNotifications={loadNotifications}
                 onRetryFollowActivity={loadFollowActivity}
+                onRetryContentShares={loadContentShares}
                 onFollowActivityViewed={handleFollowActivityViewed}
+                onContentSharesViewed={handleContentSharesViewed}
                 onOpenNotification={handleOpenNotification}
+                onOpenContentShare={handleOpenContentShare}
                 onRespondToRequest={handleFollowRequestResponse}
               />
 
@@ -2295,6 +2495,33 @@ export default function App() {
         onNavigate={handleTabNavigation}
         liquidGlassEnabled={isIOSDevice()}
       />
+
+      {shareDraft && (
+        <ContentShareModal
+          share={shareDraft}
+          currentUserId={ownUserId}
+          onClose={() => setShareDraft(null)}
+          onExternalShare={async () => {
+            const result = await handleShareLink({
+              title: shareDraft.externalTitle,
+              text: shareDraft.externalText,
+              path: shareDraft.path,
+            });
+
+            if (result?.status !== "cancelled") {
+              setShareDraft(null);
+            }
+          }}
+          onCopyLink={async () => {
+            await handleCopyShareLink({ path: shareDraft.path });
+            setShareDraft(null);
+          }}
+          onSent={(recipient) => {
+            showTemporaryAppMessage(MESSAGE_KEY.CONTENT_SHARE_SENT);
+            console.info(`İçerik @${recipient?.Username || "kullanici"} kullanıcısına gönderildi.`);
+          }}
+        />
+      )}
 
       {isProfileEditOpen && (
         <ProfileEditModal

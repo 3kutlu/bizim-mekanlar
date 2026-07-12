@@ -11,6 +11,7 @@ export const DEFAULT_PUSH_NOTIFICATION_PREFERENCES = Object.freeze({
   followingNoteEnabled: true,
   noteReactionEnabled: true,
   collectionCollaboratorEnabled: true,
+  contentShareEnabled: true,
 });
 
 function normalizePushNotificationPreferences(value) {
@@ -35,6 +36,10 @@ function normalizePushNotificationPreferences(value) {
       value?.CollectionCollaboratorEnabled ??
       value?.collectionCollaboratorEnabled ??
       DEFAULT_PUSH_NOTIFICATION_PREFERENCES.collectionCollaboratorEnabled,
+    contentShareEnabled:
+      value?.ContentShareEnabled ??
+      value?.contentShareEnabled ??
+      DEFAULT_PUSH_NOTIFICATION_PREFERENCES.contentShareEnabled,
   };
 }
 
@@ -206,33 +211,59 @@ async function deactivateSubscription(subscription) {
 }
 
 export async function getMyPushNotificationPreferences() {
-  const { data, error } = await supabase.rpc(
-    "GetMyWebPushNotificationPreferences"
-  );
+  const [baseResult, contentShareResult] = await Promise.all([
+    supabase.rpc("GetMyWebPushNotificationPreferences"),
+    supabase.rpc("GetMyContentSharePushPreference"),
+  ]);
 
-  if (error) {
-    throw error;
+  if (baseResult.error) {
+    throw baseResult.error;
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  return normalizePushNotificationPreferences(row);
+  if (contentShareResult.error) {
+    throw contentShareResult.error;
+  }
+
+  const baseRow = Array.isArray(baseResult.data)
+    ? baseResult.data[0]
+    : baseResult.data;
+  const contentShareRow = Array.isArray(contentShareResult.data)
+    ? contentShareResult.data[0]
+    : contentShareResult.data;
+
+  return normalizePushNotificationPreferences({
+    ...baseRow,
+    ContentShareEnabled: contentShareRow?.ContentShareEnabled,
+  });
 }
 
 export async function updateMyPushNotificationPreferences(preferences) {
   const normalized = normalizePushNotificationPreferences(preferences);
-  const { error } = await supabase.rpc(
+  const { error: baseError } = await supabase.rpc(
     "UpdateMyWebPushNotificationPreferences",
     {
       p_follow_request_enabled: normalized.followRequestEnabled,
       p_followed_enabled: normalized.followedEnabled,
       p_following_note_enabled: normalized.followingNoteEnabled,
       p_note_reaction_enabled: normalized.noteReactionEnabled,
-      p_collection_collaborator_enabled: normalized.collectionCollaboratorEnabled,
+      p_collection_collaborator_enabled:
+        normalized.collectionCollaboratorEnabled,
     }
   );
 
-  if (error) {
-    throw error;
+  if (baseError) {
+    throw baseError;
+  }
+
+  const { error: contentShareError } = await supabase.rpc(
+    "UpdateMyContentSharePushPreference",
+    {
+      p_content_share_enabled: normalized.contentShareEnabled,
+    }
+  );
+
+  if (contentShareError) {
+    throw contentShareError;
   }
 
   return normalized;

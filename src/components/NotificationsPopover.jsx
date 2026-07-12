@@ -117,6 +117,29 @@ function getFollowActivityCopy(activity) {
   }
 }
 
+
+function getContentShareCopy(share) {
+  const actor = share?.SenderUsername || "Bir kullanıcı";
+  const message = String(share?.Message ?? "").trim();
+  const targetTitle = String(share?.TargetTitle ?? "İçerik").trim() || "İçerik";
+
+  const typeCopy = {
+    PLACE: { icon: "storefront-fill", label: "bir mekan" },
+    NOTE: { icon: "star-fill", label: "bir not" },
+    COLLECTION: { icon: "bookmarks-fill", label: "bir koleksiyon" },
+    PROFILE: { icon: "user-fill", label: "bir profil" },
+  }[String(share?.ShareTypeCode ?? "").toUpperCase()] ?? {
+    icon: "share-fat-fill",
+    label: "bir içerik",
+  };
+
+  return {
+    icon: typeCopy.icon,
+    title: `${actor} sana ${typeCopy.label} gönderdi.`,
+    detail: message || targetTitle,
+  };
+}
+
 function BellIcon({ hasUnread = false }) {
   return <AppIcon name={hasUnread ? "bell-ringing" : "bell"} />;
 }
@@ -125,16 +148,22 @@ export default function NotificationsPopover({
   isOpen = false,
   notifications = [],
   followActivity = [],
+  contentShares = [],
   isLoading = false,
   followActivityLoading = false,
+  contentSharesLoading = false,
   errorMessage = "",
   followActivityError = "",
+  contentSharesError = "",
   unreadCount = 0,
   onToggle = () => {},
   onRetryNotifications = () => {},
   onRetryFollowActivity = () => {},
+  onRetryContentShares = () => {},
   onFollowActivityViewed = () => {},
+  onContentSharesViewed = () => {},
   onOpenNotification = () => {},
+  onOpenContentShare = () => {},
   onRespondToRequest = null,
 }) {
   const menuRef = useRef(null);
@@ -143,6 +172,10 @@ export default function NotificationsPopover({
   const [actionError, setActionError] = useState("");
 
   const safeFollowActivity = Array.isArray(followActivity) ? followActivity : [];
+  const safeContentShares = useMemo(
+    () => (Array.isArray(contentShares) ? contentShares : []),
+    [contentShares]
+  );
   const safeUnreadCount = Number(unreadCount) || 0;
 
   const noteNotifications = useMemo(
@@ -159,6 +192,11 @@ export default function NotificationsPopover({
         (activity) => !activity?.IsRead
       ).length,
     [followActivity]
+  );
+
+  const contentShareUnreadCount = useMemo(
+    () => safeContentShares.filter((share) => !share?.IsRead).length,
+    [safeContentShares]
   );
 
   useEffect(() => {
@@ -233,16 +271,32 @@ export default function NotificationsPopover({
 
     if (nextTab === "follow") {
       void onFollowActivityViewed();
+    } else if (nextTab === "shares") {
+      void onContentSharesViewed();
     }
   };
 
   const isFollowTab = activeTab === "follow";
-  const visibleItems = isFollowTab ? safeFollowActivity : noteNotifications;
+  const isSharesTab = activeTab === "shares";
+  const visibleItems = isFollowTab
+    ? safeFollowActivity
+    : isSharesTab
+      ? safeContentShares
+      : noteNotifications;
   const isCurrentTabLoading = isFollowTab
     ? followActivityLoading
-    : isLoading;
-  const currentTabError = isFollowTab ? followActivityError : errorMessage;
+    : isSharesTab
+      ? contentSharesLoading
+      : isLoading;
+  const currentTabError = isFollowTab
+    ? followActivityError
+    : isSharesTab
+      ? contentSharesError
+      : errorMessage;
   const followBadgeLabel = followUnreadCount > 99 ? "99+" : String(followUnreadCount);
+  const contentShareBadgeLabel = contentShareUnreadCount > 99
+    ? "99+"
+    : String(contentShareUnreadCount);
   const bellBadgeLabel = safeUnreadCount > 9 ? "9+" : String(safeUnreadCount);
 
   return (
@@ -323,6 +377,23 @@ export default function NotificationsPopover({
               )}
             </button>
 
+            <button
+              className={activeTab === "shares" ? "notification-tab-active" : ""}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "shares"}
+              onClick={() => handleTabChange("shares")}
+            >
+              Paylaşımlar
+              {contentShareUnreadCount > 0 && (
+                <span
+                  className="notification-tab-count"
+                  aria-label={`${contentShareBadgeLabel} yeni paylaşım`}
+                >
+                  {contentShareBadgeLabel}
+                </span>
+              )}
+            </button>
           </div>
 
           <div className="notification-popover-body" role="tabpanel">
@@ -339,7 +410,9 @@ export default function NotificationsPopover({
                       onClick={() =>
                         isFollowTab
                           ? onRetryFollowActivity()
-                          : onRetryNotifications()
+                          : isSharesTab
+                            ? onRetryContentShares()
+                            : onRetryNotifications()
                       }
                     >
                       Tekrar dene
@@ -352,12 +425,14 @@ export default function NotificationsPopover({
                   visibleItems.length === 0 && (
                     <div className="notification-state">
                       <span className="notification-empty-icon" aria-hidden="true">
-                        <AppIcon name={isFollowTab ? "user" : "bell"} />
+                        <AppIcon name={isFollowTab ? "user" : isSharesTab ? "share-fat" : "bell"} />
                       </span>
                       <p>
                         {isFollowTab
                           ? "Henüz takip hareketin yok."
-                          : "Yeni not bildirimin yok."}
+                          : isSharesTab
+                            ? "Henüz sana gönderilen bir içerik yok."
+                            : "Yeni not bildirimin yok."}
                       </p>
                     </div>
                   )}
@@ -369,8 +444,12 @@ export default function NotificationsPopover({
                       {visibleItems.map((item) => {
                         const copy = isFollowTab
                           ? getFollowActivityCopy(item)
-                          : getNoteNotificationCopy(item);
-                        const actorUserId = Number(item?.ActorUserId);
+                          : isSharesTab
+                            ? getContentShareCopy(item)
+                            : getNoteNotificationCopy(item);
+                        const actorUserId = Number(
+                          isSharesTab ? item?.SenderUserId : item?.ActorUserId
+                        );
                         const canRespond = Boolean(item?.CanRespond);
                         const isProcessing =
                           canRespond &&
@@ -378,7 +457,9 @@ export default function NotificationsPopover({
                           processingFollowerUserId === actorUserId;
                         const itemKey = isFollowTab
                           ? item?.ActivityId || `follow-${actorUserId}-${item?.CreatedDate}`
-                          : item?.NotificationId || item?.CreatedDate;
+                          : isSharesTab
+                            ? item?.ContentShareId || `share-${actorUserId}-${item?.CreatedDate}`
+                            : item?.NotificationId || item?.CreatedDate;
 
                         return (
                           <article className="notification-item" key={itemKey}>
@@ -388,7 +469,11 @@ export default function NotificationsPopover({
                               }`}
                               type="button"
                               onClick={() => {
-                                onOpenNotification(item);
+                                if (isSharesTab) {
+                                  onOpenContentShare(item);
+                                } else {
+                                  onOpenNotification(item);
+                                }
                               }}
                             >
                               <span
@@ -400,7 +485,17 @@ export default function NotificationsPopover({
 
                               <span className="notification-item-copy">
                                 <strong>{copy.title}</strong>
-                                {copy.detail && <span>{copy.detail}</span>}
+                                {copy.detail && (
+                                  <span
+                                    className={
+                                      isSharesTab
+                                        ? "notification-item-detail notification-item-detail-full"
+                                        : "notification-item-detail"
+                                    }
+                                  >
+                                    {copy.detail}
+                                  </span>
+                                )}
                                 <time dateTime={item?.CreatedDate}>
                                   {formatNotificationTime(item?.CreatedDate)}
                                 </time>
