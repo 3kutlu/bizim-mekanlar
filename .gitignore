@@ -25,9 +25,9 @@ coverage/
 .vercel/
 supabase/.temp/
 
-# Internal documentation and working notes
-docs/
-*.txt
+# Internal documentation is hidden, architecture diagram remains public
+docs/*
+!docs/bizim_mekanlar_platform_mimarisi.png*.txt
 *.md
 !/README.md
 

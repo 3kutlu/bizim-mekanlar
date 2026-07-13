@@ -49,21 +49,9 @@ Proje, klasik bir mekân listeleme servisinden ziyade kullanıcıların kendi de
 
 ## Mimari
 
-```text
-Kullanıcı
-   │
-   ▼
-React + Vite PWA
-   ├── Google Maps Platform
-   ├── Supabase Auth
-   ├── Supabase PostgreSQL
-   ├── Supabase Storage
-   ├── Supabase Realtime
-   └── Supabase Edge Functions
-           │
-           ▼
-        Vercel
-```
+<p align="center">
+  <img src="./docs/bizim_mekanlar_platform_mimarisi.png" alt="Bizim Mekanlar platform mimarisi" width="100%" />
+</p>
 
 Frontend, Vercel üzerinde yayınlanır. Kimlik doğrulama, uygulama verileri, fotoğraflar, gerçek zamanlı güncellemeler ve sunucu tarafı işlemler Supabase servisleri üzerinden yönetilir.
 
