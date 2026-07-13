@@ -226,10 +226,24 @@
 }
 
 .auth-message {
+  display: grid;
+  gap: 8px;
   margin: 16px 0 0;
   color: #d6dbe7;
   font-size: 14px;
   line-height: 1.45;
+}
+
+.auth-message a {
+  width: fit-content;
+  color: #9cbaff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-message a:hover {
+  color: #c5d6ff;
 }
 
 @media (max-width: 520px) {
@@ -251,13 +265,4 @@
     font-size: 24px;
     letter-spacing: 0.31em;
   }
-}
-
-/* v2.2.1 — auth SVG primitives */
-.auth-back-button .app-icon,
-.auth-otp-note .app-icon {
-  width: 18px;
-  height: 18px;
-  display: inline-block;
-  vertical-align: -0.16em;
 }

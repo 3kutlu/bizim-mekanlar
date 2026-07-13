@@ -10,6 +10,19 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const OTP_LENGTH = 6;
 const OTP_PATTERN = new RegExp(`^\\d{${OTP_LENGTH}}$`);
 const OTP_PLACEHOLDER = "0".repeat(OTP_LENGTH);
+const SIGNUP_DEVICE_STORAGE_KEY = "bm_signup_device_v1";
+const SUPPORT_MESSAGE_CODES = new Set([
+  "EMAIL_NOT_ALLOWED",
+  "SIGNUP_TEMPORARILY_BLOCKED",
+]);
+const SUPPORT_MAILTO =
+  "mailto:3kutlu@gmail.com" +
+  "?subject=" +
+  encodeURIComponent("Bizim Mekanlar e-posta kayıt sorunu") +
+  "&body=" +
+  encodeURIComponent(
+    "Merhaba, Bizim Mekanlar'a kaydolurken e-posta adresimin kabul edilmediği uyarısını aldım."
+  );
 
 function normalizeEmail(value) {
   return String(value ?? "").trim().toLowerCase();
@@ -17,6 +30,38 @@ function normalizeEmail(value) {
 
 function normalizeUsername(value) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+function createSignupDeviceToken() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  const randomPart = Math.random().toString(36).slice(2);
+  return `${Date.now().toString(36)}-${randomPart}-${randomPart}`;
+}
+
+function readOrCreateSignupDeviceToken() {
+  const fallbackToken = createSignupDeviceToken();
+
+  if (typeof window === "undefined") {
+    return fallbackToken;
+  }
+
+  try {
+    const currentToken = window.localStorage.getItem(
+      SIGNUP_DEVICE_STORAGE_KEY
+    );
+
+    if (currentToken && currentToken.length >= 16) {
+      return currentToken;
+    }
+
+    window.localStorage.setItem(SIGNUP_DEVICE_STORAGE_KEY, fallbackToken);
+    return fallbackToken;
+  } catch {
+    return fallbackToken;
+  }
 }
 
 function getSignupValidation({
@@ -70,22 +115,55 @@ function getLoginValidation(identifier) {
   return "";
 }
 
-async function getFunctionErrorMessage(error) {
+async function getFunctionErrorPayload(error) {
   try {
     const response = error?.context;
 
     if (response && typeof response.clone === "function") {
       const body = await response.clone().json();
 
-      if (body?.message) {
-        return body.message;
-      }
+      return {
+        message: String(body?.message ?? "").trim(),
+        code: String(body?.code ?? "").trim(),
+      };
     }
   } catch {
     // Function error body her zaman JSON olmayabilir.
   }
 
-  return "";
+  return { message: "", code: "" };
+}
+
+function getSafeAuthErrorMessage(message, fallbackMessage) {
+  const normalizedMessage = String(message ?? "").trim();
+
+  if (!normalizedMessage) {
+    return fallbackMessage;
+  }
+
+  const lowerMessage = normalizedMessage.toLowerCase();
+
+  if (
+    lowerMessage.includes("rate limit") ||
+    lowerMessage.includes("too many requests") ||
+    lowerMessage.includes("security purposes") ||
+    lowerMessage.includes("email rate limit exceeded") ||
+    lowerMessage.includes("over_email_send_rate_limit")
+  ) {
+    return "Çok fazla kod istedin. Lütfen kısa bir süre bekleyip tekrar dene.";
+  }
+
+  if (
+    lowerMessage.includes("supabase") ||
+    lowerMessage.includes("edge function") ||
+    lowerMessage.includes("logs ekran") ||
+    lowerMessage.includes("function returned") ||
+    lowerMessage.includes("failed to fetch")
+  ) {
+    return fallbackMessage;
+  }
+
+  return normalizedMessage;
 }
 
 async function invokePasswordlessAuth(body) {
@@ -95,12 +173,18 @@ async function invokePasswordlessAuth(body) {
   );
 
   if (error) {
-    const responseMessage = await getFunctionErrorMessage(error);
-
-    throw new Error(
-      responseMessage ||
-        "Kod işlemi şu an tamamlanamadı. Lütfen kısa süre sonra tekrar dene."
+    const fallbackMessage =
+      "Kod işlemi şu an tamamlanamadı. Lütfen kısa süre sonra tekrar dene.";
+    const responsePayload = await getFunctionErrorPayload(error);
+    const authError = new Error(
+      getSafeAuthErrorMessage(
+        responsePayload.message || error?.message,
+        fallbackMessage
+      )
     );
+
+    authError.code = responsePayload.code;
+    throw authError;
   }
 
   return data ?? {};
@@ -130,10 +214,34 @@ export default function AuthPage() {
   const [otp, setOtp] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageCode, setMessageCode] = useState("");
 
   const otpInputRef = useRef(null);
+  const submissionLockRef = useRef(false);
+  const signupDeviceTokenRef = useRef("");
   const today = new Date().toISOString().slice(0, 10);
   const isOtpStep = step === "otp";
+  const shouldShowSupportLink = SUPPORT_MESSAGE_CODES.has(messageCode);
+
+  const getSignupDeviceToken = () => {
+    if (!signupDeviceTokenRef.current) {
+      signupDeviceTokenRef.current = readOrCreateSignupDeviceToken();
+    }
+
+    return signupDeviceTokenRef.current;
+  };
+
+  const clearMessage = () => {
+    setMessage("");
+    setMessageCode("");
+  };
+
+  const showError = (error, fallbackMessage) => {
+    setMessage(
+      getSafeAuthErrorMessage(error?.message, fallbackMessage)
+    );
+    setMessageCode(String(error?.code ?? ""));
+  };
 
   useEffect(() => {
     if (mode !== "signup" || cities.length > 0 || citiesLoading) {
@@ -152,6 +260,7 @@ export default function AuthPage() {
       if (error) {
         console.error("Şehirler alınamadı:", error);
         setMessage("Şehir listesi yüklenemedi.");
+        setMessageCode("");
       } else {
         setCities(data ?? []);
       }
@@ -167,6 +276,21 @@ export default function AuthPage() {
       window.setTimeout(() => otpInputRef.current?.focus(), 0);
     }
   }, [isOtpStep]);
+
+  const beginSubmission = () => {
+    if (submissionLockRef.current) {
+      return false;
+    }
+
+    submissionLockRef.current = true;
+    setSubmitting(true);
+    return true;
+  };
+
+  const endSubmission = () => {
+    submissionLockRef.current = false;
+    setSubmitting(false);
+  };
 
   const checkUsernameAvailability = async () => {
     const normalizedUsername = normalizeUsername(username);
@@ -199,42 +323,43 @@ export default function AuthPage() {
   };
 
   const requestOtp = async () => {
-    setMessage("");
-
-    const loginValidation = mode === "login"
-      ? getLoginValidation(loginIdentifier)
-      : "";
-
-    if (loginValidation) {
-      setMessage(loginValidation);
+    if (!beginSubmission()) {
       return;
     }
 
-    if (mode === "signup") {
-      const validationMessage = getSignupValidation({
-        username,
-        firstName,
-        birthDate,
-        cityId,
-        email,
-      });
-
-      if (validationMessage) {
-        setMessage(validationMessage);
-        return;
-      }
-
-      const isAvailable = await checkUsernameAvailability();
-
-      if (!isAvailable) {
-        setMessage("Başka bir kullanıcı adı seçmelisin.");
-        return;
-      }
-    }
-
-    setSubmitting(true);
+    clearMessage();
 
     try {
+      const loginValidation =
+        mode === "login" ? getLoginValidation(loginIdentifier) : "";
+
+      if (loginValidation) {
+        setMessage(loginValidation);
+        return;
+      }
+
+      if (mode === "signup") {
+        const validationMessage = getSignupValidation({
+          username,
+          firstName,
+          birthDate,
+          cityId,
+          email,
+        });
+
+        if (validationMessage) {
+          setMessage(validationMessage);
+          return;
+        }
+
+        const isAvailable = await checkUsernameAvailability();
+
+        if (!isAvailable) {
+          setMessage("Başka bir kullanıcı adı seçmelisin.");
+          return;
+        }
+      }
+
       const normalizedLoginIdentifier = String(loginIdentifier)
         .trim()
         .toLowerCase();
@@ -252,6 +377,7 @@ export default function AuthPage() {
               birthDate,
               cityId: Number(cityId),
               accountVisibilityCode: isPrivateAccount ? "PRIVATE" : "PUBLIC",
+              deviceToken: getSignupDeviceToken(),
             }
           : {
               action: "login",
@@ -264,40 +390,40 @@ export default function AuthPage() {
       );
       setOtp("");
       setStep("otp");
-      setMessage(
-        mode === "signup"
-          ? "6 haneli kod e-posta adresine gönderildi."
-          : "Eşleşen hesabın varsa 6 haneli kod e-posta adresine gönderildi."
-      );
+      setMessage("6 haneli kod e-posta adresine gönderildi.");
+      setMessageCode("");
     } catch (error) {
       console.error("OTP gönderilemedi:", error);
-      setMessage(
-        error?.message ||
-          "Kod şu an gönderilemedi. Lütfen kısa süre sonra tekrar dene."
+      showError(
+        error,
+        "Kod şu an gönderilemedi. Lütfen kısa süre sonra tekrar dene."
       );
     } finally {
-      setSubmitting(false);
+      endSubmission();
     }
   };
 
   const verifyOtp = async (event) => {
     event.preventDefault();
-    setMessage("");
 
-    if (!OTP_PATTERN.test(otp)) {
-      setMessage("E-postana gelen 6 haneli kodu yaz.");
+    if (!beginSubmission()) {
       return;
     }
 
-    if (!pendingIdentifier) {
-      setMessage("Oturum bilgisi bulunamadı. Kodu yeniden iste.");
-      setStep("form");
-      return;
-    }
-
-    setSubmitting(true);
+    clearMessage();
 
     try {
+      if (!OTP_PATTERN.test(otp)) {
+        setMessage("E-postana gelen 6 haneli kodu yaz.");
+        return;
+      }
+
+      if (!pendingIdentifier) {
+        setMessage("Oturum bilgisi bulunamadı. Kodu yeniden iste.");
+        setStep("form");
+        return;
+      }
+
       const result = await invokePasswordlessAuth({
         action: "verify",
         identifier: pendingIdentifier,
@@ -323,22 +449,21 @@ export default function AuthPage() {
       // App.jsx oturum değişimini dinliyor; başarılı setSession sonrası uygulama açılır.
     } catch (error) {
       console.error("OTP doğrulanamadı:", error);
-      setMessage(
-        error?.message ||
-          "Kod geçersiz veya süresi dolmuş. Yeni bir kod iste."
+      showError(
+        error,
+        "Kod geçersiz veya süresi dolmuş. Yeni bir kod iste."
       );
     } finally {
-      setSubmitting(false);
+      endSubmission();
     }
   };
 
   const resendOtp = async () => {
-    if (submitting || !pendingIdentifier) {
+    if (!pendingIdentifier || !beginSubmission()) {
       return;
     }
 
-    setSubmitting(true);
-    setMessage("");
+    clearMessage();
 
     try {
       await invokePasswordlessAuth(
@@ -352,6 +477,7 @@ export default function AuthPage() {
               birthDate,
               cityId: Number(cityId),
               accountVisibilityCode: isPrivateAccount ? "PRIVATE" : "PUBLIC",
+              deviceToken: getSignupDeviceToken(),
             }
           : {
               action: "login",
@@ -361,30 +487,31 @@ export default function AuthPage() {
 
       setOtp("");
       setMessage("Yeni kod e-posta adresine gönderildi.");
+      setMessageCode("");
     } catch (error) {
       console.error("OTP yeniden gönderilemedi:", error);
-      setMessage(
-        error?.message ||
-          "Kod şu an yeniden gönderilemedi. Lütfen kısa süre sonra tekrar dene."
+      showError(
+        error,
+        "Kod şu an yeniden gönderilemedi. Lütfen kısa süre sonra tekrar dene."
       );
     } finally {
-      setSubmitting(false);
+      endSubmission();
     }
   };
 
   const returnToForm = () => {
-    if (submitting) {
+    if (submitting || submissionLockRef.current) {
       return;
     }
 
     setStep("form");
     setOtp("");
     setPendingIdentifier("");
-    setMessage("");
+    clearMessage();
   };
 
   const switchMode = () => {
-    if (submitting) {
+    if (submitting || submissionLockRef.current) {
       return;
     }
 
@@ -394,13 +521,31 @@ export default function AuthPage() {
     setStep("form");
     setOtp("");
     setPendingIdentifier("");
-    setMessage("");
+    clearMessage();
     setUsernameMessage("");
     setUsernameAvailable(null);
   };
 
   const handleOtpChange = (event) => {
     setOtp(event.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH));
+  };
+
+  const renderMessage = () => {
+    if (!message) {
+      return null;
+    }
+
+    return (
+      <div className="auth-message" role="status">
+        <span>{message}</span>
+
+        {shouldShowSupportLink && (
+          <a href={SUPPORT_MAILTO}>
+            Bir yanlışlık olduğunu düşünüyorsan bizimle iletişime geç.
+          </a>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -584,11 +729,7 @@ export default function AuthPage() {
               </button>
             </form>
 
-            {message && (
-              <p className="auth-message" role="status">
-                {message}
-              </p>
-            )}
+            {renderMessage()}
 
             <button
               className="text-button"
@@ -646,11 +787,7 @@ export default function AuthPage() {
               </button>
             </form>
 
-            {message && (
-              <p className="auth-message" role="status">
-                {message}
-              </p>
-            )}
+            {renderMessage()}
 
             <button
               className="text-button"

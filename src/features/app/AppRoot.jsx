@@ -242,15 +242,6 @@ export default function App() {
     );
   }, [applyNavigationSnapshot, getRootPathForPage]);
 
-  const dismissAppMessage = useCallback(() => {
-    if (shareNoticeTimerRef.current) {
-      window.clearTimeout(shareNoticeTimerRef.current);
-      shareNoticeTimerRef.current = null;
-    }
-
-    setAppMessage("");
-  }, []);
-
   const showTemporaryAppMessage = useCallback((messageKey) => {
     setAppMessage(messageKey);
   }, []);
@@ -2310,20 +2301,6 @@ export default function App() {
           )}
         </div>
       </header>
-
-      {appMessage && (
-        <div className="app-message" role="status" aria-live="polite">
-          <span>{t(appMessage)}</span>
-          <button
-            type="button"
-            onClick={dismissAppMessage}
-            aria-label="Uyarıyı kapat"
-            title="Kapat"
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       {isPushPermissionPromptOpen && (
         <PushNotificationPrompt
