@@ -10,3 +10,33 @@ coverage/
 supabase/.temp/
 .vercel
 .env*
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Local deployment and CLI metadata
+.vercel/
+supabase/.temp/
+
+# Internal documentation and working notes
+docs/
+*.txt
+*.md
+!/README.md
+
+# One-time operational scripts
+/scripts/backfill-venue-primary-types.mjs
+/scripts/generate-vapid-keys.mjs
+
+# Generated and temporary files
+*.zip
+*.log
+*.bak
+*.backup
