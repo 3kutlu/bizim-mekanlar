@@ -53,57 +53,6 @@ Proje, klasik bir mekân listeleme servisinden ziyade kullanıcıların kendi de
   <img src="./docs/bizim_mekanlar_platform_mimarisi.png" alt="Bizim Mekanlar platform mimarisi" width="100%" />
 </p>
 
-Frontend, Vercel üzerinde yayınlanır. Kimlik doğrulama, uygulama verileri, fotoğraflar, gerçek zamanlı güncellemeler ve sunucu tarafı işlemler Supabase servisleri üzerinden yönetilir.
-
-## Yerel Geliştirme
-
-### Gereksinimler
-
-- Node.js 20 veya üzeri
-- npm
-- Bir Supabase projesi
-- Google Maps Platform API erişimi
-
-### Kurulum
-
-```bash
-git clone https://github.com/3kutlu/bizim-mekanlar.git
-cd bizim-mekanlar
-npm install
-```
-
-Proje kökünde bir `.env.local` dosyası oluştur:
-
-```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
-VITE_GOOGLE_MAPS_API_KEY=
-VITE_GOOGLE_MAP_ID=
-VITE_VAPID_PUBLIC_KEY=
-```
-
-Geliştirme sunucusunu başlat:
-
-```bash
-npm run dev
-```
-
-## Proje Yapısı
-
-```text
-public/                 PWA dosyaları ve statik varlıklar
-src/                    React kaynak kodları
-supabase/functions/     Edge Functions
-supabase/migrations/    Veritabanı migration dosyaları
-```
-
-## Güvenlik
-
-- Hassas anahtarlar kaynak kodda tutulmaz.
-- Ortam değişkenleri yerel ve platform secret alanlarında yönetilir.
-- Veritabanı erişimleri Row Level Security politikalarıyla sınırlandırılır.
-- Güvenlik gerektiren işlemler istemci yerine sunucu tarafında yürütülür.
-- E-posta OTP kayıt akışında geçici ve kabul edilmeyen e-posta domainleri kontrol edilir.
 
 ## Proje Durumu
 
