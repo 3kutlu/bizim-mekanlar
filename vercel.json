@@ -6,10 +6,9 @@
     { "source": "/collection/:path*", "destination": "/index.html" },
     { "source": "/feed", "destination": "/index.html" },
     { "source": "/profile", "destination": "/index.html" },
-    { "source": "/search", "destination": "/index.html" }
-  ]
-
-  ,
+    { "source": "/search", "destination": "/index.html" },
+    { "source": "/settings", "destination": "/index.html" }
+  ],
   "redirects": [
     {
       "source": "/(.*)",

@@ -13,6 +13,8 @@ import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { getZodiacIconName } from "../../utils/zodiac.js";
 import { getMyUserRelationshipState } from "../../utils/userRelationships.js";
+import { FeedPageSkeleton, ProfilePageSkeleton, ProfileTabSkeleton } from "../app/shared/pageSkeletons.jsx";
+import { PlacePhotoGallery } from "../places/PlaceDetailPage.jsx";
 import "../../css/user-discovery.css";
 
 const PROFILE_TABS = Object.freeze({
@@ -272,16 +274,17 @@ export default function UserProfilePage({
 
   const [activeTab, setActiveTab] = useState(PROFILE_TABS.NOTES);
   const [notes, setNotes] = useState([]);
-  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState("");
   const [photos, setPhotos] = useState([]);
-  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosLoading, setPhotosLoading] = useState(true);
   const [photosError, setPhotosError] = useState("");
   const [savedLists, setSavedLists] = useState([]);
-  const [savedListsLoading, setSavedListsLoading] = useState(false);
+  const [savedListsLoading, setSavedListsLoading] = useState(true);
   const [savedListsError, setSavedListsError] = useState("");
-  const initialContentLoadRef = useRef(null);
-  const lastListsRefreshKeyRef = useRef(placeListsRefreshKey);
+  const notesLoadKeyRef = useRef("");
+  const photosLoadKeyRef = useRef("");
+  const listsLoadKeyRef = useRef("");
   const swipeStartRef = useRef(null);
   const [tabDragOffset, setTabDragOffset] = useState(0);
   const [isTabDragging, setIsTabDragging] = useState(false);
@@ -530,39 +533,63 @@ export default function UserProfilePage({
     setSavedListsLoading(false);
   }, [canViewProfileContent, profile?.UserId]);
 
-  useEffect(() => {
-    const profileId = Number(profile?.UserId);
-    const contentKey = `${profileId}:${canViewProfileContent}`;
-
-    if (!Number.isInteger(profileId) || profileId <= 0 || !canViewProfileContent) {
-      return;
-    }
-
-    if (initialContentLoadRef.current === contentKey) {
-      return;
-    }
-
-    initialContentLoadRef.current = contentKey;
-    lastListsRefreshKeyRef.current = placeListsRefreshKey;
-
-    void Promise.all([loadNotes(), loadPhotos(), loadSavedLists()]);
-  }, [
-    canViewProfileContent,
-    loadNotes,
-    loadPhotos,
-    loadSavedLists,
-    placeListsRefreshKey,
-    profile?.UserId,
-  ]);
+  const profileId = Number(profile?.UserId);
+  const contentKey = `${profileId}:${canViewProfileContent}`;
+  const listsLoadKey = `${contentKey}:${placeListsRefreshKey}`;
 
   useEffect(() => {
-    if (!canViewProfileContent || lastListsRefreshKeyRef.current === placeListsRefreshKey) {
+    if (
+      !isActive ||
+      !canViewProfileContent ||
+      !Number.isInteger(profileId) ||
+      profileId <= 0 ||
+      notesLoadKeyRef.current === contentKey
+    ) {
       return;
     }
 
-    lastListsRefreshKeyRef.current = placeListsRefreshKey;
+    notesLoadKeyRef.current = contentKey;
+    void loadNotes();
+  }, [canViewProfileContent, contentKey, isActive, loadNotes, profileId]);
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      activeTab !== PROFILE_TABS.PHOTOS ||
+      !canViewProfileContent ||
+      !Number.isInteger(profileId) ||
+      profileId <= 0 ||
+      photosLoadKeyRef.current === contentKey
+    ) {
+      return;
+    }
+
+    photosLoadKeyRef.current = contentKey;
+    void loadPhotos();
+  }, [activeTab, canViewProfileContent, contentKey, isActive, loadPhotos, profileId]);
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      activeTab !== PROFILE_TABS.SAVED ||
+      !canViewProfileContent ||
+      !Number.isInteger(profileId) ||
+      profileId <= 0 ||
+      listsLoadKeyRef.current === listsLoadKey
+    ) {
+      return;
+    }
+
+    listsLoadKeyRef.current = listsLoadKey;
     void loadSavedLists();
-  }, [canViewProfileContent, loadSavedLists, placeListsRefreshKey]);
+  }, [
+    activeTab,
+    canViewProfileContent,
+    isActive,
+    listsLoadKey,
+    loadSavedLists,
+    profileId,
+  ]);
 
   const handleTabSwipeStart = (event) => {
     const touch = event.touches?.[0];
@@ -784,7 +811,7 @@ export default function UserProfilePage({
 
     if (activeTab === PROFILE_TABS.PHOTOS) {
       if (photosLoading) {
-        return <div className="foreign-profile-tab-loading">Fotoğraflar yükleniyor...</div>;
+        return <ProfileTabSkeleton variant="photos" />;
       }
 
       if (photosError) {
@@ -804,27 +831,28 @@ export default function UserProfilePage({
       }
 
       return (
-        <div className="foreign-profile-photo-grid" aria-label="Paylaşılan fotoğraflar">
-          {photos.map((photo) => (
-            <button
-              className="foreign-profile-photo-tile"
-              type="button"
-              key={photo.PlaceNotePhotoId}
-              onClick={() => onOpenNote?.(Number(photo.PlaceNoteId))}
-              disabled={!photo.SignedUrl || !photo.PlaceNoteId || !onOpenNote}
-              title={`${photo.PlaceName || "Mekan"} notunu aç`}
-            >
-              <img src={photo.SignedUrl} alt={`${photo.PlaceName || "Mekan"} fotoğrafı`} />
-              <span>{photo.PlaceName || "Mekan"}</span>
-            </button>
-          ))}
-        </div>
+        <PlacePhotoGallery
+          photos={photos}
+          loading={false}
+          errorMessage=""
+          onRetry={loadPhotos}
+          onOpenNote={onOpenNote}
+          className="foreign-profile-place-photo-gallery"
+          headingTitle="Fotoğraflar"
+          sectionLabel="Profil fotoğrafları"
+          galleryLabel="Profil fotoğraf galerisi"
+          photoAlt="Profilde paylaşılan mekan fotoğrafı"
+          noteActionLabel="Notu gör"
+          getFooterLabel={(photo) => photo.PlaceName || "Mekan fotoğrafı"}
+          showEyebrow={false}
+          showAllPhotos
+        />
       );
     }
 
     if (activeTab === PROFILE_TABS.NOTES) {
       if (notesLoading) {
-        return <div className="foreign-profile-tab-loading">Notlar yükleniyor...</div>;
+        return <FeedPageSkeleton compact />;
       }
 
       if (notesError) {
@@ -862,11 +890,7 @@ export default function UserProfilePage({
     }
 
     if (savedListsLoading) {
-      return (
-        <div className="foreign-profile-tab-loading">
-          Kaydedilenler yükleniyor...
-        </div>
-      );
+      return <ProfileTabSkeleton variant="lists" />;
     }
 
     if (savedListsError) {
@@ -931,7 +955,7 @@ export default function UserProfilePage({
     <div className="discovery-page-content foreign-profile-page">
       <div className="discovery-page-body">
         {isLoading && (
-          <div className="foreign-profile-state">Profil yükleniyor...</div>
+          <ProfilePageSkeleton />
         )}
 
         {!isLoading && errorMessage && !profile && (

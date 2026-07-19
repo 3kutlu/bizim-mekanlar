@@ -10,6 +10,115 @@
   margin-bottom: 20px;
 }
 
+.feed-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  border: 1px solid #2a303b;
+  border-radius: 14px;
+  background: #11141a;
+}
+
+.feed-tab {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  color: #8e97a8;
+  font-size: 14px;
+  font-weight: 780;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.feed-tab:hover,
+.feed-tab:focus-visible {
+  color: #f3f5fa;
+  background: #1b2029;
+}
+
+.feed-tab-active,
+.feed-tab-active:hover,
+.feed-tab-active:focus-visible {
+  color: #ffffff;
+  background: #262d39;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
+}
+
+.feed-tab-panel {
+  min-height: 240px;
+}
+
+.feed-empty-state {
+  gap: 10px;
+}
+
+.feed-empty-state-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #384255;
+  border-radius: 50%;
+  background: #1b2029;
+  color: #dbe5fa;
+}
+
+.feed-empty-state-icon .app-icon {
+  width: 23px;
+  height: 23px;
+}
+
+.feed-empty-state-action,
+.feed-load-more-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #52617b;
+  border-radius: 11px;
+  padding: 10px 16px;
+  background: #252d3b;
+  color: #f7f9ff;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.feed-empty-state-action {
+  margin-top: 6px;
+}
+
+.feed-empty-state-action:hover,
+.feed-empty-state-action:focus-visible,
+.feed-load-more-button:hover:not(:disabled),
+.feed-load-more-button:focus-visible:not(:disabled) {
+  border-color: #7d91b5;
+  background: #303a4c;
+}
+
+.feed-empty-state-action .app-icon,
+.feed-load-more-button .app-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.feed-load-more-button {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.feed-load-more-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.feed-load-more-spinner {
+  animation: list-spin 0.8s linear infinite;
+}
+
 .note-feed {
   width: 100%;
 }

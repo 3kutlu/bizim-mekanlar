@@ -248,7 +248,7 @@ export function getSelectedPlaceFromMapRow(place) {
     cityName: cleanText(place?.CityName),
     postalCode: cleanText(place?.PostalCode),
     venueCategoryCode: cleanText(place?.VenueCategoryCode) || null,
-    isEligible: true,
+    isEligible: isSupportedVenueCategory(place?.VenueCategoryCode),
     reviewCount: Math.max(0, Number(place?.VisibleNoteCount) || 0),
     selectionSource: "social-map-marker",
     location: {

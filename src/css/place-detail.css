@@ -505,6 +505,14 @@
   min-height: 132px;
 }
 
+.place-detail-photo-all-grid {
+  max-height: none;
+}
+
+.place-detail-photo-all-grid .place-detail-photo-tile {
+  min-height: 0;
+}
+
 .place-detail-photo-more-count {
   position: absolute;
   inset: 0;

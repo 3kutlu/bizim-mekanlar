@@ -34,13 +34,28 @@ import { PlaceListDetailPage, ProfileCollectionPage } from "../collections/Colle
 import DeepLinkNotFoundPage from "../routing/DeepLinkNotFoundPage.jsx";
 import { getCollectionDeepLinkTarget, getCollectionDeepLinkTargetById, getNoteDeepLinkTarget, getNoteDeepLinkTargetById, getPlaceDeepLinkTarget, getPlaceDeepLinkTargetById, getUserDeepLinkTargetById, getUserDeepLinkTargetByUsername } from "../routing/deepLinkApi.js";
 import { ROUTE_PATHS, buildCollectionPath, buildNotePath, buildPlacePath, buildProfileCollectionPath, buildUserPath, createNavigationSnapshot, fromHistoryState, getLocationRoutePath, parseRoutePath, toHistoryState } from "../routing/routes.js";
-import { ListPage } from "../feed/FeedPage.jsx";
 import { NoteDetailPage } from "../notes/NoteComponents.jsx";
 import { PlaceDetailPage } from "../places/PlaceDetailPage.jsx";
-import { ProfileEditModal, ProfilePage } from "../profile/MyProfilePage.jsx";
 import SettingsPage, { AccountRecoveryPage } from "../settings/SettingsPage.jsx";
 import { BottomNavigation, EMPTY_SUMMARY, PROFILE_COLLECTIONS, SILENT_NOTIFICATION_REFRESH_INTERVAL_MS, SearchIcon, SettingsIcon, createDiscoveryScreenId, isIOSDevice, isPrivateAccount, renderUsernameWithLock } from "./appShared.jsx";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { FeedPageSkeleton, ProfilePageSkeleton } from "./shared/pageSkeletons.jsx";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+
+const ListPage = lazy(() =>
+  import("../feed/FeedPage.jsx").then((module) => ({ default: module.ListPage }))
+);
+const ProfilePage = lazy(() =>
+  import("../profile/MyProfilePage.jsx").then((module) => ({ default: module.ProfilePage }))
+);
+const ProfileEditModal = lazy(() =>
+  import("../profile/MyProfilePage.jsx").then((module) => ({ default: module.ProfileEditModal }))
+);
+
+const INITIAL_MOUNTED_PAGES = Object.freeze({
+  map: true,
+  list: false,
+  profile: false,
+});
 
 
 function withVisibleUnreadCount(rows) {
@@ -55,6 +70,9 @@ function withVisibleUnreadCount(rows) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [activePage, setActivePage] = useState("map");
+  const [mountedPages, setMountedPages] = useState(() => ({
+    ...INITIAL_MOUNTED_PAGES,
+  }));
   const [loading, setLoading] = useState(true);
 
   const [profile, setProfile] = useState(null);
@@ -171,6 +189,11 @@ export default function App() {
     navigationRef.current = nextNavigation;
     setIsProfileEditOpen(false);
     setIsNotificationsOpen(false);
+    setMountedPages((currentPages) =>
+      currentPages[nextNavigation.activePage]
+        ? currentPages
+        : { ...currentPages, [nextNavigation.activePage]: true }
+    );
     setActivePage(nextNavigation.activePage);
     setDiscoveryStack(nextNavigation.discoveryStack);
     setMapTarget(nextNavigation.mapTarget);
@@ -1560,6 +1583,7 @@ export default function App() {
     setContentShares([]);
     setContentSharesError("");
     setShareDraft(null);
+    setMountedPages({ ...INITIAL_MOUNTED_PAGES });
     return true;
   };
 
@@ -2221,17 +2245,17 @@ export default function App() {
             <nav className="desktop-nav" aria-label="Ana menü">
               <button
                 type="button"
+                className={activePage === "list" ? "nav-active" : ""}
+                onClick={() => handleTabNavigation("list")}
+              >
+                Akış
+              </button>
+              <button
+                type="button"
                 className={activePage === "map" ? "nav-active" : ""}
                 onClick={() => handleTabNavigation("map")}
               >
                 Harita
-              </button>
-              <button
-                type="button"
-                className={activePage === "list" ? "nav-active" : ""}
-                onClick={() => handleTabNavigation("list")}
-              >
-                Liste
               </button>
               <button
                 type="button"
@@ -2341,43 +2365,53 @@ export default function App() {
           />
         </section>
 
-        <section
-          className={`tab-page tab-page-scroll ${
-            activePage === "list" ? "tab-page-active" : ""
-          }`}
-          aria-hidden={activePage !== "list"}
-        >
-          <ListPage
-            refreshKey={notesRefreshKey}
-            placeReviewFilter={placeReviewFilter}
-            onClearPlaceReviewFilter={() => setPlaceReviewFilter(null)}
-            currentUserId={ownUserId}
-            onOpenPlace={handleOpenPlaceDetail}
-            onOpenUser={handleOpenUserProfile}
-            onOpenNote={handleOpenNote}
-          />
-        </section>
+        {mountedPages.list && (
+          <section
+            className={`tab-page tab-page-scroll ${
+              activePage === "list" ? "tab-page-active" : ""
+            }`}
+            aria-hidden={activePage !== "list"}
+          >
+            <Suspense fallback={<FeedPageSkeleton />}>
+              <ListPage
+                isActive={activePage === "list"}
+                refreshKey={notesRefreshKey}
+                placeReviewFilter={placeReviewFilter}
+                onClearPlaceReviewFilter={() => setPlaceReviewFilter(null)}
+                currentUserId={ownUserId}
+                onOpenPlace={handleOpenPlaceDetail}
+                onOpenUser={handleOpenUserProfile}
+                onOpenNote={handleOpenNote}
+              />
+            </Suspense>
+          </section>
+        )}
 
-        <section
-          className={`tab-page tab-page-scroll ${
-            activePage === "profile" ? "tab-page-active" : ""
-          }`}
-          aria-hidden={activePage !== "profile"}
-        >
-          <ProfilePage
-            profile={profile}
-            summary={summary}
-            profileNotice={profileNotice}
-            notesRefreshKey={notesRefreshKey}
-            placeListsRefreshKey={placeListsRefreshKey}
-            currentUserId={ownUserId}
-            onCollectionClick={handleProfileCollectionClick}
-            onOpenPlaceList={handleOpenPlaceList}
-            onOpenPlace={handleOpenPlaceDetail}
-            onOpenNote={handleOpenNote}
-            onShareProfile={handleShareOwnProfile}
-          />
-        </section>
+        {mountedPages.profile && (
+          <section
+            className={`tab-page tab-page-scroll ${
+              activePage === "profile" ? "tab-page-active" : ""
+            }`}
+            aria-hidden={activePage !== "profile"}
+          >
+            <Suspense fallback={<ProfilePageSkeleton />}>
+              <ProfilePage
+                isActive={activePage === "profile"}
+                profile={profile}
+                summary={summary}
+                profileNotice={profileNotice}
+                notesRefreshKey={notesRefreshKey}
+                placeListsRefreshKey={placeListsRefreshKey}
+                currentUserId={ownUserId}
+                onCollectionClick={handleProfileCollectionClick}
+                onOpenPlaceList={handleOpenPlaceList}
+                onOpenPlace={handleOpenPlaceDetail}
+                onOpenNote={handleOpenNote}
+                onShareProfile={handleShareOwnProfile}
+              />
+            </Suspense>
+          </section>
+        )}
 
         {discoveryStack.length > 0 && (
           <div className="discovery-page-layer">
@@ -2541,17 +2575,19 @@ export default function App() {
       )}
 
       {isProfileEditOpen && (
-        <ProfileEditModal
-          profile={profile}
-          cities={cities}
-          citiesLoading={citiesLoading}
-          citiesError={citiesError}
-          onClose={() => setIsProfileEditOpen(false)}
-          onSaved={async () => {
-            await loadProfile();
-            setIsProfileEditOpen(false);
-          }}
-        />
+        <Suspense fallback={null}>
+          <ProfileEditModal
+            profile={profile}
+            cities={cities}
+            citiesLoading={citiesLoading}
+            citiesError={citiesError}
+            onClose={() => setIsProfileEditOpen(false)}
+            onSaved={async () => {
+              await loadProfile();
+              setIsProfileEditOpen(false);
+            }}
+          />
+        </Suspense>
       )}
       </div>
     </DesktopMobileShell>

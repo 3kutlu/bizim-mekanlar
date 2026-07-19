@@ -1610,6 +1610,10 @@ button.foreign-profile-saved-card-button:focus-visible {
   gap: 7px;
 }
 
+.foreign-profile-place-photo-gallery.place-detail-photo-section {
+  margin-top: 0;
+}
+
 .foreign-profile-photo-tile {
   border-radius: 14px;
   box-shadow: 0 8px 18px rgba(0,0,0,.18);
@@ -2030,4 +2034,3 @@ button.foreign-profile-saved-card-button:focus-visible {
   color: #ff9a9e;
   font-weight: 650;
 }
-

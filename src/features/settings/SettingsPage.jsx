@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import AppIcon from "../../components/AppIcon.jsx";
 import PushNotificationSettings from "../../components/PushNotificationSettings.jsx";
 import { supabase } from "../../supabase.js";
 import { useProfilePhotoUrls } from "../../utils/profilePhotos.js";
-import { ProfileEditModal } from "../profile/MyProfilePage.jsx";
 import "../../css/settings-page.css";
+
+const ProfileEditModal = lazy(() =>
+  import("../profile/MyProfilePage.jsx").then((module) => ({ default: module.ProfileEditModal }))
+);
 
 const SETTINGS_VIEWS = Object.freeze({
   MAIN: "main",
@@ -624,17 +627,19 @@ export default function SettingsPage({
       )}
 
       {isProfileEditOpen && (
-        <ProfileEditModal
-          profile={profile}
-          cities={cities}
-          citiesLoading={citiesLoading}
-          citiesError={citiesError}
-          onClose={() => setIsProfileEditOpen(false)}
-          onSaved={async () => {
-            await onProfileSaved?.();
-            setIsProfileEditOpen(false);
-          }}
-        />
+        <Suspense fallback={null}>
+          <ProfileEditModal
+            profile={profile}
+            cities={cities}
+            citiesLoading={citiesLoading}
+            citiesError={citiesError}
+            onClose={() => setIsProfileEditOpen(false)}
+            onSaved={async () => {
+              await onProfileSaved?.();
+              setIsProfileEditOpen(false);
+            }}
+          />
+        </Suspense>
       )}
 
       {dialog === "freeze" && (

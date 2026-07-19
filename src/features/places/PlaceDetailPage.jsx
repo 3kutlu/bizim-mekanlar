@@ -10,6 +10,7 @@ import { getVenueCategoryIcon, getVenueCategoryLabel } from "../../utils/venueCa
 import { ErrorState, LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
 import AppIcon from "../../components/AppIcon.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { filterUnavailableUsers, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 
 export function PlaceDetailPage({
@@ -370,7 +371,23 @@ export function PlaceDetailPage({
   );
 }
 
-export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOpenNote, headingRef }) {
+export function PlacePhotoGallery({
+  photos,
+  loading,
+  errorMessage,
+  onRetry,
+  onOpenNote,
+  headingRef,
+  className = "",
+  headingTitle = "Mekandan kareler",
+  sectionLabel = "Mekan fotoğrafları",
+  galleryLabel = "Mekan fotoğraf galerisi",
+  photoAlt = "Mekan fotoğrafı",
+  noteActionLabel = "Notu aç",
+  getFooterLabel,
+  showEyebrow = true,
+  showAllPhotos = false,
+}) {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
@@ -378,7 +395,7 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
   const totalPhotoCount = Number.isFinite(visiblePhotoCount)
     ? visiblePhotoCount
     : photos.length;
-  const previewPhotos = photos.slice(0, 3);
+  const previewPhotos = showAllPhotos ? photos : photos.slice(0, 3);
   const activePhoto = photos[activePhotoIndex] ?? null;
 
   const openGallery = useCallback((index = 0) => {
@@ -427,11 +444,11 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
 
   if (loading) {
     return (
-      <section className="place-detail-photo-section" aria-busy="true">
+      <section className={`place-detail-photo-section${className ? ` ${className}` : ""}`} aria-busy="true">
         <div ref={headingRef} className="place-detail-photo-heading place-detail-scroll-target">
           <div>
-            <p className="eyebrow">FOTOĞRAFLAR</p>
-            <h2>Mekandan kareler</h2>
+            {showEyebrow && <p className="eyebrow">FOTOĞRAFLAR</p>}
+            <h2>{headingTitle}</h2>
           </div>
         </div>
         <p className="place-detail-photo-state">Fotoğraflar yükleniyor...</p>
@@ -441,11 +458,11 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
 
   if (errorMessage) {
     return (
-      <section className="place-detail-photo-section">
+      <section className={`place-detail-photo-section${className ? ` ${className}` : ""}`}>
         <div ref={headingRef} className="place-detail-photo-heading place-detail-scroll-target">
           <div>
-            <p className="eyebrow">FOTOĞRAFLAR</p>
-            <h2>Mekandan kareler</h2>
+            {showEyebrow && <p className="eyebrow">FOTOĞRAFLAR</p>}
+            <h2>{headingTitle}</h2>
           </div>
         </div>
         <div className="place-detail-photo-error">
@@ -462,7 +479,10 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
 
   return (
     <>
-      <section className="place-detail-photo-section" aria-label="Mekan fotoğrafları">
+      <section
+        className={`place-detail-photo-section${className ? ` ${className}` : ""}`}
+        aria-label={sectionLabel}
+      >
         <button
           className="place-detail-photo-heading place-detail-photo-heading-button place-detail-scroll-target"
           ref={headingRef}
@@ -471,13 +491,19 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
           aria-label={`${totalPhotoCount} mekan fotoğrafının tamamını aç`}
         >
           <div>
-            <p className="eyebrow">FOTOĞRAFLAR</p>
-            <h2>Mekandan kareler</h2>
+            {showEyebrow && <p className="eyebrow">FOTOĞRAFLAR</p>}
+            <h2>{headingTitle}</h2>
           </div>
           <span>{totalPhotoCount}</span>
         </button>
 
-        <div className="place-detail-photo-grid place-detail-photo-preview-grid">
+        <div
+          className={`place-detail-photo-grid ${
+            showAllPhotos
+              ? "place-detail-photo-all-grid"
+              : "place-detail-photo-preview-grid"
+          }`}
+        >
           {previewPhotos.map((photo, index) => {
             const isLastPreview = index === previewPhotos.length - 1;
             const remainingPhotoCount = Math.max(totalPhotoCount - previewPhotos.length, 0);
@@ -491,8 +517,13 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
                 disabled={!photo.SignedUrl}
                 aria-label={`${index + 1}. fotoğrafı galeride aç`}
               >
-                <img src={photo.SignedUrl} alt="Mekan fotoğrafı" />
-                {isLastPreview && remainingPhotoCount > 0 && (
+                <img
+                  src={photo.SignedUrl}
+                  alt={photoAlt}
+                  loading="lazy"
+                  decoding="async"
+                />
+                {!showAllPhotos && isLastPreview && remainingPhotoCount > 0 && (
                   <span className="place-detail-photo-more-count">+{remainingPhotoCount}</span>
                 )}
               </button>
@@ -501,74 +532,81 @@ export function PlacePhotoGallery({ photos, loading, errorMessage, onRetry, onOp
         </div>
       </section>
 
-      {isGalleryOpen && activePhoto && (
-        <div
-          className="place-photo-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Mekan fotoğraf galerisi"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeGallery();
-            }
-          }}
-        >
-          <div className="place-photo-lightbox-panel">
-            <div className="place-photo-lightbox-header">
-              <span>{activePhotoIndex + 1} / {totalPhotoCount}</span>
-              <button type="button" onClick={closeGallery} aria-label="Galeriyi kapat">
-                <AppIcon name="x" />
-              </button>
-            </div>
-
-            <div className="place-photo-lightbox-content">
-              {photos.length > 1 && (
-                <button
-                  className="place-photo-lightbox-nav place-photo-lightbox-nav-previous"
-                  type="button"
-                  onClick={showPreviousPhoto}
-                  aria-label="Önceki fotoğraf"
-                >
-                  <AppIcon name="caret-left-fill" />
+      {isGalleryOpen && activePhoto &&
+        createPortal(
+          <div
+            className="place-photo-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label={galleryLabel}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                closeGallery();
+              }
+            }}
+          >
+            <div className="place-photo-lightbox-panel">
+              <div className="place-photo-lightbox-header">
+                <span>{activePhotoIndex + 1} / {totalPhotoCount}</span>
+                <button type="button" onClick={closeGallery} aria-label="Galeriyi kapat">
+                  <AppIcon name="x" />
                 </button>
-              )}
+              </div>
 
-              <img
-                src={activePhoto.SignedUrl}
-                alt="Mekan fotoğrafı"
-              />
+              <div className="place-photo-lightbox-content">
+                {photos.length > 1 && (
+                  <button
+                    className="place-photo-lightbox-nav place-photo-lightbox-nav-previous"
+                    type="button"
+                    onClick={showPreviousPhoto}
+                    aria-label="Önceki fotoğraf"
+                  >
+                    <AppIcon name="caret-left-fill" />
+                  </button>
+                )}
 
-              {photos.length > 1 && (
-                <button
-                  className="place-photo-lightbox-nav place-photo-lightbox-nav-next"
-                  type="button"
-                  onClick={showNextPhoto}
-                  aria-label="Sonraki fotoğraf"
-                >
-                  <AppIcon name="caret-right-fill" />
-                </button>
-              )}
+                <img
+                  src={activePhoto.SignedUrl}
+                  alt={photoAlt}
+                  decoding="async"
+                />
+
+                {photos.length > 1 && (
+                  <button
+                    className="place-photo-lightbox-nav place-photo-lightbox-nav-next"
+                    type="button"
+                    onClick={showNextPhoto}
+                    aria-label="Sonraki fotoğraf"
+                  >
+                    <AppIcon name="caret-right-fill" />
+                  </button>
+                )}
+              </div>
+
+              <div className="place-photo-lightbox-footer">
+                <span>
+                  {typeof getFooterLabel === "function"
+                    ? getFooterLabel(activePhoto)
+                    : activePhoto.Username
+                      ? `@${activePhoto.Username}`
+                      : photoAlt}
+                </span>
+                {activePhoto.PlaceNoteId && onOpenNote && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeGallery();
+                      onOpenNote(Number(activePhoto.PlaceNoteId));
+                    }}
+                  >
+                    {noteActionLabel}
+                  </button>
+                )}
+              </div>
             </div>
-
-            <div className="place-photo-lightbox-footer">
-              <span>
-                {activePhoto.Username ? `@${activePhoto.Username}` : "Mekan fotoğrafı"}
-              </span>
-              {activePhoto.PlaceNoteId && onOpenNote && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeGallery();
-                    onOpenNote(Number(activePhoto.PlaceNoteId));
-                  }}
-                >
-                  Notu aç
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }

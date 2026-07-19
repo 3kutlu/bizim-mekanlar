@@ -482,7 +482,7 @@ async function resolveUsernameEmail(username: string) {
     .from("Users")
     .select("Email")
     .ilike("Username", username)
-    .eq("IsActive", true)
+    .in("AccountStatus", ["ACTIVE", "FROZEN", "DELETION_PENDING"])
     .limit(1);
 
   if (error) {
@@ -513,7 +513,7 @@ async function resolveExistingLoginEmail(identifier: string) {
     .from("Users")
     .select("Email")
     .ilike("Email", identifier)
-    .eq("IsActive", true)
+    .in("AccountStatus", ["ACTIVE", "FROZEN", "DELETION_PENDING"])
     .limit(1);
 
   if (error) {

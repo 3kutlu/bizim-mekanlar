@@ -8,8 +8,10 @@ import { supabase } from "../../supabase.js";
 import { createSignedNotePhotoUrls } from "../../utils/notePhotos.js";
 import { PROFILE_PHOTO_UPLOAD_COPY, createProfilePhotoDraft, deleteMyProfilePhotoObject, removeMyProfilePhotoPath, revokeProfilePhotoDraft, setMyProfilePhotoPath, uploadMyProfilePhotoDraft, useProfilePhotoUrls } from "../../utils/profilePhotos.js";
 import { PROFILE_TAB_IDS, getFullName } from "../app/appShared.jsx";
+import { FeedPageSkeleton, ProfileTabSkeleton } from "../app/shared/pageSkeletons.jsx";
 import { PlaceListEditModal } from "../collections/CollectionEditorModal.jsx";
-import { LoadingState, NoteFeed } from "../notes/NoteComponents.jsx";
+import { NoteFeed } from "../notes/NoteComponents.jsx";
+import { PlacePhotoGallery } from "../places/PlaceDetailPage.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
@@ -17,6 +19,7 @@ import { getCollectionColorClassName, normalizeCollectionColorCode } from "../..
 import { getZodiacIconName } from "../../utils/zodiac.js";
 
 export function ProfilePage({
+  isActive,
   profile,
   summary,
   profileNotice,
@@ -33,15 +36,15 @@ export function ProfilePage({
   const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState("");
   const [profilePhotos, setProfilePhotos] = useState([]);
-  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosLoading, setPhotosLoading] = useState(true);
   const [photosError, setPhotosError] = useState("");
   const [placeLists, setPlaceLists] = useState([]);
-  const [listsLoading, setListsLoading] = useState(false);
+  const [listsLoading, setListsLoading] = useState(true);
   const [listsError, setListsError] = useState("");
   const [collectionEditor, setCollectionEditor] = useState(null);
-  const initialContentLoadRef = useRef(null);
-  const lastNotesRefreshKeyRef = useRef(notesRefreshKey);
-  const lastListsRefreshKeyRef = useRef(placeListsRefreshKey);
+  const notesLoadKeyRef = useRef("");
+  const photosLoadKeyRef = useRef("");
+  const listsLoadKeyRef = useRef("");
   const swipeStartRef = useRef(null);
   const [tabDragOffset, setTabDragOffset] = useState(0);
   const [isTabDragging, setIsTabDragging] = useState(false);
@@ -165,52 +168,54 @@ export function ProfilePage({
     setListsLoading(false);
   }, []);
 
-  useEffect(() => {
-    const profileId = Number(profile?.UserId);
-
-    if (!Number.isInteger(profileId) || profileId <= 0) {
-      return;
-    }
-
-    if (initialContentLoadRef.current === profileId) {
-      return;
-    }
-
-    initialContentLoadRef.current = profileId;
-    lastNotesRefreshKeyRef.current = notesRefreshKey;
-    lastListsRefreshKeyRef.current = placeListsRefreshKey;
-
-    void Promise.all([
-      loadProfileNotes(),
-      loadProfilePhotos(),
-      loadPlaceLists(),
-    ]);
-  }, [
-    loadPlaceLists,
-    loadProfileNotes,
-    loadProfilePhotos,
-    notesRefreshKey,
-    placeListsRefreshKey,
-    profile?.UserId,
-  ]);
+  const profileId = Number(profile?.UserId);
+  const notesLoadKey = `${profileId}:${notesRefreshKey}`;
+  const photosLoadKey = `${profileId}:${notesRefreshKey}`;
+  const listsLoadKey = `${profileId}:${placeListsRefreshKey}`;
 
   useEffect(() => {
-    if (lastNotesRefreshKeyRef.current === notesRefreshKey) {
+    if (
+      !isActive ||
+      !Number.isInteger(profileId) ||
+      profileId <= 0 ||
+      notesLoadKeyRef.current === notesLoadKey
+    ) {
       return;
     }
 
-    lastNotesRefreshKeyRef.current = notesRefreshKey;
-    void Promise.all([loadProfileNotes(), loadProfilePhotos()]);
-  }, [loadProfileNotes, loadProfilePhotos, notesRefreshKey]);
+    notesLoadKeyRef.current = notesLoadKey;
+    void loadProfileNotes();
+  }, [isActive, loadProfileNotes, notesLoadKey, profileId]);
 
   useEffect(() => {
-    if (lastListsRefreshKeyRef.current === placeListsRefreshKey) {
+    if (
+      !isActive ||
+      activeTab !== PROFILE_TAB_IDS.PHOTOS ||
+      !Number.isInteger(profileId) ||
+      profileId <= 0 ||
+      photosLoadKeyRef.current === photosLoadKey
+    ) {
       return;
     }
 
-    lastListsRefreshKeyRef.current = placeListsRefreshKey;
+    photosLoadKeyRef.current = photosLoadKey;
+    void loadProfilePhotos();
+  }, [activeTab, isActive, loadProfilePhotos, photosLoadKey, profileId]);
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      activeTab !== PROFILE_TAB_IDS.SAVED ||
+      !Number.isInteger(profileId) ||
+      profileId <= 0 ||
+      listsLoadKeyRef.current === listsLoadKey
+    ) {
+      return;
+    }
+
+    listsLoadKeyRef.current = listsLoadKey;
     void loadPlaceLists();
-  }, [loadPlaceLists, placeListsRefreshKey]);
+  }, [activeTab, isActive, listsLoadKey, loadPlaceLists, profileId]);
 
   const handleTabSwipeStart = (event) => {
     const touch = event.touches?.[0];
@@ -505,7 +510,7 @@ export function ProfileNotesTab({
   onOpenNote,
 }) {
   if (loading) {
-    return <LoadingState compact />;
+    return <FeedPageSkeleton compact />;
   }
 
   if (errorMessage) {
@@ -542,7 +547,7 @@ export function ProfileNotesTab({
 
 export function ProfilePhotosTab({ photos, loading, errorMessage, onRetry, onOpenNote }) {
   if (loading) {
-    return <LoadingState compact />;
+    return <ProfileTabSkeleton variant="photos" />;
   }
 
   if (errorMessage) {
@@ -567,21 +572,22 @@ export function ProfilePhotosTab({ photos, loading, errorMessage, onRetry, onOpe
   }
 
   return (
-    <div className="profile-photo-grid" aria-label="Paylaşılan fotoğraflar">
-      {photos.map((photo) => (
-        <button
-          className="profile-photo-tile"
-          type="button"
-          key={photo.PlaceNotePhotoId}
-          onClick={() => onOpenNote?.(Number(photo.PlaceNoteId))}
-          disabled={!photo.SignedUrl || !photo.PlaceNoteId || !onOpenNote}
-          title={`${photo.PlaceName || "Mekan"} notunu aç`}
-        >
-          <img src={photo.SignedUrl} alt={`${photo.PlaceName || "Mekan"} fotoğrafı`} />
-          <span>{photo.PlaceName || "Mekan"}</span>
-        </button>
-      ))}
-    </div>
+    <PlacePhotoGallery
+      photos={photos}
+      loading={false}
+      errorMessage=""
+      onRetry={onRetry}
+      onOpenNote={onOpenNote}
+      className="profile-place-photo-gallery"
+      headingTitle="Fotoğraflar"
+      sectionLabel="Profil fotoğrafları"
+      galleryLabel="Profil fotoğraf galerisi"
+      photoAlt="Profilde paylaşılan mekan fotoğrafı"
+      noteActionLabel="Notu gör"
+      getFooterLabel={(photo) => photo.PlaceName || "Mekan fotoğrafı"}
+      showEyebrow={false}
+      showAllPhotos
+    />
   );
 }
 
@@ -596,7 +602,7 @@ export function ProfileSavedTab({
   onEditList,
 }) {
   if (loading) {
-    return <LoadingState compact />;
+    return <ProfileTabSkeleton variant="lists" />;
   }
 
   if (errorMessage) {
@@ -655,6 +661,8 @@ export function ProfileSavedTab({
                   className="profile-saved-list-cover"
                   src={list.CoverSignedUrl}
                   alt=""
+                  loading="lazy"
+                  decoding="async"
                 />
               ) : (
                 <span className="profile-saved-list-icon" aria-hidden="true">

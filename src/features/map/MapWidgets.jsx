@@ -803,13 +803,15 @@ export function SelectedPlaceCard({
 
         {selectedPlace.address && <span>{selectedPlace.address}</span>}
 
-        <p className="selected-place-rating" aria-live="polite">
-          {reviewSummary?.isRatingLoading
-            ? "Genel puan yükleniyor..."
-            : Number(reviewSummary?.ratingCount) > 0
-              ? <><span>{formatAverageRating(reviewSummary?.averageRating)} / 5</span><AppIcon name="star" className="selected-place-rating-star" /></>
-              : "Henüz puan yok"}
-        </p>
+        {canAddNote && (
+          <p className="selected-place-rating" aria-live="polite">
+            {reviewSummary?.isRatingLoading
+              ? "Genel puan yükleniyor..."
+              : Number(reviewSummary?.ratingCount) > 0
+                ? <><span>{formatAverageRating(reviewSummary?.averageRating)} / 5</span><AppIcon name="star" className="selected-place-rating-star" /></>
+                : "Henüz puan yok"}
+          </p>
+        )}
       </div>
 
       {canAddNote && reviewSummary?.isLoading && (
@@ -826,34 +828,34 @@ export function SelectedPlaceCard({
         </p>
       )}
 
-      <div
-        className={`selected-place-actions${
-          canAddNote && !reviewSummary?.isLoading && reviewCount > 0
-            ? " selected-place-actions-with-reviews"
-            : ""
-        }`}
-      >
-        <button type="button" className="selected-place-save" onClick={onOpenSave}>
-          Kaydet
-        </button>
-
-        {canAddNote && !reviewSummary?.isLoading && reviewCount > 0 && (
-          <button
-            type="button"
-            className="selected-place-review-button"
-            onClick={onOpenDetail}
-            disabled={!canOpenDetail}
-          >
-            {formatReviewLinkLabel(reviewCount)}
+      {canAddNote && (
+        <div
+          className={`selected-place-actions${
+            !reviewSummary?.isLoading && reviewCount > 0
+              ? " selected-place-actions-with-reviews"
+              : ""
+          }`}
+        >
+          <button type="button" className="selected-place-save" onClick={onOpenSave}>
+            Kaydet
           </button>
-        )}
 
-        {canAddNote && (
+          {!reviewSummary?.isLoading && reviewCount > 0 && (
+            <button
+              type="button"
+              className="selected-place-review-button"
+              onClick={onOpenDetail}
+              disabled={!canOpenDetail}
+            >
+              {formatReviewLinkLabel(reviewCount)}
+            </button>
+          )}
+
           <button type="button" className="selected-place-add-note" onClick={onAddNote}>
             Bu mekana not ekle
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

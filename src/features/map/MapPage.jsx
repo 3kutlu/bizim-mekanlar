@@ -97,6 +97,10 @@ export default function MapPage({
   );
 
   useEffect(() => {
+    if (!isActive) {
+      return undefined;
+    }
+
     if (!navigator.geolocation) {
       showInitialLocationIssue(MESSAGE_KEY.LOCATION_UNSUPPORTED);
       return () => clearLocationMessage();
@@ -133,7 +137,7 @@ export default function MapPage({
       navigator.geolocation.clearWatch(watchId);
       clearLocationMessage();
     };
-  }, [clearLocationMessage, showInitialLocationIssue]);
+  }, [clearLocationMessage, isActive, showInitialLocationIssue]);
 
   useEffect(() => {
     return () => {

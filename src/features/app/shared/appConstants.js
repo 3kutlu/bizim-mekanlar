@@ -37,7 +37,7 @@ export const EMPTY_NOTE_REACTION_SUMMARY = Object.freeze({
 });
 
 export const BOTTOM_NAV_ITEMS = Object.freeze([
+  { id: "list", label: "Akış", icon: "list-bullets", activeIcon: "list-bullets-fill" },
   { id: "map", label: "Harita", icon: "map-trifold", activeIcon: "map-trifold-fill" },
-  { id: "list", label: "Liste", icon: "list-bullets", activeIcon: "list-bullets-fill" },
   { id: "profile", label: "Profil", icon: "user", activeIcon: "user-fill" },
 ]);

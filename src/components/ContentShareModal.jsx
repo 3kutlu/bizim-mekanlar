@@ -265,7 +265,7 @@ export default function ContentShareModal({
       }
     }
 
-    const { data, error } = await supabase.rpc("SendContentShare", {
+    const { error } = await supabase.rpc("SendContentShare", {
       p_recipient_user_id: recipientUserId,
       p_share_type_code: shareToSend.typeCode,
       p_place_id: shareToSend.placeId ?? null,
@@ -283,8 +283,6 @@ export default function ContentShareModal({
       setSendingUserId(null);
       return;
     }
-
-    const contentShareId = Number(Array.isArray(data) ? data[0] : data);
 
     setSentUserIds((current) => {
       const next = new Set(current);
@@ -307,21 +305,6 @@ export default function ContentShareModal({
     });
     setSendingUserId(null);
     onSent?.(recipient);
-
-    if (Number.isInteger(contentShareId) && contentShareId > 0) {
-      void supabase.functions
-        .invoke("send-content-share-push", {
-          body: { contentShareId },
-        })
-        .then(({ error: pushError }) => {
-          if (pushError) {
-            console.warn("Paylaşım push bildirimi gönderilemedi:", pushError);
-          }
-        })
-        .catch((pushError) => {
-          console.warn("Paylaşım push bildirimi gönderilemedi:", pushError);
-        });
-    }
   };
 
   return (

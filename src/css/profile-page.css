@@ -5,6 +5,10 @@
   margin: 0 auto;
 }
 
+.profile-place-photo-gallery.place-detail-photo-section {
+  margin-top: 0;
+}
+
 .profile-card {
   width: 100%;
 }
