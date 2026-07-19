@@ -41,11 +41,48 @@
   text-transform: uppercase;
 }
 
+.place-detail-category-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .place-detail-category > span {
   display: grid;
   place-items: center;
   font-size: 14px;
   line-height: 1;
+}
+
+.place-detail-google-maps-link {
+  width: fit-content;
+  min-height: 29px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #374154;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #10141b;
+  color: #bfc9db;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.place-detail-google-maps-link .app-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.place-detail-google-maps-link:hover,
+.place-detail-google-maps-link:focus-visible {
+  border-color: #71819e;
+  background: #1a202b;
+  color: #fff;
 }
 
 .place-detail-hero h1 {

@@ -12,6 +12,7 @@ import AppIcon from "../../components/AppIcon.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { filterUnavailableUsers, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
+import { getGoogleMapsPlaceUrl } from "../map/mapUtils.js";
 
 export function PlaceDetailPage({
   placeId,
@@ -204,6 +205,15 @@ export function PlaceDetailPage({
   const hasMapCoordinates =
     Number.isFinite(Number(place?.Latitude)) &&
     Number.isFinite(Number(place?.Longitude));
+  const googleMapsUrl = getGoogleMapsPlaceUrl({
+    id: place?.GooglePlaceId,
+    name: resolvedName,
+    address: place?.FormattedAddress,
+    location: {
+      lat: place?.Latitude,
+      lng: place?.Longitude,
+    },
+  });
   const visiblePhotoCount = Number(
     placePhotos[0]?.VisiblePhotoCount ?? placePhotos.length
   );
@@ -230,9 +240,22 @@ export function PlaceDetailPage({
         {!loading && !errorMessage && place && (
           <>
             <section className="place-detail-hero">
-              <div className="place-detail-category" title={resolvedCategoryLabel}>
-                <span aria-hidden="true">{resolvedCategoryIcon}</span>
-                {resolvedCategoryLabel}
+              <div className="place-detail-category-row">
+                <div className="place-detail-category" title={resolvedCategoryLabel}>
+                  <span aria-hidden="true">{resolvedCategoryIcon}</span>
+                  {resolvedCategoryLabel}
+                </div>
+
+                <a
+                  className="place-detail-google-maps-link"
+                  href={googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${resolvedName} mekanını Google Haritalar'da aç`}
+                >
+                  <AppIcon name="map-trifold" />
+                  Google Maps
+                </a>
               </div>
 
               <h1>{resolvedName}</h1>

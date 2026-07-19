@@ -7,7 +7,7 @@ import { MESSAGE_KEY, t } from "../../i18n/messages.js";
 import { supabase } from "../../supabase.js";
 import { MAX_NOTE_PHOTOS, NOTE_PHOTO_UPLOAD_COPY } from "../../utils/notePhotos.js";
 import { getVenueCategoryFromGooglePlace, getVenueCategoryIcon, getVenueCategoryLabel, isSupportedVenueCategory } from "../../utils/venueCategory.js";
-import { MAP_NOTE_LIMIT, buildMapClusters, cleanText, formatAverageRating, formatReviewLinkLabel, getLocalDateInputValue, getPlaceEligibility, getSelectedPlaceFromGooglePlace, getSelectedPlaceFromMapRow, isMessageKey } from "./mapUtils.js";
+import { MAP_NOTE_LIMIT, buildMapClusters, cleanText, formatAverageRating, formatReviewLinkLabel, getGoogleMapsPlaceUrl, getLocalDateInputValue, getPlaceEligibility, getSelectedPlaceFromGooglePlace, getSelectedPlaceFromMapRow, isMessageKey } from "./mapUtils.js";
 import { AdvancedMarker, Circle, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppIcon, { CollectionIcon } from "../../components/AppIcon.jsx";
@@ -754,6 +754,7 @@ export function SelectedPlaceCard({
   const titleHint = canOpenDetail
     ? "Mekan sayfasını aç"
     : "Mekanı haritada göster";
+  const googleMapsUrl = getGoogleMapsPlaceUrl(selectedPlace);
 
   const handleTitleKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -803,15 +804,29 @@ export function SelectedPlaceCard({
 
         {selectedPlace.address && <span>{selectedPlace.address}</span>}
 
-        {canAddNote && (
-          <p className="selected-place-rating" aria-live="polite">
-            {reviewSummary?.isRatingLoading
-              ? "Genel puan yükleniyor..."
-              : Number(reviewSummary?.ratingCount) > 0
-                ? <><span>{formatAverageRating(reviewSummary?.averageRating)} / 5</span><AppIcon name="star" className="selected-place-rating-star" /></>
-                : "Henüz puan yok"}
-          </p>
-        )}
+        <div className="selected-place-meta">
+          {canAddNote && (
+            <p className="selected-place-rating" aria-live="polite">
+              {reviewSummary?.isRatingLoading
+                ? "Genel puan yükleniyor..."
+                : Number(reviewSummary?.ratingCount) > 0
+                  ? <><span>{formatAverageRating(reviewSummary?.averageRating)} / 5</span><AppIcon name="star" className="selected-place-rating-star" /></>
+                  : "Henüz puan yok"}
+            </p>
+          )}
+
+          <a
+            className="selected-place-google-maps"
+            href={googleMapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Google Haritalar'da aç"
+            aria-label={`${selectedPlace.name} mekanını Google Haritalar'da aç`}
+          >
+            <AppIcon name="map-trifold" />
+            Google Maps
+          </a>
+        </div>
       </div>
 
       {canAddNote && reviewSummary?.isLoading && (
@@ -856,6 +871,7 @@ export function SelectedPlaceCard({
           </button>
         </div>
       )}
+
     </div>
   );
 }

@@ -118,6 +118,34 @@ export function getPlaceEligibility(place) {
   return place?.isEligible !== false && isSupportedVenueCategory(place?.venueCategoryCode);
 }
 
+export function getGoogleMapsPlaceUrl(place) {
+  const googlePlaceId = cleanText(place?.id);
+  const name = cleanText(place?.name);
+  const address = cleanText(place?.address);
+  const latitude = Number(place?.location?.lat);
+  const longitude = Number(place?.location?.lng);
+  const coordinates =
+    Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? `${latitude},${longitude}`
+      : "";
+  const query = [name, address].filter(Boolean).join(", ") || coordinates;
+
+  if (!query && !googlePlaceId) {
+    return "https://www.google.com/maps";
+  }
+
+  const parameters = new URLSearchParams({
+    api: "1",
+    query: query || googlePlaceId,
+  });
+
+  if (googlePlaceId) {
+    parameters.set("query_place_id", googlePlaceId);
+  }
+
+  return `https://www.google.com/maps/search/?${parameters.toString()}`;
+}
+
 export function getPointDistance(left, right) {
   const deltaX = left.x - right.x;
   const deltaY = left.y - right.y;

@@ -746,7 +746,7 @@
 /* v1.3.0 — seçili mekandaki tüm aktif notların genel puanı */
 .selected-place-card .selected-place-rating {
   width: fit-content;
-  margin: 3px 0 0;
+  margin: 0;
   border: 1px solid #c8d0dc;
   border-radius: 999px;
   padding: 6px 9px;
@@ -755,6 +755,14 @@
   font-size: 12px;
   font-weight: 850;
   line-height: 1;
+}
+
+.selected-place-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 3px;
 }
 
 /* v1.8.2.1 — yorum ve kaydet aksiyonları */
@@ -786,6 +794,37 @@
 .selected-place-card .selected-place-save:focus-visible {
   border-color: #8996ad;
   background: #eef1f7;
+}
+
+.selected-place-card .selected-place-google-maps {
+  width: fit-content;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #cfd5df;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #f7f8fb;
+  color: #283042;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-decoration: none;
+}
+
+.selected-place-card .selected-place-google-maps:hover,
+.selected-place-card .selected-place-google-maps:focus-visible {
+  border-color: #8996ad;
+  background: #eef1f7;
+  color: #111827;
+}
+
+.selected-place-card .selected-place-google-maps .app-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .place-save-backdrop {
