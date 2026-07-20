@@ -25,11 +25,16 @@ type PushPreferenceRow = {
   ContentShareEnabled: boolean;
 };
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json; charset=utf-8",
+};
+
 function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-  });
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
 function requireSecret(name: string) {
@@ -69,7 +74,6 @@ const serviceRoleKey = getDefaultProjectKey(
   "SUPABASE_SECRET_KEYS",
   "SUPABASE_SERVICE_ROLE_KEY"
 );
-const internalSecret = requireSecret("WEB_PUSH_INTERNAL_SECRET");
 const vapidPublicKey = requireSecret("WEB_PUSH_VAPID_PUBLIC_KEY");
 const vapidPrivateKey = requireSecret("WEB_PUSH_VAPID_PRIVATE_KEY");
 const vapidSubject = requireSecret("WEB_PUSH_VAPID_SUBJECT");
@@ -83,6 +87,17 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
+async function getAuthenticatedUser(request: Request) {
+  const authorization = request.headers.get("Authorization") ?? "";
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+
+  if (!token) return null;
+
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
 
 function getShareUrl(share: ContentShareRow) {
   const publicId = encodeURIComponent(String(share.TargetPublicId ?? ""));
@@ -160,15 +175,21 @@ async function deactivateInvalidSubscription(subscriptionId: number) {
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (request.method !== "POST") {
     return json({ message: "Yalnızca POST isteği desteklenir." }, 405);
   }
 
-  if (request.headers.get("x-push-secret") !== internalSecret) {
-    return json({ message: "Yetkisiz istek." }, 401);
-  }
-
   try {
+    const authUser = await getAuthenticatedUser(request);
+
+    if (!authUser) {
+      return json({ message: "Oturum doğrulanamadı." }, 401);
+    }
+
     const body = await request.json();
     const contentShareId = Number(body?.contentShareId);
 
@@ -176,45 +197,47 @@ Deno.serve(async (request) => {
       return json({ message: "Geçerli bir contentShareId gerekli." }, 400);
     }
 
-    const claimedAt = new Date().toISOString();
+    const { data: sender, error: senderError } = await admin
+      .from("Users")
+      .select("UserId, Username, IsActive, AccountStatus")
+      .eq("AuthUserId", authUser.id)
+      .maybeSingle();
+
+    if (senderError) throw senderError;
+
+    if (
+      !sender?.IsActive ||
+      String(sender?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE"
+    ) {
+      return json({ message: "Aktif kullanıcı profili bulunamadı." }, 403);
+    }
+
     const { data: share, error: shareError } = await admin
       .from("ContentShares")
-      .update({
-        PushSentDate: claimedAt,
-        UpdatedDate: claimedAt,
-      })
-      .eq("ContentShareId", contentShareId)
-      .eq("IsActive", true)
-      .is("PushSentDate", null)
       .select(
         "ContentShareId, SenderUserId, RecipientUserId, ShareTypeCode, TargetTitle, TargetPublicId, TargetUsername, Message, PushSentDate, IsActive"
       )
+      .eq("ContentShareId", contentShareId)
+      .eq("SenderUserId", sender.UserId)
       .maybeSingle<ContentShareRow>();
 
     if (shareError) throw shareError;
 
-    if (!share) {
+    if (!share?.IsActive) {
+      return json({ message: "Paylaşım bulunamadı." }, 404);
+    }
+
+    if (share.PushSentDate) {
       return json({ ok: true, sent: 0, skipped: true });
     }
 
-    const [senderResult, recipientResult] = await Promise.all([
-      admin
-        .from("Users")
-        .select("Username")
-        .eq("UserId", share.SenderUserId)
-        .maybeSingle(),
-      admin
-        .from("Users")
-        .select("IsActive, AccountStatus")
-        .eq("UserId", share.RecipientUserId)
-        .maybeSingle(),
-    ]);
+    const { data: recipient, error: recipientError } = await admin
+      .from("Users")
+      .select("IsActive, AccountStatus")
+      .eq("UserId", share.RecipientUserId)
+      .maybeSingle();
 
-    if (senderResult.error) throw senderResult.error;
-    if (recipientResult.error) throw recipientResult.error;
-
-    const sender = senderResult.data;
-    const recipient = recipientResult.data;
+    if (recipientError) throw recipientError;
 
     if (
       !recipient?.IsActive ||
@@ -232,6 +255,25 @@ Deno.serve(async (request) => {
     if (preferenceError) throw preferenceError;
 
     if (preference?.ContentShareEnabled === false) {
+      const { error: preferenceSkipUpdateError } = await admin
+        .from("ContentShares")
+        .update({
+          PushSentDate: new Date().toISOString(),
+          UpdatedDate: new Date().toISOString(),
+        })
+        .eq("ContentShareId", share.ContentShareId)
+        .is("PushSentDate", null);
+
+      if (preferenceSkipUpdateError) {
+        console.error(
+          JSON.stringify({
+            event: "content_share_push_preference_skip_mark_failed",
+            contentShareId,
+            message: preferenceSkipUpdateError.message,
+          })
+        );
+      }
+
       return json({
         ok: true,
         sent: 0,
@@ -250,7 +292,7 @@ Deno.serve(async (request) => {
     if (subscriptionsError) throw subscriptionsError;
 
     const payload = JSON.stringify({
-      title: `${String(sender?.Username ?? "Bir kullanıcı")} sana ${getShareTypeLabel(share.ShareTypeCode)} gönderdi.`,
+      title: `${String(sender.Username ?? "Bir kullanıcı")} sana ${getShareTypeLabel(share.ShareTypeCode)} gönderdi.`,
       body: getShareBody(share),
       url: getShareUrl(share),
       tag: `bizim-mekanlar-content-share-${share.ContentShareId}`,
@@ -294,6 +336,25 @@ Deno.serve(async (request) => {
           deactivated += 1;
         }
       }
+    }
+
+    const { error: updateError } = await admin
+      .from("ContentShares")
+      .update({
+        PushSentDate: new Date().toISOString(),
+        UpdatedDate: new Date().toISOString(),
+      })
+      .eq("ContentShareId", share.ContentShareId)
+      .is("PushSentDate", null);
+
+    if (updateError) {
+      console.error(
+        JSON.stringify({
+          event: "content_share_push_mark_failed",
+          contentShareId,
+          message: updateError.message,
+        })
+      );
     }
 
     return json({ ok: true, sent, deactivated, skipped: false });
