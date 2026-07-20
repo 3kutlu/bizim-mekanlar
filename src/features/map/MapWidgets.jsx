@@ -536,6 +536,8 @@ export function PlaceSearch({ onPlaceSelected }) {
   const sessionTokenRef = useRef(null);
   const requestIdRef = useRef(0);
   const blurTimerRef = useRef(null);
+  const inputRef = useRef(null);
+  const skipNextAutocompleteRef = useRef(false);
 
   useEffect(() => {
     if (!placesLibrary) {
@@ -552,6 +554,16 @@ export function PlaceSearch({ onPlaceSelected }) {
 
     const input = cleanText(query);
     const requestId = ++requestIdRef.current;
+
+    // Selecting a suggestion writes its display name into the input. That is
+    // presentation state, not a new search initiated by the user.
+    if (skipNextAutocompleteRef.current) {
+      skipNextAutocompleteRef.current = false;
+      setSuggestions([]);
+      setIsLoading(false);
+      setErrorMessage("");
+      return;
+    }
 
     if (input.length < 2) {
       setSuggestions([]);
@@ -629,6 +641,14 @@ export function PlaceSearch({ onPlaceSelected }) {
   }, []);
 
   const handleSelect = async (suggestion) => {
+    // Close the mobile keyboard and autocomplete immediately. Also invalidate
+    // any request that may still be resolving for the typed query.
+    requestIdRef.current += 1;
+    setSuggestions([]);
+    setIsLoading(false);
+    setErrorMessage("");
+    inputRef.current?.blur();
+
     try {
       const place = suggestion.prediction.toPlace();
 
@@ -670,6 +690,7 @@ export function PlaceSearch({ onPlaceSelected }) {
         map.setZoom(17);
       }
 
+      skipNextAutocompleteRef.current = true;
       setQuery(selectedPlace.name);
       setSuggestions([]);
       onPlaceSelected(selectedPlace);
@@ -683,6 +704,7 @@ export function PlaceSearch({ onPlaceSelected }) {
   return (
     <div className="place-search">
       <input
+        ref={inputRef}
         className="place-search-input"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
