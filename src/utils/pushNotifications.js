@@ -11,6 +11,7 @@ export const DEFAULT_PUSH_NOTIFICATION_PREFERENCES = Object.freeze({
   followingNoteEnabled: true,
   noteReactionEnabled: true,
   collectionCollaboratorEnabled: true,
+  collectionPlaceAddedEnabled: true,
   contentShareEnabled: true,
 });
 
@@ -36,6 +37,10 @@ function normalizePushNotificationPreferences(value) {
       value?.CollectionCollaboratorEnabled ??
       value?.collectionCollaboratorEnabled ??
       DEFAULT_PUSH_NOTIFICATION_PREFERENCES.collectionCollaboratorEnabled,
+    collectionPlaceAddedEnabled:
+      value?.CollectionPlaceAddedEnabled ??
+      value?.collectionPlaceAddedEnabled ??
+      DEFAULT_PUSH_NOTIFICATION_PREFERENCES.collectionPlaceAddedEnabled,
     contentShareEnabled:
       value?.ContentShareEnabled ??
       value?.contentShareEnabled ??
@@ -211,9 +216,10 @@ async function deactivateSubscription(subscription) {
 }
 
 export async function getMyPushNotificationPreferences() {
-  const [baseResult, contentShareResult] = await Promise.all([
+  const [baseResult, contentShareResult, collectionPlaceResult] = await Promise.all([
     supabase.rpc("GetMyWebPushNotificationPreferences"),
     supabase.rpc("GetMyContentSharePushPreference"),
+    supabase.rpc("GetMyCollectionPlaceAddedPushPreference"),
   ]);
 
   if (baseResult.error) {
@@ -224,16 +230,25 @@ export async function getMyPushNotificationPreferences() {
     throw contentShareResult.error;
   }
 
+  if (collectionPlaceResult.error) {
+    throw collectionPlaceResult.error;
+  }
+
   const baseRow = Array.isArray(baseResult.data)
     ? baseResult.data[0]
     : baseResult.data;
   const contentShareRow = Array.isArray(contentShareResult.data)
     ? contentShareResult.data[0]
     : contentShareResult.data;
+  const collectionPlaceRow = Array.isArray(collectionPlaceResult.data)
+    ? collectionPlaceResult.data[0]
+    : collectionPlaceResult.data;
 
   return normalizePushNotificationPreferences({
     ...baseRow,
     ContentShareEnabled: contentShareRow?.ContentShareEnabled,
+    CollectionPlaceAddedEnabled:
+      collectionPlaceRow?.CollectionPlaceAddedEnabled,
   });
 }
 
@@ -264,6 +279,18 @@ export async function updateMyPushNotificationPreferences(preferences) {
 
   if (contentShareError) {
     throw contentShareError;
+  }
+
+  const { error: collectionPlaceError } = await supabase.rpc(
+    "UpdateMyCollectionPlaceAddedPushPreference",
+    {
+      p_collection_place_added_enabled:
+        normalized.collectionPlaceAddedEnabled,
+    }
+  );
+
+  if (collectionPlaceError) {
+    throw collectionPlaceError;
   }
 
   return normalized;

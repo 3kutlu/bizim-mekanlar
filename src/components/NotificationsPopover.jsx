@@ -52,7 +52,13 @@ function isNoteNotificationType(typeCode) {
     "FOLLOWING_NOTE",
     "NOTE_REACTION_UP",
     "NOTE_REACTION_DOWN",
+  ].includes(typeCode);
+}
+
+function isFriendNotificationType(typeCode) {
+  return [
     "COLLECTION_COLLABORATOR_ADDED",
+    "COLLECTION_PLACE_ADDED",
   ].includes(typeCode);
 }
 
@@ -79,6 +85,13 @@ function getNoteNotificationCopy(notification) {
         icon: "bookmarks-fill",
         title: `${actor} seni bir listeye ekledi.`,
         detail: notification?.UserPlaceListName || "Ortak koleksiyonu görmek için dokun.",
+      };
+
+    case "COLLECTION_PLACE_ADDED":
+      return {
+        icon: "map-pin-fill",
+        title: `${actor} ortak koleksiyona yeni bir mekan ekledi.`,
+        detail: notification?.UserPlaceListName || "Koleksiyonu görmek için dokun.",
       };
 
     case "FOLLOWING_NOTE":
@@ -171,7 +184,10 @@ export default function NotificationsPopover({
   const [processingFollowerUserId, setProcessingFollowerUserId] = useState(null);
   const [actionError, setActionError] = useState("");
 
-  const safeFollowActivity = Array.isArray(followActivity) ? followActivity : [];
+  const safeFollowActivity = useMemo(
+    () => (Array.isArray(followActivity) ? followActivity : []),
+    [followActivity]
+  );
   const safeContentShares = useMemo(
     () => (Array.isArray(contentShares) ? contentShares : []),
     [contentShares]
@@ -186,12 +202,29 @@ export default function NotificationsPopover({
     [notifications]
   );
 
-  const followUnreadCount = useMemo(
+  const friendNotifications = useMemo(
     () =>
-      (Array.isArray(followActivity) ? followActivity : []).filter(
-        (activity) => !activity?.IsRead
-      ).length,
-    [followActivity]
+      (Array.isArray(notifications) ? notifications : []).filter((notification) =>
+        isFriendNotificationType(notification?.NotificationTypeCode)
+      ),
+    [notifications]
+  );
+
+  const pendingFollowRequests = useMemo(
+    () => safeFollowActivity.filter((activity) => Boolean(activity?.CanRespond)),
+    [safeFollowActivity]
+  );
+
+  const friendActivity = useMemo(
+    () => safeFollowActivity.filter((activity) => !activity?.CanRespond),
+    [safeFollowActivity]
+  );
+
+  const friendUnreadCount = useMemo(
+    () =>
+      safeFollowActivity.filter((activity) => !activity?.IsRead).length +
+      friendNotifications.filter((notification) => !notification?.IsRead).length,
+    [safeFollowActivity, friendNotifications]
   );
 
   const contentShareUnreadCount = useMemo(
@@ -269,31 +302,35 @@ export default function NotificationsPopover({
 
     setActiveTab(nextTab);
 
-    if (nextTab === "follow") {
+    if (nextTab === "friends") {
       void onFollowActivityViewed();
     } else if (nextTab === "shares") {
       void onContentSharesViewed();
     }
   };
 
-  const isFollowTab = activeTab === "follow";
+  const isFriendsTab = activeTab === "friends";
   const isSharesTab = activeTab === "shares";
-  const visibleItems = isFollowTab
-    ? safeFollowActivity
+  const visibleItems = isFriendsTab
+    ? [...friendActivity, ...friendNotifications].sort(
+        (left, right) =>
+          new Date(right?.CreatedDate || 0).getTime() -
+          new Date(left?.CreatedDate || 0).getTime()
+      )
     : isSharesTab
       ? safeContentShares
       : noteNotifications;
-  const isCurrentTabLoading = isFollowTab
-    ? followActivityLoading
+  const isCurrentTabLoading = isFriendsTab
+    ? followActivityLoading || isLoading
     : isSharesTab
       ? contentSharesLoading
       : isLoading;
-  const currentTabError = isFollowTab
-    ? followActivityError
+  const currentTabError = isFriendsTab
+    ? followActivityError || errorMessage
     : isSharesTab
       ? contentSharesError
       : errorMessage;
-  const followBadgeLabel = followUnreadCount > 99 ? "99+" : String(followUnreadCount);
+  const friendBadgeLabel = friendUnreadCount > 99 ? "99+" : String(friendUnreadCount);
   const contentShareBadgeLabel = contentShareUnreadCount > 99
     ? "99+"
     : String(contentShareUnreadCount);
@@ -334,14 +371,13 @@ export default function NotificationsPopover({
         >
           <header className="notification-popover-header">
             <div>
-              <p className="eyebrow">HESABIN</p>
               <h2>Gelişmeler</h2>
             </div>
-            <span className="notification-read-status">
-              {safeUnreadCount > 0
-                ? `${safeUnreadCount > 9 ? "9+" : safeUnreadCount} yeni`
-                : "Güncel"}
-            </span>
+            {safeUnreadCount > 0 && (
+              <span className="notification-read-status">
+                {`${safeUnreadCount > 9 ? "9+" : safeUnreadCount} yeni bildirim`}
+              </span>
+            )}
           </header>
 
           <div
@@ -360,19 +396,19 @@ export default function NotificationsPopover({
             </button>
 
             <button
-              className={activeTab === "follow" ? "notification-tab-active" : ""}
+              className={activeTab === "friends" ? "notification-tab-active" : ""}
               type="button"
               role="tab"
-              aria-selected={activeTab === "follow"}
-              onClick={() => handleTabChange("follow")}
+              aria-selected={activeTab === "friends"}
+              onClick={() => handleTabChange("friends")}
             >
-              Takip
-              {followUnreadCount > 0 && (
+              Arkadaşların
+              {friendUnreadCount > 0 && (
                 <span
                   className="notification-tab-count"
-                  aria-label={`${followBadgeLabel} yeni takip hareketi`}
+                  aria-label={`${friendBadgeLabel} yeni arkadaş hareketi`}
                 >
-                  {followBadgeLabel}
+                  {friendBadgeLabel}
                 </span>
               )}
             </button>
@@ -398,6 +434,62 @@ export default function NotificationsPopover({
 
           <div className="notification-popover-body" role="tabpanel">
               <>
+                {isFriendsTab && pendingFollowRequests.length > 0 && (
+                  <div className="notification-list" aria-label="Bekleyen takip istekleri">
+                    {pendingFollowRequests.map((activity) => {
+                      const copy = getFollowActivityCopy(activity);
+                      const actorUserId = Number(activity?.ActorUserId);
+                      const isProcessing =
+                        Number.isInteger(actorUserId) &&
+                        processingFollowerUserId === actorUserId;
+
+                      return (
+                        <article
+                          className="notification-item"
+                          key={activity?.ActivityId || `request-${actorUserId}-${activity?.CreatedDate}`}
+                        >
+                          <button
+                            className={`notification-item-main${
+                              !activity?.IsRead ? " notification-item-unread" : ""
+                            }`}
+                            type="button"
+                            onClick={() => onOpenNotification(activity)}
+                          >
+                            <span className="notification-item-icon" aria-hidden="true">
+                              <AppIcon name={copy.icon} />
+                            </span>
+                            <span className="notification-item-copy">
+                              <strong>{copy.title}</strong>
+                              <span className="notification-item-detail">{copy.detail}</span>
+                              <time dateTime={activity?.CreatedDate}>
+                                {formatNotificationTime(activity?.CreatedDate)}
+                              </time>
+                            </span>
+                          </button>
+                          <div className="notification-request-actions">
+                            <button
+                              className="notification-request-accept"
+                              type="button"
+                              onClick={(event) => handleRequestResponse(event, activity, true)}
+                              disabled={isProcessing}
+                            >
+                              {isProcessing ? "İşleniyor..." : "Kabul et"}
+                            </button>
+                            <button
+                              className="notification-request-reject"
+                              type="button"
+                              onClick={(event) => handleRequestResponse(event, activity, false)}
+                              disabled={isProcessing}
+                            >
+                              Reddet
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {isCurrentTabLoading && (
                   <p className="notification-state">Yükleniyor...</p>
                 )}
@@ -408,7 +500,7 @@ export default function NotificationsPopover({
                     <button
                       type="button"
                       onClick={() =>
-                        isFollowTab
+                        isFriendsTab
                           ? onRetryFollowActivity()
                           : isSharesTab
                             ? onRetryContentShares()
@@ -422,14 +514,15 @@ export default function NotificationsPopover({
 
                 {!isCurrentTabLoading &&
                   !currentTabError &&
-                  visibleItems.length === 0 && (
+                  visibleItems.length === 0 &&
+                  !(isFriendsTab && pendingFollowRequests.length > 0) && (
                     <div className="notification-state">
                       <span className="notification-empty-icon" aria-hidden="true">
-                        <AppIcon name={isFollowTab ? "user" : isSharesTab ? "share-fat" : "bell"} />
+                        <AppIcon name={isFriendsTab ? "user" : isSharesTab ? "share-fat" : "bell"} />
                       </span>
                       <p>
-                        {isFollowTab
-                          ? "Henüz takip hareketin yok."
+                        {isFriendsTab
+                          ? "Henüz arkadaş hareketin yok."
                           : isSharesTab
                             ? "Henüz sana gönderilen bir içerik yok."
                             : "Yeni not bildirimin yok."}
@@ -442,8 +535,11 @@ export default function NotificationsPopover({
                   visibleItems.length > 0 && (
                     <div className="notification-list">
                       {visibleItems.map((item) => {
-                        const copy = isFollowTab
-                          ? getFollowActivityCopy(item)
+                        const isCollectionNotification = Boolean(item?.NotificationTypeCode);
+                        const copy = isFriendsTab
+                          ? isCollectionNotification
+                            ? getNoteNotificationCopy(item)
+                            : getFollowActivityCopy(item)
                           : isSharesTab
                             ? getContentShareCopy(item)
                             : getNoteNotificationCopy(item);
@@ -455,8 +551,8 @@ export default function NotificationsPopover({
                           canRespond &&
                           Number.isInteger(actorUserId) &&
                           processingFollowerUserId === actorUserId;
-                        const itemKey = isFollowTab
-                          ? item?.ActivityId || `follow-${actorUserId}-${item?.CreatedDate}`
+                        const itemKey = isFriendsTab
+                          ? item?.NotificationId || item?.ActivityId || `friend-${actorUserId}-${item?.CreatedDate}`
                           : isSharesTab
                             ? item?.ContentShareId || `share-${actorUserId}-${item?.CreatedDate}`
                             : item?.NotificationId || item?.CreatedDate;

@@ -1363,6 +1363,11 @@
   color: #dbe4ff;
 }
 
+.note-edit-rating-star .app-icon {
+  width: 24px;
+  height: 24px;
+}
+
 .note-edit-rating-star-active {
   color: #e9edf7;
 }

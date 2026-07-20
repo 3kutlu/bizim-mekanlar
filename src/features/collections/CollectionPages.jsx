@@ -398,7 +398,7 @@ export function PlaceListDetailPage({
                         aria-label={`${item?.Name || "Mekan"} için koleksiyon seçenekleri`}
                         title="Koleksiyon seçenekleri"
                       >
-                        ⋯
+                        <AppIcon name="dots-three" />
                       </button>
                     )}
                   </article>
@@ -692,7 +692,14 @@ export function ProfileCollectionPage({
         <div>
           <p className="eyebrow">
             @{profileUsername}
-            {profileIsPrivate ? " 🔒" : ""}
+            {profileIsPrivate && (
+              <AppIcon
+                name="eye-slash"
+                className="inline-private-icon"
+                title="Gizli hesap"
+                decorative={false}
+              />
+            )}
           </p>
           <h1>{config?.title || "Liste"}</h1>
         </div>
@@ -709,7 +716,7 @@ export function ProfileCollectionPage({
         {!loading && !errorMessage && items.length === 0 && (
           <EmptyCollectionState
             compact
-            icon={type === "notes" ? "✦" : "◉"}
+            icon={type === "notes" ? "star" : "user"}
             title={config?.emptyMessage || "Liste boş"}
             message={
               type === "notes"
@@ -838,7 +845,14 @@ export function ConnectionList({
               <span className="connection-copy">
                 <strong>
                   {user.Username}
-                  {isPrivateAccount(user.AccountVisibilityCode) ? " 🔒" : ""}
+                  {isPrivateAccount(user.AccountVisibilityCode) && (
+                    <AppIcon
+                      name="eye-slash"
+                      className="inline-private-icon"
+                      title="Gizli hesap"
+                      decorative={false}
+                    />
+                  )}
                 </strong>
                 <span>{fullName || user.Username}</span>
                 <small>

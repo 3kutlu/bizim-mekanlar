@@ -24,6 +24,7 @@ type PushPreferenceRow = {
   FollowingNoteEnabled: boolean;
   NoteReactionEnabled: boolean;
   CollectionCollaboratorEnabled: boolean;
+  CollectionPlaceAddedEnabled: boolean;
 };
 
 function isNotificationTypeEnabled(
@@ -42,6 +43,8 @@ function isNotificationTypeEnabled(
       return preferences?.NoteReactionEnabled !== false;
     case "COLLECTION_COLLABORATOR_ADDED":
       return preferences?.CollectionCollaboratorEnabled !== false;
+    case "COLLECTION_PLACE_ADDED":
+      return preferences?.CollectionPlaceAddedEnabled !== false;
     default:
       return true;
   }
@@ -188,6 +191,14 @@ function getNotificationCopy(
           : "Ortak koleksiyonu görmek için dokun.",
         url: collectionPublicId ? `/collection/${collectionPublicId}` : "/profile",
       };
+    case "COLLECTION_PLACE_ADDED":
+      return {
+        title: `${actor} ortak koleksiyona yeni bir mekan ekledi.`,
+        body: collectionName
+          ? `${collectionName} koleksiyonunu görmek için dokun.`
+          : "Ortak koleksiyonu görmek için dokun.",
+        url: collectionPublicId ? `/collection/${collectionPublicId}` : "/profile",
+      };
     case "NOTE_REACTION_DOWN":
       return {
         title: `${actor} notunu beğenmedi.`,
@@ -324,7 +335,7 @@ async function sendNotification(notificationId: number) {
   const { data: preferences, error: preferencesError } = await admin
     .from("UserWebPushPreferences")
     .select(
-      "FollowRequestEnabled, FollowedEnabled, FollowingNoteEnabled, NoteReactionEnabled, CollectionCollaboratorEnabled"
+      "FollowRequestEnabled, FollowedEnabled, FollowingNoteEnabled, NoteReactionEnabled, CollectionCollaboratorEnabled, CollectionPlaceAddedEnabled"
     )
     .eq("UserId", notification.RecipientUserId)
     .maybeSingle<PushPreferenceRow>();

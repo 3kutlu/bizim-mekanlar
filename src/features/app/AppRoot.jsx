@@ -608,9 +608,29 @@ export default function App() {
         setNotificationsError("");
       }
 
-      const { data, error } = await supabase.rpc("GetMyNotifications", {
-        p_limit: 40,
-      });
+      const [baseResult, collectionResult] = await Promise.all([
+        supabase.rpc("GetMyNotifications", { p_limit: 40 }),
+        supabase.rpc("GetMyCollectionNotifications", { p_limit: 40 }),
+      ]);
+      const error = baseResult.error || collectionResult.error;
+      const data = [
+        ...(baseResult.data ?? []),
+        ...(collectionResult.data ?? []),
+      ]
+        .filter(
+          (notification, index, rows) =>
+            rows.findIndex(
+              (candidate) =>
+                Number(candidate?.NotificationId) ===
+                Number(notification?.NotificationId)
+            ) === index
+        )
+        .sort(
+          (left, right) =>
+            new Date(right?.CreatedDate || 0).getTime() -
+            new Date(left?.CreatedDate || 0).getTime()
+        )
+        .slice(0, 40);
 
       if (error) {
         console.error("Bildirimler alınamadı:", error);
@@ -867,7 +887,7 @@ export default function App() {
     await refreshNotificationCenter();
 
     // Popover Notlar sekmesinde açılıyor. Bu yüzden yalnızca not
-    // bildirimlerini okundu sayıyoruz; Takip sekmesindeki gelişmeler
+    // bildirimlerini okundu sayıyoruz; Arkadaşların sekmesindeki gelişmeler
     // kullanıcı o sekmeye gerçekten girdiğinde okunacak.
     const { error } = await supabase.rpc("MarkMyNoteNotificationsRead");
 
@@ -881,7 +901,28 @@ export default function App() {
   }, [isNotificationsOpen, loadNotifications, refreshNotificationCenter]);
 
   const handleFollowActivityViewed = useCallback(async () => {
-    const { error } = await supabase.rpc("MarkMyFollowActivityRead");
+    // The user is already looking at the Friends tab. Clear its visual unread
+    // state immediately, then persist it in the background. This prevents the
+    // badge from lingering while mobile networks complete the RPC round-trip.
+    setFollowActivity((current) =>
+      withVisibleUnreadCount(
+        current.map((activity) => ({ ...activity, IsRead: true }))
+      )
+    );
+    setNotifications((current) =>
+      withVisibleUnreadCount(
+        current.map((notification) =>
+          [
+            "COLLECTION_COLLABORATOR_ADDED",
+            "COLLECTION_PLACE_ADDED",
+          ].includes(notification?.NotificationTypeCode)
+            ? { ...notification, IsRead: true }
+            : notification
+        )
+      )
+    );
+
+    const { error } = await supabase.rpc("MarkMyFriendsActivityRead");
 
     if (error) {
       console.error("Takip gelişmeleri okundu işaretlenemedi:", error);
@@ -889,8 +930,11 @@ export default function App() {
       return;
     }
 
-    await loadFollowActivity({ silent: true });
-  }, [loadFollowActivity]);
+    await Promise.all([
+      loadFollowActivity({ silent: true }),
+      loadNotifications({ silent: true }),
+    ]);
+  }, [loadFollowActivity, loadNotifications]);
 
   const handleContentSharesViewed = useCallback(async () => {
     const { error } = await supabase.rpc("MarkMyContentSharesRead");
@@ -1278,7 +1322,10 @@ export default function App() {
       setIsNotificationsOpen(false);
 
       const isCollectionNotification =
-        notification?.NotificationTypeCode === "COLLECTION_COLLABORATOR_ADDED";
+        [
+          "COLLECTION_COLLABORATOR_ADDED",
+          "COLLECTION_PLACE_ADDED",
+        ].includes(notification?.NotificationTypeCode);
 
       if (isCollectionNotification) {
         const listId = Number(notification?.UserPlaceListId ?? 0);
@@ -1461,7 +1508,7 @@ export default function App() {
         listName: String(target.Name ?? "").trim() || "Mekan listesi",
         listDescription: String(target.Description ?? "").trim(),
         listCoverUrl: String(list?.CoverSignedUrl ?? context?.listCoverUrl ?? "").trim(),
-        listIcon: String(target.Icon ?? "✦").trim() || "✦",
+        listIcon: String(target.Icon ?? "star").trim() || "star",
         userId,
         username: String(target.Username ?? "").trim(),
         isPrivate: isPrivateAccount(target.AccountVisibilityCode),
@@ -2030,7 +2077,7 @@ export default function App() {
                 listName: String(target.Name ?? "").trim() || "Mekan listesi",
                 listDescription: String(target.Description ?? "").trim(),
                 listCoverUrl: "",
-                listIcon: String(target.Icon ?? "✦").trim() || "✦",
+                listIcon: String(target.Icon ?? "star").trim() || "star",
                 userId,
                 username: String(target.Username ?? "").trim(),
                 isPrivate: isPrivateAccount(target.AccountVisibilityCode),

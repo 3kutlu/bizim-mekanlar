@@ -160,7 +160,11 @@ function loginSuccessReply() {
 
 function loginNotFoundReply() {
   return json(
-    { message: "Bu bilgilerle eşleşen bir kullanıcı bulunamadı." },
+    {
+      code: "LOGIN_ACCOUNT_NOT_FOUND",
+      message:
+        "Bu bilgilerle kayıtlı bir hesap yok. Bu yüzden giriş e-postası gönderilmedi.",
+    },
     404
   );
 }
@@ -703,7 +707,13 @@ async function requestSignupOtp(payload: Payload, request: Request) {
   }
 
   if ((usernameMatches?.length ?? 0) > 0) {
-    return json({ message: "Bu kullanıcı adı alınmış." }, 409);
+    return json(
+      {
+        code: "SIGNUP_USERNAME_TAKEN",
+        message: "Bu kullanıcı adı alınmış.",
+      },
+      409
+    );
   }
 
   const { data: emailMatches, error: emailError } = await adminClient
@@ -723,7 +733,13 @@ async function requestSignupOtp(payload: Payload, request: Request) {
   }
 
   if ((emailMatches?.length ?? 0) > 0) {
-    return json({ message: "Bu e-posta ile bir hesap zaten var." }, 409);
+    return json(
+      {
+        code: "SIGNUP_EMAIL_EXISTS",
+        message: "Bu e-posta ile bir hesap zaten var.",
+      },
+      409
+    );
   }
 
   const { error } = await authClient.auth.signInWithOtp({

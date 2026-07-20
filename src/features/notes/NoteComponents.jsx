@@ -226,12 +226,26 @@ export function NoteFeed({
                           title="Kullanıcı profilini aç"
                         >
                           {username}
-                          {isPrivateAccount(note.AccountVisibilityCode) ? " 🔒" : ""}
+                          {isPrivateAccount(note.AccountVisibilityCode) && (
+                            <AppIcon
+                              name="eye-slash"
+                              className="inline-private-icon"
+                              title="Gizli hesap"
+                              decorative={false}
+                            />
+                          )}
                         </button>
                       ) : (
                         <strong>
                           {username}
-                          {isPrivateAccount(note.AccountVisibilityCode) ? " 🔒" : ""}
+                          {isPrivateAccount(note.AccountVisibilityCode) && (
+                            <AppIcon
+                              name="eye-slash"
+                              className="inline-private-icon"
+                              title="Gizli hesap"
+                              decorative={false}
+                            />
+                          )}
                         </strong>
                       )}
 
@@ -648,7 +662,14 @@ export function NoteDetailPage({
                 <strong>{fullName || username}</strong>
                 <small>
                   @{username}
-                  {isPrivateAccount(note?.AccountVisibilityCode) ? " 🔒" : ""}
+                  {isPrivateAccount(note?.AccountVisibilityCode) && (
+                    <AppIcon
+                      name="eye-slash"
+                      className="inline-private-icon"
+                      title="Gizli hesap"
+                      decorative={false}
+                    />
+                  )}
                 </small>
               </span>
             </button>
@@ -1086,7 +1107,7 @@ export function NotePhotoManagerModal({ noteId, existingPhotos, onClose, onChang
                   aria-label={`${draft.name} fotoğrafını kaldır`}
                   title="Fotoğrafı kaldır"
                 >
-                  ×
+                  <AppIcon name="x" />
                 </button>
               </div>
             ))}
@@ -1376,7 +1397,11 @@ export function NoteEditModal({
                   disabled={isBusy}
                   onClick={() => updateField("rating", rating)}
                 >
-                  ★
+                  <AppIcon
+                    name={
+                      rating <= Number(form.rating) ? "star-fill" : "star"
+                    }
+                  />
                 </button>
               ))}
               <strong>{form.rating ? `${form.rating} / 5` : "Puan ver"}</strong>
@@ -1467,9 +1492,13 @@ export function NoteEditModal({
                       aria-label="Fotoğrafı sil"
                       title="Fotoğrafı sil"
                     >
-                      {Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId)
-                        ? "…"
-                        : "×"}
+                      <AppIcon
+                        name={
+                          Number(deletingPhotoId) === Number(photo.PlaceNotePhotoId)
+                            ? "circle-notch"
+                            : "x"
+                        }
+                      />
                     </button>
                   </div>
                 ))}
@@ -1484,7 +1513,7 @@ export function NoteEditModal({
                       aria-label="Seçilen fotoğrafı kaldır"
                       title="Seçilen fotoğrafı kaldır"
                     >
-                      ×
+                      <AppIcon name="x" />
                     </button>
                   </div>
                 ))}
@@ -1627,11 +1656,15 @@ export function ErrorState({ message, onRetry, compact = false }) {
 }
 
 export function EmptyCollectionState({ icon, title, message, compact = false }) {
+  const renderedIcon = typeof icon === "string"
+    ? <AppIcon name={icon} />
+    : icon;
+
   return (
     <div
       className={`list-state${compact ? " list-state-compact" : ""}`}
     >
-      <div className="empty-icon">{icon}</div>
+      <div className="empty-icon">{renderedIcon}</div>
       <h2>{title}</h2>
       {message && <p>{message}</p>}
     </div>

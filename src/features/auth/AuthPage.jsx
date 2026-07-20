@@ -11,6 +11,8 @@ const OTP_LENGTH = 6;
 const OTP_PATTERN = new RegExp(`^\\d{${OTP_LENGTH}}$`);
 const OTP_PLACEHOLDER = "0".repeat(OTP_LENGTH);
 const SIGNUP_DEVICE_STORAGE_KEY = "bm_signup_device_v1";
+const LOGIN_ACCOUNT_NOT_FOUND_CODE = "LOGIN_ACCOUNT_NOT_FOUND";
+const SIGNUP_EMAIL_EXISTS_CODE = "SIGNUP_EMAIL_EXISTS";
 const SUPPORT_MESSAGE_CODES = new Set([
   "EMAIL_NOT_ALLOWED",
   "SIGNUP_TEMPORARILY_BLOCKED",
@@ -510,14 +512,28 @@ export default function AuthPage() {
     clearMessage();
   };
 
-  const switchMode = () => {
+  const selectMode = (nextMode) => {
     if (submitting || submissionLockRef.current) {
       return;
     }
 
-    setMode((currentMode) =>
-      currentMode === "login" ? "signup" : "login"
-    );
+    if (nextMode === mode) {
+      return;
+    }
+
+    if (nextMode === "signup") {
+      const normalizedIdentifier = String(loginIdentifier).trim().toLowerCase();
+
+      if (emailPattern.test(normalizedIdentifier)) {
+        setEmail(normalizedIdentifier);
+      } else if (usernamePattern.test(normalizedIdentifier)) {
+        setUsername(normalizedIdentifier);
+      }
+    } else if (emailPattern.test(normalizeEmail(email))) {
+      setLoginIdentifier(normalizeEmail(email));
+    }
+
+    setMode(nextMode);
     setStep("form");
     setOtp("");
     setPendingIdentifier("");
@@ -544,23 +560,68 @@ export default function AuthPage() {
             Bir yanlışlık olduğunu düşünüyorsan bizimle iletişime geç.
           </a>
         )}
+
+        {messageCode === LOGIN_ACCOUNT_NOT_FOUND_CODE && (
+          <button
+            className="auth-message-action"
+            type="button"
+            onClick={() => selectMode("signup")}
+          >
+            Yeni hesap oluştur
+          </button>
+        )}
+
+        {messageCode === SIGNUP_EMAIL_EXISTS_CODE && (
+          <button
+            className="auth-message-action"
+            type="button"
+            onClick={() => selectMode("login")}
+          >
+            Bu e-postayla giriş yap
+          </button>
+        )}
       </div>
     );
   };
 
   return (
     <main className="auth-page">
-      <section className="auth-card">
+      <section
+        className={`auth-card${mode === "signup" ? " auth-card-signup" : ""}`}
+      >
         <p className="brand-small">BİZİM MEKANLAR</p>
 
         {!isOtpStep ? (
           <>
-            <h1>{mode === "login" ? "Hoş geldin." : "Aramıza katıl."}</h1>
+            <div className="auth-mode-tabs" role="tablist" aria-label="Hesap işlemi">
+              <button
+                className={mode === "login" ? "auth-mode-tab-active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={mode === "login"}
+                disabled={submitting}
+                onClick={() => selectMode("login")}
+              >
+                Hesabım var
+              </button>
+              <button
+                className={mode === "signup" ? "auth-mode-tab-active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={mode === "signup"}
+                disabled={submitting}
+                onClick={() => selectMode("signup")}
+              >
+                Hesap oluştur
+              </button>
+            </div>
+
+            <h1>{mode === "login" ? "Giriş yap." : "Hesabını oluştur."}</h1>
 
             <p className="auth-description">
               {mode === "login"
-                ? "Giriş yapmak için e-posta adresini veya kullanıcı adını yaz."
-                : "Gezdiğiniz mekanları birlikte kaydedin."}
+                ? "Daha önce hesap oluşturduysan e-posta adresini veya kullanıcı adını yaz."
+                : "İlk kez geliyorsan bilgilerini doldur; doğrulama koduyla hesabını hemen oluşturalım."}
             </p>
 
             <form
@@ -569,122 +630,153 @@ export default function AuthPage() {
                 void requestOtp();
               }}
             >
-              {mode === "signup" && (
+              {mode === "signup" ? (
                 <div className="auth-signup-fields">
-                  <label>
-                    Kullanıcı adı
-                    <input
-                      type="text"
-                      placeholder="smoke"
-                      value={username}
-                      minLength="3"
-                      maxLength="30"
-                      autoComplete="username"
-                      disabled={submitting}
-                      onBlur={checkUsernameAvailability}
-                      onChange={(event) => {
-                        setUsername(event.target.value.toLowerCase());
-                        setUsernameAvailable(null);
-                        setUsernameMessage("");
-                      }}
-                    />
-                  </label>
+                  <section className="auth-form-section" aria-labelledby="auth-account-fields">
+                    <div className="auth-form-section-heading">
+                      <strong id="auth-account-fields">Hesap bilgileri</strong>
+                      <span>Giriş kodunu bu e-postaya göndereceğiz.</span>
+                    </div>
 
-                  {usernameMessage && (
-                    <p
-                      className={`auth-field-message ${
-                        usernameAvailable === false ? "auth-field-error" : ""
-                      }`}
-                    >
-                      {usernameMessage}
-                    </p>
-                  )}
-
-                  <div className="auth-form-row">
                     <label>
-                      İsim
+                      E-posta
+                      <input
+                        type="email"
+                        placeholder="Mail adresin"
+                        value={email}
+                        autoComplete="email"
+                        disabled={submitting}
+                        onChange={(event) => setEmail(event.target.value)}
+                      />
+                    </label>
+
+                    <label>
+                      Kullanıcı adı
                       <input
                         type="text"
-                        placeholder="Adın"
-                        value={firstName}
-                        autoComplete="given-name"
+                        placeholder="Kullanıcı adın"
+                        value={username}
+                        minLength="3"
+                        maxLength="30"
+                        autoComplete="username"
                         disabled={submitting}
-                        onChange={(event) => setFirstName(event.target.value)}
+                        onBlur={checkUsernameAvailability}
+                        onChange={(event) => {
+                          setUsername(event.target.value.toLowerCase());
+                          setUsernameAvailable(null);
+                          setUsernameMessage("");
+                        }}
                       />
                     </label>
 
-                    <label>
-                      Soyisim <span className="optional-text">(opsiyonel)</span>
-                      <input
-                        type="text"
-                        placeholder="Soyadın"
-                        value={lastName}
-                        autoComplete="family-name"
-                        disabled={submitting}
-                        onChange={(event) => setLastName(event.target.value)}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="auth-form-row">
-                    <label>
-                      Doğum tarihi
-                      <input
-                        type="date"
-                        value={birthDate}
-                        max={today}
-                        disabled={submitting}
-                        onChange={(event) => setBirthDate(event.target.value)}
-                      />
-                    </label>
-
-                    <label>
-                      Şehir
-                      <select
-                        value={cityId}
-                        disabled={citiesLoading || submitting}
-                        onChange={(event) => setCityId(event.target.value)}
+                    {usernameMessage && (
+                      <p
+                        className={`auth-field-message ${
+                          usernameAvailable === false ? "auth-field-error" : ""
+                        }`}
                       >
-                        <option value="">
-                          {citiesLoading ? "Yükleniyor..." : "Şehir seç"}
-                        </option>
+                        {usernameMessage}
+                      </p>
+                    )}
+                  </section>
 
-                        {cities.map((city) => (
-                          <option key={city.CityId} value={city.CityId}>
-                            {String(city.PlateCode).padStart(2, "0")} · {city.Name}
+                  <section className="auth-form-section" aria-labelledby="auth-profile-fields">
+                    <div className="auth-form-section-heading">
+                      <strong id="auth-profile-fields">Profil bilgileri</strong>
+                      <span>Seni ve yakınındaki mekanları tanımamız için.</span>
+                    </div>
+
+                    <div className="auth-form-row">
+                      <label>
+                        İsim
+                        <input
+                          type="text"
+                          placeholder="Adın"
+                          value={firstName}
+                          autoComplete="given-name"
+                          disabled={submitting}
+                          onChange={(event) => setFirstName(event.target.value)}
+                        />
+                      </label>
+
+                      <label>
+                        Soyisim <span className="optional-text">(opsiyonel)</span>
+                        <input
+                          type="text"
+                          placeholder="Soyadın"
+                          value={lastName}
+                          autoComplete="family-name"
+                          disabled={submitting}
+                          onChange={(event) => setLastName(event.target.value)}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="auth-form-row">
+                      <label>
+                        Doğum tarihi
+                        <input
+                          type="date"
+                          value={birthDate}
+                          max={today}
+                          disabled={submitting}
+                          onChange={(event) => setBirthDate(event.target.value)}
+                        />
+                      </label>
+
+                      <label>
+                        Şehir
+                        <select
+                          value={cityId}
+                          disabled={citiesLoading || submitting}
+                          onChange={(event) => setCityId(event.target.value)}
+                        >
+                          <option value="">
+                            {citiesLoading ? "Yükleniyor..." : "Şehir seç"}
                           </option>
-                        ))}
-                      </select>
+
+                          {cities.map((city) => (
+                            <option key={city.CityId} value={city.CityId}>
+                              {String(city.PlateCode).padStart(2, "0")} · {city.Name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="auth-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={isPrivateAccount}
+                        disabled={submitting}
+                        onChange={(event) =>
+                          setIsPrivateAccount(event.target.checked)
+                        }
+                      />
+
+                      <span>
+                        <strong>Gizli hesap</strong>
+                        <small>
+                          Notların ve takip listelerin yalnızca kabul ettiğin
+                          takipçilere görünür.
+                        </small>
+                      </span>
                     </label>
-                  </div>
+                  </section>
 
-                  <label className="auth-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={isPrivateAccount}
-                      disabled={submitting}
-                      onChange={(event) =>
-                        setIsPrivateAccount(event.target.checked)
-                      }
-                    />
-
-                    <span>
-                      <strong>Gizli hesap</strong>
-                      <small>
-                        Notların ve takip listelerin yalnızca kabul ettiğin
-                        takipçilere görünür.
-                      </small>
-                    </span>
-                  </label>
+                  <p className="auth-passwordless-note">
+                    <span aria-hidden="true"><AppIcon name="star" /></span>
+                    Şifre oluşturman gerekmiyor. Şimdi e-posta adresine tek
+                    kullanımlık 6 haneli doğrulama kodu göndereceğiz.
+                  </p>
                 </div>
-              )}
-
-              {mode === "login" ? (
+              ) : (
+                <div className="auth-login-fields">
                 <label>
                   E-posta veya kullanıcı adı
                   <input
                     type="text"
-                    placeholder="smoke veya ornek@mail.com"
+                    placeholder="Kullanıcı adın veya mail adresin"
                     value={loginIdentifier}
                     autoComplete="username"
                     autoCapitalize="none"
@@ -694,26 +786,12 @@ export default function AuthPage() {
                     }
                   />
                 </label>
-              ) : (
-                <label>
-                  E-posta
-                  <input
-                    type="email"
-                    placeholder="ornek@mail.com"
-                    value={email}
-                    autoComplete="email"
-                    disabled={submitting}
-                    onChange={(event) => setEmail(event.target.value)}
-                  />
-                </label>
-              )}
 
-              {mode === "signup" && (
-                <p className="auth-passwordless-note">
-                  <span aria-hidden="true"><AppIcon name="star" /></span>
-                  Şifre oluşturman gerekmiyor. Girişte e-posta adresine tek
-                  kullanımlık 6 haneli kod göndeririz.
+                <p className="auth-login-note">
+                  <strong>Henüz hesabın yoksa</strong> giriş e-postası gönderilmez.
+                  Yukarıdaki “Hesap oluştur” sekmesinden başla.
                 </p>
+                </div>
               )}
 
               <button
@@ -724,23 +802,12 @@ export default function AuthPage() {
                 {submitting
                   ? "Kod gönderiliyor..."
                   : mode === "login"
-                    ? "Kod gönder"
-                    : "Kodla kayıt ol"}
+                    ? "Giriş kodu gönder"
+                    : "Hesabımı oluştur"}
               </button>
             </form>
 
             {renderMessage()}
-
-            <button
-              className="text-button"
-              type="button"
-              disabled={submitting}
-              onClick={switchMode}
-            >
-              {mode === "login"
-                ? "Hesabın yok mu? Kayıt ol"
-                : "Hesabın var mı? Giriş yap"}
-            </button>
           </>
         ) : (
           <>
@@ -754,10 +821,11 @@ export default function AuthPage() {
               Geri
             </button>
 
-            <h1>E-postandaki kodu gir.</h1>
+            <h1>{mode === "signup" ? "E-postanı doğrula." : "E-postandaki kodu gir."}</h1>
             <p className="auth-description">
-              Sana gönderdiğimiz 6 haneli tek kullanımlık kodla güvenle giriş
-              yapabilirsin.
+              {mode === "signup"
+                ? `${normalizeEmail(email)} adresine gönderdiğimiz 6 haneli kodu yaz.`
+                : "Hesabına bağlı e-posta adresine gönderdiğimiz 6 haneli kodu yaz."}
             </p>
 
             <form onSubmit={verifyOtp}>
@@ -783,11 +851,20 @@ export default function AuthPage() {
                 type="submit"
                 disabled={submitting || otp.length !== OTP_LENGTH}
               >
-                {submitting ? "Doğrulanıyor..." : "Giriş yap"}
+                {submitting
+                  ? "Doğrulanıyor..."
+                  : mode === "signup"
+                    ? "Kaydı tamamla"
+                    : "Giriş yap"}
               </button>
             </form>
 
             {renderMessage()}
+
+            <p className="auth-otp-help">
+              Kod birkaç dakika sürebilir. Gelen kutunda yoksa spam veya gereksiz
+              klasörünü de kontrol et.
+            </p>
 
             <button
               className="text-button"
@@ -795,7 +872,7 @@ export default function AuthPage() {
               disabled={submitting}
               onClick={() => void resendOtp()}
             >
-              Kodu yeniden gönder
+              Yeni kod gönder
             </button>
           </>
         )}

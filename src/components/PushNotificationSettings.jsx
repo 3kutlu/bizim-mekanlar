@@ -32,7 +32,12 @@ const PREFERENCE_OPTIONS = [
   {
     key: "collectionCollaboratorEnabled",
     title: "Ortak koleksiyonlar",
-    description: "Birisi seni ortak koleksiyonuna eklediğinde.",
+    description: "Birisi seni ortak koleksiyona eklediğinde.",
+  },
+  {
+    key: "collectionPlaceAddedEnabled",
+    title: "Koleksiyona eklenen mekanlar",
+    description: "Ortak koleksiyonuna yeni bir mekan eklendiğinde.",
   },
   {
     key: "contentShareEnabled",

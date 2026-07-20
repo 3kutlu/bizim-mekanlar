@@ -370,7 +370,7 @@ export function PlaceDetailPage({
 
               {!notesLoading && !notesError && sortedNotes.length === 0 && (
                 <div className="place-detail-empty-reviews">
-                  <span aria-hidden="true">✦</span>
+                  <span aria-hidden="true"><AppIcon name="star" /></span>
                   <h3>Henüz yorum yok</h3>
                   <p>Bu mekanla ilgili ilk notu sen ekleyebilirsin.</p>
                 </div>
