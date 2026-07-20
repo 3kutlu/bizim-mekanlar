@@ -41,3 +41,6 @@ docs/*
 *.bak
 *.backup
 project-files.txt
+
+# Generated remote database schema snapshot (not a migration)
+supabase-public-schema.sql
