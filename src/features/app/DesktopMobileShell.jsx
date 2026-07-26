@@ -23,7 +23,7 @@ function DesktopInstallPanel() {
       <div className="desktop-feedback-panel" aria-label="Geri bildirim notu">
         <p>
           Bizim Mekanlar henüz gelişmeye devam ediyor. Her türlü hata, öneri ya da fikir için{" "}
-          <a href="mailto:3kutlu@gmail.com?subject=Bizim%20Mekanlar%20Geri%20Bildirim">
+          <a href="/iletisim">
             bizimle iletişime geçebilirsiniz.
           </a>
         </p>

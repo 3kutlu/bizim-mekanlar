@@ -27,10 +27,16 @@ import UserProfilePage from "../discovery/UserProfilePage.jsx";
 import UserSearchPage from "../discovery/UserSearchPage.jsx";
 import { supabase } from "../../supabase.js";
 import { copyLink, shareOrCopyLink } from "../../utils/share.js";
-import { touchLastSeenIfNeeded } from "../../utils/lastSeen.js";
 import { filterMutedNotifications, filterUnavailableUsers, getMyMutedUserIds, getMyUnavailableUserIds } from "../../utils/userRelationships.js";
 import { detachCurrentPushSubscription, enablePushNotifications, getPushNotificationStatus, syncExistingPushSubscription } from "../../utils/pushNotifications.js";
 import { PlaceListDetailPage, ProfileCollectionPage } from "../collections/CollectionPages.jsx";
+import {
+  ContactPage,
+  LEGAL_VERSION,
+  LegalPage,
+  TERMS_ACCEPTED_EVENT,
+  TermsAcceptanceGate,
+} from "../legal/LegalPages.jsx";
 import DeepLinkNotFoundPage from "../routing/DeepLinkNotFoundPage.jsx";
 import { getCollectionDeepLinkTarget, getCollectionDeepLinkTargetById, getNoteDeepLinkTarget, getNoteDeepLinkTargetById, getPlaceDeepLinkTarget, getPlaceDeepLinkTargetById, getUserDeepLinkTargetById, getUserDeepLinkTargetByUsername } from "../routing/deepLinkApi.js";
 import { ROUTE_PATHS, buildCollectionPath, buildNotePath, buildPlacePath, buildProfileCollectionPath, buildUserPath, createNavigationSnapshot, fromHistoryState, getLocationRoutePath, parseRoutePath, toHistoryState } from "../routing/routes.js";
@@ -80,12 +86,15 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [appMessage, setAppMessage] = useState("");
+  const [termsStatus, setTermsStatus] = useState("idle");
+  const [termsStatusRefreshKey, setTermsStatusRefreshKey] = useState(0);
 
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [profileNotice, setProfileNotice] = useState("");
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [placeListsRefreshKey, setPlaceListsRefreshKey] = useState(0);
   const [mapTarget, setMapTarget] = useState(null);
+  const [mapCollection, setMapCollection] = useState(null);
   const [placeReviewFilter, setPlaceReviewFilter] = useState(null);
   const [discoveryStack, setDiscoveryStack] = useState([]);
 
@@ -117,6 +126,7 @@ export default function App() {
       activePage: "map",
       discoveryStack: [],
       mapTarget: null,
+      mapCollection: null,
       placeReviewFilter: null,
       path: getLocationRoutePath(),
     })
@@ -169,9 +179,16 @@ export default function App() {
       activePage,
       discoveryStack,
       mapTarget,
+      mapCollection,
       placeReviewFilter,
     });
-  }, [activePage, discoveryStack, mapTarget, placeReviewFilter]);
+  }, [
+    activePage,
+    discoveryStack,
+    mapCollection,
+    mapTarget,
+    placeReviewFilter,
+  ]);
 
   useEffect(() => () => {
     if (shareNoticeTimerRef.current) {
@@ -197,6 +214,7 @@ export default function App() {
     setActivePage(nextNavigation.activePage);
     setDiscoveryStack(nextNavigation.discoveryStack);
     setMapTarget(nextNavigation.mapTarget);
+    setMapCollection(nextNavigation.mapCollection);
     setPlaceReviewFilter(nextNavigation.placeReviewFilter);
 
     if (typeof window === "undefined" || historyMode === "none") {
@@ -329,6 +347,59 @@ export default function App() {
       isMounted = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const authUserId = session?.user?.id;
+
+    if (!authUserId) {
+      setTermsStatus("idle");
+      return undefined;
+    }
+
+    let cancelled = false;
+    setTermsStatus("checking");
+
+    const checkTermsStatus = async () => {
+      const { data, error } = await supabase.rpc("HasAcceptedCurrentTerms", {
+        p_terms_version: LEGAL_VERSION,
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error("Kullanım koşulları onayı kontrol edilemedi:", error);
+        setTermsStatus("error");
+        return;
+      }
+
+      setTermsStatus(data === true ? "accepted" : "required");
+    };
+
+    void checkTermsStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, termsStatusRefreshKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const handleTermsAccepted = (event) => {
+      if (event.detail?.termsVersion === LEGAL_VERSION) {
+        setTermsStatus("accepted");
+        setTermsStatusRefreshKey((current) => current + 1);
+      }
+    };
+
+    window.addEventListener(TERMS_ACCEPTED_EVENT, handleTermsAccepted);
+    return () =>
+      window.removeEventListener(TERMS_ACCEPTED_EVENT, handleTermsAccepted);
   }, []);
 
   useEffect(() => {
@@ -952,14 +1023,6 @@ export default function App() {
     loadProfile();
   }, [loadProfile]);
 
-  useEffect(() => {
-    if (!profile?.UserId || String(profile?.AccountStatus ?? "ACTIVE").toUpperCase() !== "ACTIVE") {
-      return;
-    }
-
-    void touchLastSeenIfNeeded(profile.UserId);
-  }, [profile?.AccountStatus, profile?.UserId]);
-
   const loadCities = useCallback(async () => {
     if (cities.length > 0 || citiesLoading) {
       return;
@@ -1037,6 +1100,16 @@ export default function App() {
     }
   }, []);
 
+  const clearMapCollection = useCallback(() => {
+    applyNavigationSnapshot(
+      {
+        ...navigationRef.current,
+        mapCollection: null,
+      },
+      "replace"
+    );
+  }, [applyNavigationSnapshot]);
+
   const handleOpenPlaceOnMap = useCallback(async (placeId, openAction = null) => {
     const normalizedPlaceId = Number(placeId);
 
@@ -1077,6 +1150,7 @@ export default function App() {
         activePage: "map",
         discoveryStack: [],
         placeReviewFilter: null,
+        mapCollection: null,
         path: ROUTE_PATHS.MAP,
         mapTarget: {
           requestId: `${place.PlaceId}-${Date.now()}`,
@@ -1150,7 +1224,8 @@ export default function App() {
       if (
         currentNavigation.activePage === page &&
         currentNavigation.discoveryStack.length === 0 &&
-        currentNavigation.path === path
+        currentNavigation.path === path &&
+        !currentNavigation.mapCollection
       ) {
         return;
       }
@@ -1160,6 +1235,7 @@ export default function App() {
           activePage: page,
           discoveryStack: [],
           mapTarget: null,
+          mapCollection: null,
           placeReviewFilter: null,
           path,
         },
@@ -1509,6 +1585,9 @@ export default function App() {
         listDescription: String(target.Description ?? "").trim(),
         listCoverUrl: String(list?.CoverSignedUrl ?? context?.listCoverUrl ?? "").trim(),
         listIcon: String(target.Icon ?? "star").trim() || "star",
+        listColorCode: String(
+          target.ColorCode ?? list?.ColorCode ?? "BURGUNDY"
+        ).trim() || "BURGUNDY",
         userId,
         username: String(target.Username ?? "").trim(),
         isPrivate: isPrivateAccount(target.AccountVisibilityCode),
@@ -1520,6 +1599,41 @@ export default function App() {
       });
     },
     [ownUserId, pushDiscoveryScreen]
+  );
+
+  const handleShowPlaceListOnMap = useCallback(
+    (collection) => {
+      const listId = Number(collection?.listId);
+
+      if (!Number.isInteger(listId) || listId <= 0) {
+        setAppMessage(MESSAGE_KEY.COLLECTION_NOT_FOUND);
+        return;
+      }
+
+      applyNavigationSnapshot(
+        {
+          activePage: "map",
+          discoveryStack: [],
+          mapTarget: null,
+          mapCollection: {
+            requestId: `${listId}-${Date.now()}`,
+            listId,
+            listName:
+              String(collection?.listName ?? "").trim() || "Koleksiyon",
+            listIcon:
+              String(collection?.listIcon ?? "bookmark").trim() || "bookmark",
+            listColorCode:
+              String(collection?.listColorCode ?? "BURGUNDY").trim() ||
+              "BURGUNDY",
+            placeCount: Math.max(0, Number(collection?.placeCount) || 0),
+          },
+          placeReviewFilter: null,
+          path: ROUTE_PATHS.MAP,
+        },
+        "push"
+      );
+    },
+    [applyNavigationSnapshot]
   );
 
   const handleOpenContentShare = useCallback(
@@ -1867,6 +1981,11 @@ export default function App() {
   const hydrateRouteFromLocation = useCallback(
     async ({ initial = false } = {}) => {
       const route = parseRoutePath(getLocationRoutePath());
+
+      if (["legal", "contact"].includes(route.kind)) {
+        return;
+      }
+
       const existingNavigation =
         typeof window !== "undefined"
           ? fromHistoryState(window.history.state)
@@ -2078,6 +2197,8 @@ export default function App() {
                 listDescription: String(target.Description ?? "").trim(),
                 listCoverUrl: "",
                 listIcon: String(target.Icon ?? "star").trim() || "star",
+                listColorCode:
+                  String(target.ColorCode ?? "BURGUNDY").trim() || "BURGUNDY",
                 userId,
                 username: String(target.Username ?? "").trim(),
                 isPrivate: isPrivateAccount(target.AccountVisibilityCode),
@@ -2144,7 +2265,32 @@ export default function App() {
     profile?.UserId,
   ]);
 
-  if (loading || (session?.user && profileLoading)) {
+  const publicRoute = parseRoutePath(getLocationRoutePath());
+
+  if (publicRoute.kind === "legal") {
+    return (
+      <DesktopMobileShell>
+        <LegalPage hasSession={Boolean(session?.user)} />
+      </DesktopMobileShell>
+    );
+  }
+
+  if (publicRoute.kind === "contact") {
+    return (
+      <DesktopMobileShell>
+        <ContactPage
+          hasSession={Boolean(session?.user)}
+          defaultEmail={profile?.Email || session?.user?.email || ""}
+        />
+      </DesktopMobileShell>
+    );
+  }
+
+  if (
+    loading ||
+    (session?.user &&
+      (profileLoading || ["idle", "checking"].includes(termsStatus)))
+  ) {
     return (
       <DesktopMobileShell>
         <main className="loading-screen">Yükleniyor...</main>
@@ -2191,6 +2337,48 @@ export default function App() {
           </div>
         </section>
         </main>
+      </DesktopMobileShell>
+    );
+  }
+
+  if (termsStatus === "error") {
+    return (
+      <DesktopMobileShell>
+        <main className="loading-screen">
+          <section className="page-section">
+            <div className="empty-state">
+              <div className="empty-icon">!</div>
+              <h2>Onay durumu kontrol edilemedi</h2>
+              <p>İnternet bağlantını kontrol edip tekrar deneyebilirsin.</p>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => setTermsStatusRefreshKey((current) => current + 1)}
+              >
+                Tekrar dene
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={handleLogout}
+              >
+                Çıkış yap
+              </button>
+            </div>
+          </section>
+        </main>
+      </DesktopMobileShell>
+    );
+  }
+
+  if (termsStatus === "required") {
+    return (
+      <DesktopMobileShell>
+        <TermsAcceptanceGate
+          profileUsername={profile.Username}
+          onAccepted={() => setTermsStatus("accepted")}
+          onLogout={handleLogout}
+        />
       </DesktopMobileShell>
     );
   }
@@ -2409,6 +2597,8 @@ export default function App() {
             onOpenPlaceDetail={handleOpenPlaceDetail}
             onPlaceSaved={handlePlaceSaved}
             onSharePlace={handleShareMapPlace}
+            collectionFocus={mapCollection}
+            onClearCollectionFocus={clearMapCollection}
           />
         </section>
 
@@ -2570,6 +2760,7 @@ export default function App() {
                       listIcon={screen.listIcon}
                       listDescription={screen.listDescription}
                       listCoverUrl={screen.listCoverUrl}
+                      listColorCode={screen.listColorCode}
                       profileUsername={screen.username}
                       ownerUserId={screen.userId}
                       isOwner={Boolean(screen.isOwner)}
@@ -2578,6 +2769,7 @@ export default function App() {
                       onBack={popDiscoveryScreen}
                       onOpenPlace={handleOpenPlaceDetail}
                       onListChanged={handlePlaceListChanged}
+                      onShowOnMap={handleShowPlaceListOnMap}
                       onShare={() => handleShareCollection(screen)}
                     />
                   )}

@@ -228,6 +228,183 @@ export function SelectedPlaceMarker({ selectedPlace }) {
   );
 }
 
+export function CollectionMapLayer({
+  collection,
+  isActive,
+  onPlaceSelected,
+}) {
+  const map = useMap();
+  const [places, setPlaces] = useState([]);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    const listId = Number(collection?.listId);
+
+    if (
+      !map ||
+      !isActive ||
+      !Number.isInteger(listId) ||
+      listId <= 0
+    ) {
+      setPlaces([]);
+      return undefined;
+    }
+
+    let isCancelled = false;
+    const requestId = ++requestIdRef.current;
+
+    const loadCollectionPlaces = async () => {
+      const { data, error } = await supabase.rpc(
+        "GetUserPlaceListMapItems",
+        {
+          p_user_place_list_id: listId,
+        }
+      );
+
+      if (isCancelled || requestId !== requestIdRef.current) {
+        return;
+      }
+
+      if (error) {
+        console.error("Koleksiyon harita mekanları alınamadı:", error);
+        setPlaces([]);
+        return;
+      }
+
+      const visiblePlaces = (data ?? []).filter((place) => {
+        const latitude = Number(place?.Latitude);
+        const longitude = Number(place?.Longitude);
+
+        return Number.isFinite(latitude) && Number.isFinite(longitude);
+      });
+
+      setPlaces(visiblePlaces);
+
+      if (visiblePlaces.length === 0) {
+        return;
+      }
+
+      if (visiblePlaces.length === 1) {
+        map.panTo({
+          lat: Number(visiblePlaces[0].Latitude),
+          lng: Number(visiblePlaces[0].Longitude),
+        });
+        map.setZoom(16);
+        return;
+      }
+
+      const latitudes = visiblePlaces.map((place) => Number(place.Latitude));
+      const longitudes = visiblePlaces.map((place) => Number(place.Longitude));
+
+      map.fitBounds(
+        {
+          north: Math.max(...latitudes),
+          south: Math.min(...latitudes),
+          east: Math.max(...longitudes),
+          west: Math.min(...longitudes),
+        },
+        58
+      );
+    };
+
+    void loadCollectionPlaces();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [collection?.listId, collection?.requestId, isActive, map]);
+
+  const openPlace = useCallback(
+    (place) => {
+      const selectedPlace = {
+        ...getSelectedPlaceFromMapRow(place),
+        selectionSource: "collection-map-marker",
+      };
+
+      if (
+        !selectedPlace.id ||
+        !Number.isFinite(selectedPlace.location.lat) ||
+        !Number.isFinite(selectedPlace.location.lng)
+      ) {
+        return;
+      }
+
+      map?.panTo(selectedPlace.location);
+      onPlaceSelected(selectedPlace);
+    },
+    [map, onPlaceSelected]
+  );
+
+  if (!collection) {
+    return null;
+  }
+
+  const colorClassName = getCollectionColorClassName(
+    collection?.listColorCode
+  );
+
+  return (
+    <>
+      {places.map((place) => (
+        <AdvancedMarker
+          key={`collection-${collection.listId}-${place.PlaceId}`}
+          position={{
+            lat: Number(place.Latitude),
+            lng: Number(place.Longitude),
+          }}
+          anchorLeft="-50%"
+          anchorTop="-100%"
+          zIndex={82}
+          title={`${place?.Name || "Mekan"} · ${collection?.listName || "Koleksiyon"}`}
+          onClick={() => openPlace(place)}
+        >
+          <div
+            className={`collection-map-venue-marker ${colorClassName}`}
+            aria-hidden="true"
+          >
+            <CollectionIcon value={collection?.listIcon || "bookmark"} />
+          </div>
+        </AdvancedMarker>
+      ))}
+    </>
+  );
+}
+
+export function CollectionMapFilter({ collection, onClose }) {
+  if (!collection) {
+    return null;
+  }
+
+  const placeCount = Math.max(0, Number(collection?.placeCount) || 0);
+  const colorClassName = getCollectionColorClassName(
+    collection?.listColorCode
+  );
+
+  return (
+    <div
+      className={`collection-map-filter ${colorClassName}`}
+      role="status"
+      aria-label={`${collection?.listName || "Koleksiyon"} harita filtresi`}
+    >
+      <span className="collection-map-filter-icon" aria-hidden="true">
+        <CollectionIcon value={collection?.listIcon || "bookmark"} />
+      </span>
+      <span className="collection-map-filter-copy">
+        <strong>{collection?.listName || "Koleksiyon"}</strong>
+        <small>{placeCount} mekan haritada</small>
+      </span>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Koleksiyon harita görünümünü kapat"
+        title="Koleksiyon görünümünü kapat"
+      >
+        <AppIcon name="x" />
+      </button>
+    </div>
+  );
+}
+
 export function SocialVenueNotesLayer({ isActive, refreshKey, onPlaceSelected }) {
   const map = useMap();
   const placesLibrary = useMapsLibrary("places");
@@ -910,6 +1087,8 @@ export function PlaceSaveSheet({
   onRetry,
 }) {
   const dialogRef = useRef(null);
+  const [editingListId, setEditingListId] = useState(null);
+  const [noteDrafts, setNoteDrafts] = useState({});
 
   useEffect(() => {
     dialogRef.current?.focus();
@@ -919,6 +1098,11 @@ export function PlaceSaveSheet({
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape" && !savingListId) {
+        if (editingListId) {
+          setEditingListId(null);
+          return;
+        }
+
         onClose();
       }
     };
@@ -929,7 +1113,26 @@ export function PlaceSaveSheet({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, savingListId]);
+  }, [editingListId, onClose, savingListId]);
+
+  useEffect(() => {
+    if (!editingListId) {
+      return;
+    }
+
+    const editedList = lists.find(
+      (list) => Number(list?.UserPlaceListId) === editingListId
+    );
+
+    if (!editedList || editedList?.IsSaved) {
+      setEditingListId(null);
+      setNoteDrafts((currentDrafts) => {
+        const nextDrafts = { ...currentDrafts };
+        delete nextDrafts[editingListId];
+        return nextDrafts;
+      });
+    }
+  }, [editingListId, lists]);
 
   const handleBackdropMouseDown = (event) => {
     if (!savingListId && event.target === event.currentTarget) {
@@ -946,35 +1149,114 @@ export function PlaceSaveSheet({
     const isSaving = savingListId === listId;
     const placeCount = Math.max(0, Number(list?.PlaceCount) || 0);
     const colorClassName = getCollectionColorClassName(list?.ColorCode);
+    const isEditing = !isSaved && editingListId === listId;
+    const noteDraft = String(noteDrafts[listId] ?? "");
+
+    const handleRowClick = () => {
+      if (isSaved) {
+        onToggleList(list);
+        return;
+      }
+
+      setEditingListId((currentListId) =>
+        currentListId === listId ? null : listId
+      );
+    };
+
+    const handleNoteSubmit = (event) => {
+      event.preventDefault();
+      onToggleList(list, noteDraft);
+    };
+
+    const cancelNoteEditor = () => {
+      setEditingListId(null);
+      setNoteDrafts((currentDrafts) => {
+        const nextDrafts = { ...currentDrafts };
+        delete nextDrafts[listId];
+        return nextDrafts;
+      });
+    };
 
     return (
-      <button
-        className={`place-save-list-row ${colorClassName}${
-          isSaved ? " place-save-list-row-saved" : ""
+      <div
+        className={`place-save-list-item ${colorClassName}${
+          isEditing ? " place-save-list-item-editing" : ""
         }`}
-        type="button"
         key={listId}
-        disabled={Boolean(savingListId)}
-        aria-pressed={isSaved}
-        onClick={() => onToggleList(list)}
       >
-        <span className="place-save-list-icon" aria-hidden="true">
-          {isSaving ? <AppIcon name="circle-notch" className="place-save-list-spinner" /> : isSaved ? <AppIcon name="check" /> : <CollectionIcon value={list?.Icon} />}
-        </span>
+        <button
+          className={`place-save-list-row ${colorClassName}${
+            isSaved ? " place-save-list-row-saved" : ""
+          }`}
+          type="button"
+          disabled={Boolean(savingListId)}
+          aria-pressed={isSaved}
+          aria-expanded={isSaved ? undefined : isEditing}
+          onClick={handleRowClick}
+        >
+          <span className="place-save-list-icon" aria-hidden="true">
+            {isSaving ? <AppIcon name="circle-notch" className="place-save-list-spinner" /> : isSaved ? <AppIcon name="check" /> : <CollectionIcon value={list?.Icon} />}
+          </span>
 
-        <span className="place-save-list-copy">
-          <strong>{list?.Name || "İsimsiz liste"}</strong>
-          <small>{list?.Description || `${placeCount} mekan`}</small>
-        </span>
+          <span className="place-save-list-copy">
+            <strong>{list?.Name || "İsimsiz liste"}</strong>
+            <small>{list?.Description || `${placeCount} mekan`}</small>
+          </span>
 
-        <span className="place-save-list-status">
-          {isSaving
-            ? "İşleniyor..."
-            : isSaved
-              ? "Kaydedildi"
-              : "Kaydet"}
-        </span>
-      </button>
+          <span className="place-save-list-status">
+            {isSaving
+              ? "İşleniyor..."
+              : isSaved
+                ? "Kaydedildi"
+                : isEditing
+                  ? "Not ekle"
+                  : "Kaydet"}
+          </span>
+        </button>
+
+        {isEditing && (
+          <form className="place-save-note-editor" onSubmit={handleNoteSubmit}>
+            <label htmlFor={`place-save-note-${listId}`}>
+              <span>Listeye özel not</span>
+              <small>İsteğe bağlı</small>
+            </label>
+            <textarea
+              id={`place-save-note-${listId}`}
+              value={noteDraft}
+              maxLength={500}
+              rows={3}
+              disabled={Boolean(savingListId)}
+              placeholder="Örn. Akşam gün batımında gidelim."
+              onChange={(event) =>
+                setNoteDrafts((currentDrafts) => ({
+                  ...currentDrafts,
+                  [listId]: event.target.value,
+                }))
+              }
+            />
+            <div className="place-save-note-footer">
+              <small>{noteDraft.length} / 500</small>
+              <div className="place-save-note-actions">
+                <button
+                  className="place-save-note-cancel"
+                  type="button"
+                  disabled={Boolean(savingListId)}
+                  onClick={cancelNoteEditor}
+                >
+                  Vazgeç
+                </button>
+                <button
+                  className="place-save-note-submit"
+                  type="submit"
+                  disabled={Boolean(savingListId)}
+                >
+                  {isSaving ? "Kaydediliyor..." : "Listeye kaydet"}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
     );
   };
 

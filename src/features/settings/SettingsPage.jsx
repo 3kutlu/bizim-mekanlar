@@ -530,6 +530,24 @@ export default function SettingsPage({
         </section>
 
         <section className="settings-section">
+          <h2>Hakkında</h2>
+          <div className="settings-section-card">
+            <SettingsRow
+              icon="list-bullets"
+              title="Yasal ve Gizlilik"
+              description="Aydınlatma, gizlilik ve kullanım koşulları"
+              onClick={() => window.location.assign("/aydinlatma")}
+            />
+            <SettingsRow
+              icon="share-network"
+              title="İletişim"
+              description="Hata, öneri, içerik veya KVKK talebi"
+              onClick={() => window.location.assign("/iletisim")}
+            />
+          </div>
+        </section>
+
+        <section className="settings-section">
           <h2>Hesap işlemleri</h2>
           <div className="settings-section-card">
             <SettingsRow

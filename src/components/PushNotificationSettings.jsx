@@ -16,8 +16,9 @@ const PREFERENCE_OPTIONS = [
   },
   {
     key: "followedEnabled",
-    title: "Yeni takipçiler",
-    description: "Biri seni takip etmeye başladığında.",
+    title: "Takip hareketleri",
+    description:
+      "Biri seni takip etmeye başladığında veya takip isteğini kabul ettiğinde.",
   },
   {
     key: "followingNoteEnabled",

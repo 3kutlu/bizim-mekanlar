@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../supabase.js";
 import AppIcon from "../../components/AppIcon.jsx";
+import {
+  LEGAL_VERSION,
+  TERMS_ACCEPTED_EVENT,
+} from "../legal/LegalPages.jsx";
 import "../../css/auth.css";
 
 const usernamePattern = /^[a-z0-9._]{3,30}$/;
@@ -32,6 +36,20 @@ function normalizeEmail(value) {
 
 function normalizeUsername(value) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+function isUnder18(birthDate) {
+  const [year, month, day] = String(birthDate ?? "")
+    .split("-")
+    .map(Number);
+
+  if (!year || !month || !day) {
+    return false;
+  }
+
+  const today = new Date();
+  const eighteenthBirthday = new Date(year + 18, month - 1, day);
+  return eighteenthBirthday > today;
 }
 
 function createSignupDeviceToken() {
@@ -72,6 +90,7 @@ function getSignupValidation({
   birthDate,
   cityId,
   email,
+  termsAccepted,
 }) {
   if (!usernamePattern.test(normalizeUsername(username))) {
     return "Kullanıcı adı 3-30 karakter olmalı; harf, rakam, nokta ve alt çizgi kullanabilirsin.";
@@ -95,6 +114,10 @@ function getSignupValidation({
 
   if (!emailPattern.test(normalizeEmail(email))) {
     return "Geçerli bir e-posta adresi yazmalısın.";
+  }
+
+  if (!termsAccepted) {
+    return "Hesap oluşturmak için Kullanım Koşulları’nı kabul etmelisin.";
   }
 
   return "";
@@ -204,7 +227,8 @@ export default function AuthPage() {
   const [lastName, setLastName] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [cityId, setCityId] = useState("");
-  const [isPrivateAccount, setIsPrivateAccount] = useState(false);
+  const [isPrivateAccount, setIsPrivateAccount] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [cities, setCities] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
@@ -223,6 +247,7 @@ export default function AuthPage() {
   const signupDeviceTokenRef = useRef("");
   const today = new Date().toISOString().slice(0, 10);
   const isOtpStep = step === "otp";
+  const shouldShowUnder18Notice = isUnder18(birthDate);
   const shouldShowSupportLink = SUPPORT_MESSAGE_CODES.has(messageCode);
 
   const getSignupDeviceToken = () => {
@@ -347,6 +372,7 @@ export default function AuthPage() {
           birthDate,
           cityId,
           email,
+          termsAccepted,
         });
 
         if (validationMessage) {
@@ -446,6 +472,22 @@ export default function AuthPage() {
 
       if (error) {
         throw error;
+      }
+
+      if (mode === "signup") {
+        const { error: termsError } = await supabase.rpc("AcceptMyTerms", {
+          p_terms_version: LEGAL_VERSION,
+        });
+
+        if (termsError) {
+          console.error("Kullanım koşulları onayı kaydedilemedi:", termsError);
+        } else if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent(TERMS_ACCEPTED_EVENT, {
+              detail: { termsVersion: LEGAL_VERSION },
+            })
+          );
+        }
       }
 
       // App.jsx oturum değişimini dinliyor; başarılı setSession sonrası uygulama açılır.
@@ -744,6 +786,27 @@ export default function AuthPage() {
                       </label>
                     </div>
 
+                    {shouldShowUnder18Notice && (
+                      <aside className="auth-age-notice" role="note">
+                        <span aria-hidden="true">
+                          <AppIcon name="warning" />
+                        </span>
+                        <div>
+                          <strong>Henüz 18 yaşını doldurmadın.</strong>
+                          <p>
+                            Türkiye’de alkollü içkilerin 18 yaşını doldurmamış
+                            kişilere satılması veya sunulması yasaktır. Bizim
+                            Mekanlar alkol satmaz ve tüketimini teşvik etmez.
+                            Bar kategorisindeki mekânları görmeye ve işletmenin
+                            yemek, ortam, servis veya genel deneyimi hakkında
+                            not paylaşmaya devam edebilirsin. Yaş kontrolü ve
+                            satış/sunum kurallarına uyma sorumluluğu
+                            işletmelere aittir.
+                          </p>
+                        </div>
+                      </aside>
+                    )}
+
                     <label className="auth-checkbox">
                       <input
                         type="checkbox"
@@ -759,6 +822,40 @@ export default function AuthPage() {
                         <small>
                           Notların ve takip listelerin yalnızca kabul ettiğin
                           takipçilere görünür.
+                        </small>
+                      </span>
+                    </label>
+
+                    <label className="auth-checkbox auth-terms-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        required
+                        disabled={submitting}
+                        onChange={(event) => setTermsAccepted(event.target.checked)}
+                      />
+
+                      <span>
+                        <strong>
+                          <a
+                            href="/aydinlatma#kosullar"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Kullanım Koşulları’nı
+                          </a>{" "}
+                          okudum ve kabul ediyorum.
+                        </strong>
+                        <small>
+                          Kişisel verilerin nasıl kullanıldığını{" "}
+                          <a
+                            href="/aydinlatma#aydinlatma"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Aydınlatma Metni’nden
+                          </a>{" "}
+                          inceleyebilirsin.
                         </small>
                       </span>
                     </label>
@@ -877,6 +974,13 @@ export default function AuthPage() {
           </>
         )}
       </section>
+
+      <nav className="auth-legal-links" aria-label="Yasal bağlantılar">
+        <a href="/aydinlatma#aydinlatma">Aydınlatma</a>
+        <a href="/aydinlatma#gizlilik">Gizlilik</a>
+        <a href="/aydinlatma#kosullar">Kullanım Koşulları</a>
+        <a href="/iletisim">İletişim</a>
+      </nav>
     </main>
   );
 }

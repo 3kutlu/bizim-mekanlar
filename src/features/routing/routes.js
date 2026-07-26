@@ -11,6 +11,8 @@ export const ROUTE_PATHS = Object.freeze({
   PROFILE: "/profile",
   SEARCH: "/search",
   SETTINGS: "/settings",
+  LEGAL: "/aydinlatma",
+  CONTACT: "/iletisim",
 });
 
 function decodeSegment(segment) {
@@ -124,6 +126,17 @@ export function parseRoutePath(value) {
     return { kind: "settings", path: ROUTE_PATHS.SETTINGS };
   }
 
+  if (
+    segments.length === 1 &&
+    ["aydinlatma", "aydınlatma"].includes(segments[0])
+  ) {
+    return { kind: "legal", path: ROUTE_PATHS.LEGAL };
+  }
+
+  if (segments.length === 1 && segments[0] === "iletisim") {
+    return { kind: "contact", path: ROUTE_PATHS.CONTACT };
+  }
+
   if (segments[0] === "user" && segments.length === 2) {
     const username = normalizeUsername(segments[1]);
     return username
@@ -175,6 +188,7 @@ export function createNavigationSnapshot({
   activePage = "map",
   discoveryStack = [],
   mapTarget = null,
+  mapCollection = null,
   placeReviewFilter = null,
   path = ROUTE_PATHS.MAP,
 } = {}) {
@@ -186,6 +200,7 @@ export function createNavigationSnapshot({
     activePage: normalizedActivePage,
     discoveryStack: Array.isArray(discoveryStack) ? discoveryStack : [],
     mapTarget: mapTarget ?? null,
+    mapCollection: mapCollection ?? null,
     placeReviewFilter: placeReviewFilter ?? null,
     path: normalizeRoutePath(path),
   };

@@ -10,7 +10,7 @@ import { getNoteCreateErrorMessage, getPlaceSaveErrorMessage } from "../../utils
 import { supabase } from "../../supabase.js";
 import { createNotePhotoDrafts, getPhotoSelectionError, revokeNotePhotoDrafts, uploadMyNotePhotoDrafts } from "../../utils/notePhotos.js";
 import { ankaraCenter, cleanText, createPlaceNote, getLocalDateInputValue, getPartialPhotoUploadErrorMessage, getPlaceEligibility, getPlaceSavePayload, ensurePlaceForContentShare } from "./mapUtils.js";
-import { AddNoteModal, ExternalPlaceFocus, InitialLocationFocus, MapBottomControls, MapReference, PlaceSaveSheet, PlaceSearch, PoiPlaceClickHandler, SelectedPlaceCard, SelectedPlaceMarker, SocialVenueNotesLayer, UserLocationMarker } from "./MapWidgets.jsx";
+import { AddNoteModal, CollectionMapFilter, CollectionMapLayer, ExternalPlaceFocus, InitialLocationFocus, MapBottomControls, MapReference, PlaceSaveSheet, PlaceSearch, PoiPlaceClickHandler, SelectedPlaceCard, SelectedPlaceMarker, SocialVenueNotesLayer, UserLocationMarker } from "./MapWidgets.jsx";
 import { APIProvider, Map } from "@vis.gl/react-google-maps";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -24,6 +24,8 @@ export default function MapPage({
   onOpenPlaceDetail,
   onPlaceSaved,
   onSharePlace,
+  collectionFocus = null,
+  onClearCollectionFocus,
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
@@ -379,6 +381,45 @@ export default function MapPage({
     });
   }, [isSavingNote, resetNoteForm, resetPlaceSaveSheet, savingPlaceListId]);
 
+  const clearCollectionFocus = useCallback(() => {
+    if (isSavingNote || savingPlaceListId) {
+      return;
+    }
+
+    clearSelectedPlace();
+    onClearCollectionFocus?.();
+  }, [
+    clearSelectedPlace,
+    isSavingNote,
+    onClearCollectionFocus,
+    savingPlaceListId,
+  ]);
+
+  useEffect(() => {
+    if (!collectionFocus?.requestId) {
+      return;
+    }
+
+    selectedPlaceRequestRef.current += 1;
+    setIsNoteModalOpen(false);
+    resetNoteForm();
+    resetPlaceSaveSheet();
+    setPendingExternalPlaceAction(null);
+    setSelectedPlace(null);
+    setSelectedPlaceReviewSummary({
+      count: 0,
+      placeId: null,
+      isLoading: false,
+      averageRating: null,
+      ratingCount: 0,
+      isRatingLoading: false,
+    });
+  }, [
+    collectionFocus?.requestId,
+    resetNoteForm,
+    resetPlaceSaveSheet,
+  ]);
+
   const goToSelectedPlace = useCallback(() => {
     if (!mapRef.current || !selectedPlace?.location) {
       return;
@@ -474,8 +515,9 @@ export default function MapPage({
   ]);
 
   const togglePlaceInList = useCallback(
-    async (list) => {
+    async (list, listNote = "") => {
       const listId = Number(list?.UserPlaceListId);
+      const normalizedListNote = String(listNote ?? "").trim();
 
       if (
         !selectedPlace ||
@@ -483,6 +525,11 @@ export default function MapPage({
         !Number.isInteger(listId) ||
         listId <= 0
       ) {
+        return;
+      }
+
+      if (normalizedListNote.length > 500) {
+        setPlaceSaveError("Liste notu en fazla 500 karakter olabilir.");
         return;
       }
 
@@ -521,6 +568,34 @@ export default function MapPage({
         typeof result?.IsSaved === "boolean" ? result.IsSaved : shouldSave;
       const nextPlaceCount = Number(result?.PlaceCount);
       const returnedPlaceId = Number(result?.PlaceId);
+      const placeIdForListNote =
+        (Number.isInteger(returnedPlaceId) && returnedPlaceId > 0
+          ? returnedPlaceId
+          : Number(placePayload.p_place_id)) || null;
+      let listNoteSaveFailed = false;
+
+      if (saved && shouldSave && normalizedListNote) {
+        if (!Number.isInteger(placeIdForListNote) || placeIdForListNote <= 0) {
+          listNoteSaveFailed = true;
+        } else {
+          const { error: listNoteError } = await supabase.rpc(
+            "UpdateMyPlaceListItemNote",
+            {
+              p_user_place_list_id: listId,
+              p_place_id: placeIdForListNote,
+              p_note: normalizedListNote,
+            }
+          );
+
+          if (listNoteError) {
+            console.error(
+              "Mekan kaydedildi ancak koleksiyon notu kaydedilemedi:",
+              listNoteError
+            );
+            listNoteSaveFailed = true;
+          }
+        }
+      }
 
       if (Number.isInteger(returnedPlaceId) && returnedPlaceId > 0) {
         setSelectedPlace((currentPlace) =>
@@ -549,7 +624,13 @@ export default function MapPage({
       );
 
       setPlaceSaveNotice(
-        saved ? "Mekan listene kaydedildi." : "Mekan listeden kaldırıldı."
+        saved
+          ? listNoteSaveFailed
+            ? "Mekan kaydedildi ancak liste notu eklenemedi. Liste içinden tekrar deneyebilirsin."
+            : normalizedListNote
+              ? "Mekan notunla birlikte listene kaydedildi."
+              : "Mekan listene kaydedildi."
+          : "Mekan listeden kaldırıldı."
       );
       setSavingPlaceListId(null);
       setMapPlacesRefreshKey((currentKey) => currentKey + 1);
@@ -734,13 +815,25 @@ export default function MapPage({
             />
             <PoiPlaceClickHandler onPlaceSelected={handlePlaceSelected} />
             <PlaceSearch onPlaceSelected={handlePlaceSelected} />
-            <SocialVenueNotesLayer
-              isActive={isActive}
-              refreshKey={`${notesRefreshKey}:${mapPlacesRefreshKey}`}
-              onPlaceSelected={handlePlaceSelected}
-            />
+            {collectionFocus ? (
+              <CollectionMapLayer
+                collection={collectionFocus}
+                isActive={isActive}
+                onPlaceSelected={handlePlaceSelected}
+              />
+            ) : (
+              <SocialVenueNotesLayer
+                isActive={isActive}
+                refreshKey={`${notesRefreshKey}:${mapPlacesRefreshKey}`}
+                onPlaceSelected={handlePlaceSelected}
+              />
+            )}
             <UserLocationMarker userLocation={userLocation} />
             <SelectedPlaceMarker selectedPlace={selectedPlace} />
+            <CollectionMapFilter
+              collection={collectionFocus}
+              onClose={clearCollectionFocus}
+            />
             <MapBottomControls
               userLocation={userLocation}
               locationMessage={locationMessage}

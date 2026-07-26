@@ -35,6 +35,7 @@ function isNotificationTypeEnabled(
     case "FOLLOW_REQUEST":
       return preferences?.FollowRequestEnabled !== false;
     case "FOLLOWED":
+    case "FOLLOW_REQUEST_ACCEPTED":
       return preferences?.FollowedEnabled !== false;
     case "FOLLOWING_NOTE":
       return preferences?.FollowingNoteEnabled !== false;
@@ -165,6 +166,12 @@ function getNotificationCopy(
       return {
         title: `${actor} seni takip etmeye başladı.`,
         body: "Profili görmek için dokun.",
+        url: `/user/${encodeURIComponent(actor)}`,
+      };
+    case "FOLLOW_REQUEST_ACCEPTED":
+      return {
+        title: `${actor} takip isteğini kabul etti.`,
+        body: "Artık bu hesabın notlarını ve takip listelerini görebilirsin.",
         url: `/user/${encodeURIComponent(actor)}`,
       };
     case "FOLLOWING_NOTE":

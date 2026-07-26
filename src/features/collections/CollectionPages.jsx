@@ -59,6 +59,7 @@ export function PlaceListDetailPage({
   listIcon,
   listDescription = "",
   listCoverUrl = "",
+  listColorCode = "BURGUNDY",
   profileUsername,
   ownerUserId = null,
   isOwner = false,
@@ -67,6 +68,7 @@ export function PlaceListDetailPage({
   onBack,
   onOpenPlace,
   onListChanged,
+  onShowOnMap,
   onShare: _onShare,
 }) {
   const [items, setItems] = useState([]);
@@ -74,7 +76,7 @@ export function PlaceListDetailPage({
   const [errorMessage, setErrorMessage] = useState("");
   const [sortBy, setSortBy] = useState("saved");
   const [savedDateDirection, setSavedDateDirection] = useState("desc");
-  const [removalTarget, setRemovalTarget] = useState(null);
+  const [itemActionTarget, setItemActionTarget] = useState(null);
   const [collaborators, setCollaborators] = useState([]);
 
   const loadItems = useCallback(async () => {
@@ -105,9 +107,15 @@ export function PlaceListDetailPage({
       }
     }
 
-    const { data, error } = await supabase.rpc("GetUserPlaceListItemsV3", {
-      p_user_place_list_id: normalizedListId,
-    });
+    const [itemsResult, notesResult] = await Promise.all([
+      supabase.rpc("GetUserPlaceListItemsV3", {
+        p_user_place_list_id: normalizedListId,
+      }),
+      supabase.rpc("GetUserPlaceListItemNotes", {
+        p_user_place_list_id: normalizedListId,
+      }),
+    ]);
+    const { data, error } = itemsResult;
 
     if (error) {
       console.error("Liste mekanları alınamadı:", error);
@@ -116,7 +124,32 @@ export function PlaceListDetailPage({
         error.message || "Bu listenin mekanları şu an yüklenemedi."
       );
     } else {
-      setItems(data ?? []);
+      if (notesResult.error) {
+        console.warn("Koleksiyon notları alınamadı:", notesResult.error);
+      }
+
+      const notesByPlaceId = new Map(
+        (notesResult.data ?? []).map((note) => [
+          Number(note?.PlaceId),
+          note,
+        ])
+      );
+
+      setItems(
+        (data ?? []).map((item) => {
+          const note = notesByPlaceId.get(Number(item?.PlaceId));
+
+          return {
+            ...item,
+            ListNote: String(note?.ListNote ?? "").trim(),
+            CanEditListNote: Boolean(note?.CanEditListNote),
+            AddedByUserId:
+              Number(note?.AddedByUserId) ||
+              Number(item?.AddedByUserId) ||
+              null,
+          };
+        })
+      );
     }
 
     setIsLoading(false);
@@ -164,8 +197,8 @@ export function PlaceListDetailPage({
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        if (removalTarget) {
-          setRemovalTarget(null);
+        if (itemActionTarget) {
+          setItemActionTarget(null);
         } else {
           onBack();
         }
@@ -174,7 +207,7 @@ export function PlaceListDetailPage({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isActive, onBack, removalTarget]);
+  }, [isActive, itemActionTarget, onBack]);
 
   const sortedItems = useMemo(() => {
     const copy = [...items];
@@ -234,7 +267,28 @@ export function PlaceListDetailPage({
           return currentPlaceId !== normalizedPlaceId;
         })
       );
-      setRemovalTarget(null);
+      setItemActionTarget(null);
+      onListChanged?.();
+    },
+    [onListChanged]
+  );
+
+  const handleNoteSaved = useCallback(
+    ({ placeId, listNote }) => {
+      const normalizedPlaceId = Number(placeId);
+
+      setItems((currentItems) =>
+        currentItems.map((item) =>
+          Number(item?.PlaceId) === normalizedPlaceId
+            ? {
+                ...item,
+                ListNote: String(listNote ?? "").trim(),
+                CanEditListNote: true,
+              }
+            : item
+        )
+      );
+      setItemActionTarget(null);
       onListChanged?.();
     },
     [onListChanged]
@@ -289,6 +343,34 @@ export function PlaceListDetailPage({
 
         {!isLoading && !errorMessage && items.length > 0 && (
           <>
+            {onShowOnMap && (
+              <button
+                type="button"
+                className="place-list-map-button"
+                onClick={() =>
+                  onShowOnMap({
+                    listId: Number(userPlaceListId),
+                    listName: normalizedListName,
+                    listIcon,
+                    listColorCode,
+                    placeCount: items.length,
+                  })
+                }
+              >
+                <span className="place-list-map-button-icon" aria-hidden="true">
+                  <AppIcon name="map-trifold" />
+                </span>
+                <span className="place-list-map-button-copy">
+                  <strong>Haritada göster</strong>
+                  <small>{items.length} mekanı birlikte görüntüle</small>
+                </span>
+                <AppIcon
+                  name="caret-right-fill"
+                  className="place-list-map-button-arrow"
+                />
+              </button>
+            )}
+
             <div
               className="place-list-sort"
               role="group"
@@ -349,6 +431,9 @@ export function PlaceListDetailPage({
                 const savedDate = item?.SavedDate ?? item?.CreatedDate;
                 const averageRating = Number(item?.AverageRating);
                 const hasRating = Number.isFinite(averageRating) && averageRating > 0;
+                const listNote = String(item?.ListNote ?? "").trim();
+                const canOpenItemActions =
+                  Boolean(item?.CanEditListNote) || canManageItems;
 
                 return (
                   <article
@@ -377,6 +462,12 @@ export function PlaceListDetailPage({
                         <span>
                           {item?.FormattedAddress || "Adres bilgisi yok"}
                         </span>
+                        {listNote && (
+                          <span className="place-list-item-note">
+                            <AppIcon name="pencil-simple-line" />
+                            {listNote}
+                          </span>
+                        )}
                         <small className="place-list-item-meta">
                           {savedDate && `Kaydedildi ${formatRelativeNoteTime(savedDate)}`}
                           {hasRating && (
@@ -390,11 +481,11 @@ export function PlaceListDetailPage({
                       <span className="place-list-item-arrow" aria-hidden="true"><AppIcon name="caret-right-fill" /></span>
                     </button>
 
-                    {canManageItems && (
+                    {canOpenItemActions && (
                       <button
                         className="place-list-item-more-button"
                         type="button"
-                        onClick={() => setRemovalTarget(item)}
+                        onClick={() => setItemActionTarget(item)}
                         aria-label={`${item?.Name || "Mekan"} için koleksiyon seçenekleri`}
                         title="Koleksiyon seçenekleri"
                       >
@@ -409,14 +500,17 @@ export function PlaceListDetailPage({
         )}
       </div>
 
-      {canManageItems && removalTarget &&
+      {itemActionTarget &&
         createPortal(
           <PlaceListItemRemoveModal
-            item={removalTarget}
+            item={itemActionTarget}
             listId={userPlaceListId}
             listName={normalizedListName}
-            onClose={() => setRemovalTarget(null)}
+            onClose={() => setItemActionTarget(null)}
             isOwner={isOwner}
+            canManageItems={canManageItems}
+            canEditNote={Boolean(itemActionTarget?.CanEditListNote) || isOwner}
+            onNoteSaved={handleNoteSaved}
             onRemoved={handleRemoved}
           />,
           document.body
@@ -430,11 +524,18 @@ export function PlaceListItemRemoveModal({
   listId,
   listName,
   isOwner = false,
+  canManageItems = false,
+  canEditNote = false,
   onClose,
+  onNoteSaved,
   onRemoved,
 }) {
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [listNote, setListNote] = useState(
+    String(item?.ListNote ?? "").trim()
+  );
   const dialogRef = useRef(null);
   const placeId = Number(item?.PlaceId);
   const placeName = String(item?.Name ?? "Mekan").trim() || "Mekan";
@@ -446,7 +547,7 @@ export function PlaceListItemRemoveModal({
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape" && !isRemoving) {
+      if (event.key === "Escape" && !isRemoving && !isSavingNote) {
         onClose();
       }
     };
@@ -457,7 +558,38 @@ export function PlaceListItemRemoveModal({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isRemoving, onClose]);
+  }, [isRemoving, isSavingNote, onClose]);
+
+  const saveListNote = async () => {
+    if (!canEditNote || isSavingNote || isRemoving) {
+      return;
+    }
+
+    setIsSavingNote(true);
+    setErrorMessage("");
+
+    const normalizedNote = String(listNote ?? "").trim();
+    const { data, error } = await supabase.rpc("UpdateMyPlaceListItemNote", {
+      p_user_place_list_id: Number(listId),
+      p_place_id: placeId,
+      p_note: normalizedNote || null,
+    });
+
+    if (error) {
+      console.error("Koleksiyon notu kaydedilemedi:", error);
+      setErrorMessage(
+        error.message || "Koleksiyon notu kaydedilemedi. Tekrar dene."
+      );
+      setIsSavingNote(false);
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    onNoteSaved?.({
+      placeId,
+      listNote: String(result?.ListNote ?? normalizedNote).trim(),
+    });
+  };
 
   const removePlace = async (removeFromAll) => {
     if (!Number.isInteger(placeId) || placeId <= 0 || isRemoving) {
@@ -486,7 +618,7 @@ export function PlaceListItemRemoveModal({
   };
 
   const handleBackdropMouseDown = (event) => {
-    if (!isRemoving && event.target === event.currentTarget) {
+    if (!isRemoving && !isSavingNote && event.target === event.currentTarget) {
       onClose();
     }
   };
@@ -505,11 +637,29 @@ export function PlaceListItemRemoveModal({
         aria-labelledby="place-list-remove-title"
         tabIndex={-1}
       >
-        <p className="eyebrow">KOLEKSİYON</p>
+        <p className="eyebrow">KOLEKSİYON İŞLEMLERİ</p>
         <h2 id="place-list-remove-title">{placeName}</h2>
         <p>
           Bu mekan <strong>{listName}</strong> listesinde kayıtlı.
         </p>
+
+        {canEditNote && (
+          <label className="place-list-note-editor">
+            <span>Listeye özel not</span>
+            <textarea
+              value={listNote}
+              maxLength={500}
+              rows={4}
+              disabled={isRemoving || isSavingNote}
+              onChange={(event) => {
+                setListNote(event.target.value);
+                setErrorMessage("");
+              }}
+              placeholder="Örn. Gün batımında gidelim, Ferhat önerdi..."
+            />
+            <small>{listNote.length} / 500</small>
+          </label>
+        )}
 
         {errorMessage && (
           <p className="place-list-remove-error" role="alert">
@@ -521,26 +671,43 @@ export function PlaceListItemRemoveModal({
           <button
             className="place-list-remove-cancel"
             type="button"
-            disabled={isRemoving}
+            disabled={isRemoving || isSavingNote}
             onClick={onClose}
           >
             Vazgeç
           </button>
-          <button
-            className="place-list-remove-current"
-            type="button"
-            disabled={isRemoving}
-            onClick={() => removePlace(false)}
-          >
-            {isRemoving ? "Kaldırılıyor..." : "Bu listeden kaldır"}
-          </button>
+          {canEditNote && (
+            <button
+              className="place-list-note-save"
+              type="button"
+              disabled={isRemoving || isSavingNote}
+              onClick={() => void saveListNote()}
+            >
+              {isSavingNote
+                ? "Kaydediliyor..."
+                : listNote.trim()
+                  ? "Notu kaydet"
+                  : "Notu temizle"}
+            </button>
+          )}
         </div>
 
-        {isOwner && (
+        {canManageItems && (
+        <button
+          className="place-list-remove-current"
+          type="button"
+          disabled={isRemoving || isSavingNote}
+          onClick={() => removePlace(false)}
+        >
+          {isRemoving ? "Kaldırılıyor..." : "Bu listeden kaldır"}
+        </button>
+        )}
+
+        {isOwner && canManageItems && (
         <button
           className="place-list-remove-all"
           type="button"
-          disabled={isRemoving}
+          disabled={isRemoving || isSavingNote}
           onClick={() => removePlace(true)}
         >
           Tüm listelerden çıkar

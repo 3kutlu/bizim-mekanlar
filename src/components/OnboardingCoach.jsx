@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppIcon from "./AppIcon.jsx";
 
-const ONBOARDING_VERSION = 1;
+const ONBOARDING_VERSION = 2;
+const PREVIOUS_ONBOARDING_VERSION = 1;
 const STORAGE_KEY_PREFIX = "bizim-mekanlar:onboarding";
 const PILL_EDGE_PADDING = 12;
 const PILL_DRAG_THRESHOLD = 6;
 
-function getStorageKey(userId) {
-  return `${STORAGE_KEY_PREFIX}:v${ONBOARDING_VERSION}:${Number(userId) || "anonymous"}`;
+function getStorageKey(userId, version = ONBOARDING_VERSION) {
+  return `${STORAGE_KEY_PREFIX}:v${version}:${Number(userId) || "anonymous"}`;
 }
 
 function createDefaultState() {
@@ -36,6 +37,26 @@ function readState(userId) {
   try {
     const rawValue = window.localStorage.getItem(getStorageKey(userId));
     const parsedValue = rawValue ? JSON.parse(rawValue) : null;
+
+    if (!parsedValue) {
+      const previousRawValue = window.localStorage.getItem(
+        getStorageKey(userId, PREVIOUS_ONBOARDING_VERSION)
+      );
+      const previousState = previousRawValue
+        ? JSON.parse(previousRawValue)
+        : null;
+
+      if (previousState) {
+        return {
+          ...createDefaultState(),
+          completed: {
+            ...(previousState.completed || {}),
+          },
+          activeStepId: "collection-note",
+          pillPosition: normalizePillPosition(previousState.pillPosition),
+        };
+      }
+    }
 
     return {
       ...createDefaultState(),
@@ -218,6 +239,28 @@ export default function OnboardingCoach({
         autoComplete: false,
         actionLabel: "Mekan ara",
         action: () => onNavigate?.("map"),
+      },
+      {
+        id: "collection-note",
+        icon: "list-plus",
+        title: "Listene özel not bırak",
+        description:
+          "Mekanı koleksiyona kaydederken o listeye özel kısa bir not ekle. İstersen koleksiyon detayında daha sonra düzenleyebilirsin.",
+        complete: Boolean(state.completed?.["collection-note"]),
+        autoComplete: false,
+        actionLabel: "Listelerime git",
+        action: () => onNavigate?.("profile"),
+      },
+      {
+        id: "collection-map",
+        icon: "map-trifold",
+        title: "Koleksiyonunu haritada gör",
+        description:
+          "Koleksiyonundaki bütün mekanları tek dokunuşla haritada göster; renkli markerlardan mekan kartlarını aç.",
+        complete: Boolean(state.completed?.["collection-map"]),
+        autoComplete: false,
+        actionLabel: "Listelerime git",
+        action: () => onNavigate?.("profile"),
       },
       {
         id: "feed",

@@ -9,10 +9,26 @@ import {
 import "../css/content-sharing.css";
 
 const SHARE_TYPE_COPY = Object.freeze({
-  PLACE: { icon: "storefront-fill", label: "Mekan" },
-  NOTE: { icon: "star-fill", label: "Not" },
-  COLLECTION: { icon: "bookmarks-fill", label: "Koleksiyon" },
-  PROFILE: { icon: "user-fill", label: "Profil" },
+  PLACE: {
+    icon: "storefront-fill",
+    label: "Mekan",
+    messagePlaceholder: "Buraya birlikte gidelim mi?",
+  },
+  NOTE: {
+    icon: "star-fill",
+    label: "Not",
+    messagePlaceholder: "Bu not hakkında ne düşünüyorsun?",
+  },
+  COLLECTION: {
+    icon: "bookmarks-fill",
+    label: "Koleksiyon",
+    messagePlaceholder: "Bu koleksiyona birlikte mekan ekleyelim mi?",
+  },
+  PROFILE: {
+    icon: "user-fill",
+    label: "Profil",
+    messagePlaceholder: "Bu profile bir göz atsana.",
+  },
 });
 
 function getFullName(user) {
@@ -265,7 +281,7 @@ export default function ContentShareModal({
       }
     }
 
-    const { error } = await supabase.rpc("SendContentShare", {
+    const { data: contentShareId, error } = await supabase.rpc("SendContentShare", {
       p_recipient_user_id: recipientUserId,
       p_share_type_code: shareToSend.typeCode,
       p_place_id: shareToSend.placeId ?? null,
@@ -282,6 +298,26 @@ export default function ContentShareModal({
       );
       setSendingUserId(null);
       return;
+    }
+
+    const normalizedContentShareId = Number(contentShareId);
+
+    if (
+      Number.isInteger(normalizedContentShareId) &&
+      normalizedContentShareId > 0
+    ) {
+      const { error: pushError } = await supabase.functions.invoke(
+        "send-content-share-push",
+        {
+          body: { contentShareId: normalizedContentShareId },
+        }
+      );
+
+      if (pushError) {
+        // The in-app share is already saved. Push failure must not make the
+        // sender retry and create a duplicate share.
+        console.warn("Paylaşım Web Push bildirimi gönderilemedi:", pushError);
+      }
     }
 
     setSentUserIds((current) => {
@@ -404,7 +440,7 @@ export default function ContentShareModal({
                 onChange={(event) => setMessage(event.target.value)}
                 maxLength={100}
                 rows={2}
-                placeholder="Buraya birlikte gidelim mi?"
+                placeholder={shareTypeCopy.messagePlaceholder}
                 disabled={Boolean(sendingUserId)}
               />
               <small>{message.length}/100</small>

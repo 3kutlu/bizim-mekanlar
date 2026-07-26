@@ -1,14 +1,4 @@
 {
-  "rewrites": [
-    { "source": "/user/:path*", "destination": "/index.html" },
-    { "source": "/place/:path*", "destination": "/index.html" },
-    { "source": "/note/:path*", "destination": "/index.html" },
-    { "source": "/collection/:path*", "destination": "/index.html" },
-    { "source": "/feed", "destination": "/index.html" },
-    { "source": "/profile", "destination": "/index.html" },
-    { "source": "/search", "destination": "/index.html" },
-    { "source": "/settings", "destination": "/index.html" }
-  ],
   "redirects": [
     {
       "source": "/(.*)",
@@ -21,5 +11,18 @@
       "destination": "https://bizimmekanlar.com/$1",
       "permanent": true
     }
+  ],
+  "rewrites": [
+    { "source": "/user/:path*", "destination": "/index.html" },
+    { "source": "/place/:path*", "destination": "/index.html" },
+    { "source": "/note/:path*", "destination": "/index.html" },
+    { "source": "/collection/:path*", "destination": "/index.html" },
+    { "source": "/feed", "destination": "/index.html" },
+    { "source": "/profile", "destination": "/index.html" },
+    { "source": "/search", "destination": "/index.html" },
+    { "source": "/settings", "destination": "/index.html" },
+    { "source": "/aydinlatma", "destination": "/index.html" },
+    { "source": "/aydınlatma", "destination": "/index.html" },
+    { "source": "/iletisim", "destination": "/index.html" }
   ]
 }
