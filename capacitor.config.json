@@ -1,5 +1,9 @@
 {
   "appId": "com.bizimmekanlar.app",
   "appName": "Bizim Mekanlar",
-  "webDir": "dist"
+  "webDir": "build",
+  "server": {
+    "url": "https://bizimmekanlar.com",
+    "cleartext": true
+  }
 }
