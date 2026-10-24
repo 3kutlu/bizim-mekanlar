@@ -14,10 +14,10 @@ jobs:
       - name: Repo Kodlarini Cek
         uses: actions/checkout@v4
 
-      - name: Node.js 20 Kur
+      - name: Node.js 22 Kur
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Java JDK 21 Kur (Capacitor Android Derlemesi Icin)
