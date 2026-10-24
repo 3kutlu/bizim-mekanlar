@@ -3,7 +3,7 @@ name: Android APK ve iOS Build
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # GitHub Actions sekmesinden tek tikla manuel baslatmak icin
+  workflow_dispatch:
 
 jobs:
   build-android:
@@ -20,18 +20,49 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Java JDK 21 Kur (Capacitor Android Derlemesi Icin)
+      - name: Java JDK 21 Kur
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Bagimliliklari Kur ve Web Build Al
+      - name: Bagimliliklari Kur ve Otomatik Ayarla
         run: |
           npm install
+          npm install @capacitor/core @capacitor/android
+          npm install -D @capacitor/cli
           npm run build
-          rm -rf android
+          
+          # Build klasoru 'dist' mi yoksa 'build' mi otomatik tespit et
+          if [ -d "dist" ]; then
+            WEB_DIR="dist"
+          elif [ -d "build" ]; then
+            WEB_DIR="build"
+          else
+            mkdir -p www && echo "<html><body>Yukleniyor...</body></html>" > www/index.html
+            WEB_DIR="www"
+          fi
+          
+          # Eski bozuk config ve android klasorlerini tamamen temizle
+          rm -rf android capacitor.config.ts capacitor.config.js capacitor.config.json
+          
+          # Siyah ekrani ve klasor hatasini cozen temiz config olustur
+          cat <<EOF > capacitor.config.json
+          {
+            "appId": "com.bizimmekanlar.app",
+            "appName": "Bizim Mekanlar",
+            "webDir": "$WEB_DIR",
+            "server": {
+              "url": "https://bizimmekanlar.com",
+              "cleartext": true
+            }
+          }
+          EOF
+          
+          # Android projesini sifirdan temiz kur ve esitle
           npx cap add android
+          mkdir -p android/app/src/main/assets/public
+          echo "[]" > android/app/src/main/assets/capacitor.plugins.json
           npx cap sync android
 
       - name: Gradle ile APK Derle
