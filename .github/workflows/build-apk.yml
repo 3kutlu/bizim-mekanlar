@@ -30,6 +30,8 @@ jobs:
         run: |
           npm install
           npm run build
+          rm -rf android
+          npx cap add android
           npx cap sync android
 
       - name: Gradle ile APK Derle
