@@ -1,0 +1,46 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.vercel/
+.env
+.env.local
+.env.*.local
+!.env.example
+supabase/.temp/
+.vercel
+.env*
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Local deployment and CLI metadata
+.vercel/
+supabase/.temp/
+
+# Internal documentation is hidden, architecture diagram remains public
+docs/*
+!docs/bizim_mekanlar_platform_mimarisi.png*.txt
+*.md
+!/README.md
+
+# One-time operational scripts
+/scripts/backfill-venue-primary-types.mjs
+/scripts/generate-vapid-keys.mjs
+
+# Generated and temporary files
+*.zip
+*.log
+*.bak
+*.backup
+project-files.txt
+
+# Generated remote database schema snapshot (not a migration)
+supabase-public-schema.sql

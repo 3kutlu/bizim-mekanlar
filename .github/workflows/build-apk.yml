@@ -1,0 +1,45 @@
+name: Android APK ve iOS Build
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # GitHub Actions sekmesinden tek tikla manuel baslatmak icin
+
+jobs:
+  build-android:
+    name: Android APK Uret
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo Kodlarini Cek
+        uses: actions/checkout@v4
+
+      - name: Node.js 20 Kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Java JDK 21 Kur (Capacitor Android Derlemesi Icin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Bagimliliklari Kur ve Web Build Al
+        run: |
+          npm install
+          npm run build
+          npx cap sync android
+
+      - name: Gradle ile APK Derle
+        working-directory: ./android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: APK Dosyasini Indirilebilir Yap
+        uses: actions/upload-artifact@v4
+        with:
+          name: BizimMekanlar-Android-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk

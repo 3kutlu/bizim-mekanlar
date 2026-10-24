@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bizim Mekanlar</string>
+    <string name="title_activity_main">Bizim Mekanlar</string>
+    <string name="package_name">com.bizimmekanlar.app</string>
+    <string name="custom_url_scheme">com.bizimmekanlar.app</string>
+</resources>
